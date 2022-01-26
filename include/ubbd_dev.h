@@ -102,7 +102,7 @@ device_comp_head(struct ubbd_device *dev)
 {
 	struct ubbd_sb *sb = dev->map;
 
-	ubbd_err("comp: head: %u\n", sb->compr_head);
+	ubbd_dbg("comp: head: %u\n", sb->compr_head);
 
 	return (struct ubbd_ce *) ((char *) sb + sb->compr_off + sb->compr_head);
 }
@@ -112,13 +112,13 @@ struct ubbd_ce *get_available_ce(struct ubbd_device *dev);
 #define UBBD_UPDATE_DEV_TAIL(dev, sb, se) \
 do { \
         sb->cmd_tail = (sb->cmd_tail + ubbd_se_hdr_get_len(se->header.len_op)) % sb->cmdr_size; \
-	ubbd_err("cmd_tail: %u, cmd_head: %u\n", sb->cmd_tail, sb->cmd_head); \
+	ubbd_dbg("cmd_tail: %u, cmd_head: %u\n", sb->cmd_tail, sb->cmd_head); \
 } while (0)
 
 #define UBBD_UPDATE_DEV_COMP_HEAD(dev, sb, ce) \
 do { \
         sb->compr_head = (sb->compr_head + sizeof(struct ubbd_ce)) % sb->compr_size; \
-	ubbd_err("compr_head: %u, compr_tail: %u\n", sb->compr_head, sb->compr_tail); \
+	ubbd_dbg("compr_head: %u, compr_tail: %u\n", sb->compr_head, sb->compr_tail); \
 } while (0)
 
 #define UBBD_UPDATE_CMD_TO_HANDLE(dev, sb, ce) \

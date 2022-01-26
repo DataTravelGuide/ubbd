@@ -10,7 +10,7 @@ struct ubbd_dev_info *ubbd_uio_get_dev_info(void *map)
 {
 	struct ubbd_sb *sb = map;
 
-	ubbd_err("info_off: %u\n", sb->info_off);
+	ubbd_dbg("info_off: %u\n", sb->info_off);
 
 	return (struct ubbd_dev_info *)((char *)map + sb->info_off);
 }
@@ -48,7 +48,7 @@ int device_open_shm(struct ubbd_device *ubbd_dev)
 		ubbd_err("could not open %s\n", mmap_name);
 		goto err_mmap_name;
 	}
-	ubbd_err("fd: %d", ubbd_dev->fd);
+	ubbd_info("fd: %d\n", ubbd_dev->fd);
 
 	/* bring the map into memory */
 	ubbd_dev->map = mmap(NULL, ubbd_dev->uio_map_size, PROT_READ|PROT_WRITE, MAP_SHARED, ubbd_dev->fd, 0);
@@ -57,7 +57,7 @@ int device_open_shm(struct ubbd_device *ubbd_dev)
 		goto err_fd_close;
 	}
 
-	ubbd_err("version: %d\n", ubbd_dev->map->version);
+	ubbd_info("version: %d\n", ubbd_dev->map->version);
 
 	return true;
 
@@ -77,7 +77,6 @@ void ubbdlib_processing_start(struct ubbd_device *dev)
 
 	/* Clear the event on the fd */
 	do {
-		ubbd_err("fd: %d\n", dev->fd);
 		r = read(dev->fd, &buf, 4);
 	} while (r == -1 && errno == EINTR);
 	if (r == -1 && errno != EAGAIN) {
@@ -108,7 +107,7 @@ struct ubbd_se *device_cmd_head(struct ubbd_device *dev)
 {
         struct ubbd_sb *sb = dev->map;
 
-	ubbd_err("cmd: head: %u tail: %u\n", sb->cmd_head, sb->cmd_tail);
+	ubbd_dbg("cmd: head: %u tail: %u\n", sb->cmd_head, sb->cmd_tail);
 
         return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_head);
 }
@@ -117,7 +116,7 @@ struct ubbd_se *device_cmd_tail(struct ubbd_device *dev)
 {
 	struct ubbd_sb *sb = dev->map;
 
-	ubbd_err("cmd: tail: %u\n", sb->cmd_tail);
+	ubbd_dbg("cmd: tail: %u\n", sb->cmd_tail);
 
 	return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_tail);
 }
@@ -126,7 +125,7 @@ struct ubbd_se *device_cmd_to_handle(struct ubbd_device *dev)
 {
 	struct ubbd_sb *sb = dev->map;
 
-	ubbd_err("cmd: handled: %u\n", dev->se_to_handle);
+	ubbd_dbg("cmd: handled: %u\n", dev->se_to_handle);
 
 	return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + dev->se_to_handle);
 }

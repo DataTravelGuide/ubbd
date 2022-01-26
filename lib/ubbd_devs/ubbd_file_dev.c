@@ -26,13 +26,13 @@ static int file_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 
 	iov = malloc(sizeof(struct iovec) * se->iov_cnt);
 	for (i = 0; i < se->iov_cnt; i++) {
-		ubbd_err("iov_base: %lu", (size_t)se->iov[i].iov_base);
+		ubbd_dbg("iov_base: %lu", (size_t)se->iov[i].iov_base);
 		iov[i].iov_base = (void*)ubbd_dev->map + (size_t)se->iov[i].iov_base;
 		iov[i].iov_len = se->iov[i].iov_len;
 	}
 
 	ret = pwritev(file_dev->fd, iov, se->iov_cnt, se->offset);
-	ubbd_err("result of pwritev: %lu\n", ret);
+	ubbd_dbg("result of pwritev: %lu\n", ret);
 
 	pthread_mutex_lock(&ubbd_dev->lock);
 	ce = get_available_ce(ubbd_dev);
@@ -40,8 +40,8 @@ static int file_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	ce->flags = 0;
 
 	ce->result = (ret == se->len? 0 : ret);
-	ubbd_err("finish se id: %p\n", se);
-	ubbd_err("append ce: %llu\n", ce->priv_data);
+	ubbd_dbg("finish se id: %p\n", se);
+	ubbd_dbg("append ce: %llu\n", ce->priv_data);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
 	pthread_mutex_unlock(&ubbd_dev->lock);
 	ubbdlib_processing_complete(ubbd_dev);
@@ -60,13 +60,13 @@ static int file_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 
 	iov = malloc(sizeof(struct iovec) * se->iov_cnt);
 	for (i = 0; i < se->iov_cnt; i++) {
-		ubbd_err("iov_base: %lu", (size_t)se->iov[i].iov_base);
+		ubbd_dbg("iov_base: %lu", (size_t)se->iov[i].iov_base);
 		iov[i].iov_base = (void*)ubbd_dev->map + (size_t)se->iov[i].iov_base;
 		iov[i].iov_len = se->iov[i].iov_len;
 	}
 
 	ret = preadv(file_dev->fd, iov, se->iov_cnt, se->offset);
-	ubbd_err("result of preadv: %lu\n", ret);
+	ubbd_dbg("result of preadv: %lu\n", ret);
 	
 	pthread_mutex_lock(&ubbd_dev->lock);
 	ce = get_available_ce(ubbd_dev);
@@ -74,8 +74,8 @@ static int file_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	ce->flags = 0;
 
 	ce->result = (ret == se->len? 0 : ret);
-	ubbd_err("finish se id: %p\n", se);
-	ubbd_err("append ce: %llu\n", ce->priv_data);
+	ubbd_dbg("finish se id: %p\n", se);
+	ubbd_dbg("append ce: %llu\n", ce->priv_data);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
 	pthread_mutex_unlock(&ubbd_dev->lock);
 	ubbdlib_processing_complete(ubbd_dev);
@@ -104,8 +104,8 @@ static int file_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	ce->flags = 0;
 
 	ce->result = ret;
-	ubbd_err("finish se id: %p\n", se);
-	ubbd_err("append ce: %llu\n", ce->priv_data);
+	ubbd_dbg("finish se id: %p\n", se);
+	ubbd_dbg("append ce: %llu\n", ce->priv_data);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
 	pthread_mutex_unlock(&ubbd_dev->lock);
 	ubbdlib_processing_complete(ubbd_dev);

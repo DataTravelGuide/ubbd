@@ -42,7 +42,7 @@ struct ubbd_ce *get_available_ce(struct ubbd_device *ubbd_dev)
 
 	while (!compr_space_enough(ubbd_dev, sizeof(struct ubbd_ce))) {
 		pthread_mutex_unlock(&ubbd_dev->lock);
-		printf(" compr not enough head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
+		ubbd_err(" compr not enough head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
 		ubbdlib_processing_complete(ubbd_dev);
                 usleep(50000);
 		pthread_mutex_lock(&ubbd_dev->lock);
@@ -55,12 +55,12 @@ static void wait_for_compr_empty(struct ubbd_device *ubbd_dev)
 {
 	struct ubbd_sb *sb = ubbd_dev->map;
  
-         printf("waiting for ring to clear\n");
+         ubbd_info("waiting for ring to clear\n");
          while (sb->compr_head != sb->compr_tail) {
-		 printf("head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
+		 ubbd_info("head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
                  usleep(50000);
 	 }
-         printf("ring clear\n");
+         ubbd_info("ring clear\n");
 }
 
 static void handle_cmd(struct ubbd_device *dev, struct ubbd_se *se);
@@ -77,7 +77,7 @@ void *cmd_process(void *arg)
 	wait_for_compr_empty(ubbd_dev);
 
 	ubbd_dev->se_to_handle = sb->cmd_tail;
-	printf("cmd_tail: %u, cmd_head: %u\n", sb->cmd_tail, sb->cmd_head);
+	ubbd_dbg("cmd_tail: %u, cmd_head: %u\n", sb->cmd_tail, sb->cmd_head);
 
 	while (1) {
 		while (1) {
@@ -86,11 +86,11 @@ void *cmd_process(void *arg)
 			se = device_cmd_to_handle(ubbd_dev);
 			if (se == device_cmd_head(ubbd_dev))
 				break;
-			ubbd_err("len_op: %x\n", se->header.len_op);
-			ubbd_err("op: %d, length: %u se id: %llu\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op), se->priv_data);
+			ubbd_dbg("len_op: %x\n", se->header.len_op);
+			ubbd_dbg("op: %d, length: %u se id: %llu\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op), se->priv_data);
 			handle_cmd(ubbd_dev, se);
 			UBBD_UPDATE_CMD_TO_HANDLE(ubbd_dev, sb, se);
-			ubbd_err("finish handle_cmd\n");
+			ubbd_dbg("finish handle_cmd\n");
 		}
 
 poll:
@@ -113,7 +113,7 @@ poll:
 			break;
 		}
 
-		ubbd_err("poll cmd: %d\n", ret);
+		ubbd_dbg("poll cmd: %d\n", ret);
 		if (!pollfds[0].revents) {
 			goto poll;
 		}
@@ -135,27 +135,28 @@ static void handle_cmd(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	struct ubbd_se_hdr *header = &se->header;
 	int ret;
 
-	ubbd_err("handle_cmd: se: %p\n", se);
+	ubbd_dbg("handle_cmd: se: %p\n", se);
 	if (se->header.flags) {
-		ubbd_err("flags is done\n");
+		ubbd_dbg("flags is done\n");
 		return;
 	}
 
 	switch (ubbd_se_hdr_get_op(header->len_op)) {
 	case UBBD_OP_PAD:
-		ubbd_err("set pad op to done\n");
+		ubbd_dbg("set pad op to done\n");
 		ret = 0;
 		ubbdlib_processing_complete(ubbd_dev);
 		break;
 	case UBBD_OP_WRITE:
+		ubbd_dbg("UBBD_OP_WRITE\n");
 		ret = ubbd_dev->dev_ops->writev(ubbd_dev, se);
 		break;
 	case UBBD_OP_READ:
-		ubbd_err("UBBD_OP_READ\n");
+		ubbd_dbg("UBBD_OP_READ\n");
 		ret = ubbd_dev->dev_ops->readv(ubbd_dev, se);
 		break;
 	case UBBD_OP_FLUSH:
-		ubbd_err("UBBD_OP_FLUSH\n");
+		ubbd_dbg("UBBD_OP_FLUSH\n");
 		ret = ubbd_dev->dev_ops->flush(ubbd_dev, se);
 		break;
 	default:
@@ -263,7 +264,7 @@ int ubbd_dev_open(struct ubbd_device *ubbd_dev)
 	if (ret)
 		goto out;
 
-	ubbd_err("add ubbd_dev: %p dev_id: %dinto list\n", ubbd_dev, ubbd_dev->dev_id);
+	ubbd_dbg("add ubbd_dev: %p dev_id: %dinto list\n", ubbd_dev, ubbd_dev->dev_id);
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
 
 out:
@@ -310,7 +311,6 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status)
 		ret = fd;
 		goto err_mmap_name;
 	}
-	ubbd_err("fd: %d", fd);
 
 	/* bring the map into memory */
 	map = mmap(NULL, dev_status->uio_map_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
@@ -345,7 +345,7 @@ err_fail:
 
 static int cleanup_dev(struct ubbd_nl_dev_status *dev_status)
 {
-	ubbd_err("cleanup dev\n");
+	ubbd_info("cleanup dev\n");
 	return 0;
 }
 
@@ -358,7 +358,7 @@ int ubd_dev_reopen_devs(void)
 	ret = ubbd_nl_dev_list(&tmp_list);
 	list_for_each_entry_safe(tmp_status, next_status, &tmp_list, node) {
 		list_del(&tmp_status->node);
-		ubbd_err("tmp_status: dev_id: %d, uio_id: %d, status: %d\n", tmp_status->dev_id, tmp_status->uio_id, tmp_status->status);
+		ubbd_dbg("tmp_status: dev_id: %d, uio_id: %d, status: %d\n", tmp_status->dev_id, tmp_status->uio_id, tmp_status->status);
 		//if (tmp_status->status == UBBD_DEV_STATUS_RUNNING)
 		if (1)
 			reopen_dev(tmp_status);

@@ -151,33 +151,28 @@ static void *mgmt_thread_fn(void* args)
 			ubbd_err("ppoll() returned %d, exiting\n", ret);
 			exit(EXIT_FAILURE);
 		}
-		//ubbd_err("mgmt poll cmd: %d\n", ret);
 		if (pollfds[0].revents) {
 			int read_fd = accept(fd, NULL, NULL);
 			struct ubbd_mgmt_request *mgmt_req = malloc(sizeof(struct ubbd_mgmt_request));
 
 			mgmt_ipc_read_data(read_fd, mgmt_req, sizeof(*mgmt_req));
-			ubbd_err("receive mgmt request: %d\n", mgmt_req->cmd);
+			ubbd_info("receive mgmt request: %d\n", mgmt_req->cmd);
 			if (mgmt_req->cmd == UBBD_MGMT_CMD_MAP) {
-				ubbd_err("type: %d\n", mgmt_req->u.add.info.type);
+				ubbd_info("type: %d\n", mgmt_req->u.add.info.type);
 				ubbd_dev = ubbd_dev_create(&mgmt_req->u.add.info);
 				if (!ubbd_dev) {
 					ubbd_err("error to create ubbd_dev\n");
 				}
 
 				ret = ubbd_dev_open(ubbd_dev);
-				ubbd_err("open ret: %d\n", ret);
 				ret = ubbd_dev_add(ubbd_dev);
-				ubbd_err("add ret: %d\n", ret);
 			} else if (mgmt_req->cmd == UBBD_MGMT_CMD_UNMAP) {
-				ubbd_err("unmap\n");
 				ubbd_dev = find_ubbd_dev(mgmt_req->u.remove.dev_id);
 				if (!ubbd_dev) {
 					ubbd_err("cant find ubbddev\n");
 					continue;
 				}
 				ret = ubbd_dev_remove(ubbd_dev);
-				ubbd_err("remove ret: %d\n", ret);
 			}
 		}
 	}

@@ -1,3 +1,7 @@
+/*
+ * This module is mostly taken from tcmu-runner.
+ */
+
 #define _GNU_SOURCE
 #include <stdint.h>
 #include <pthread.h>
@@ -13,9 +17,8 @@
 #include "ubbd_log.h"
 #include "ubbd_dev.h"
 
-/* ubbd ring buffer for log */
-#define LOG_ENTRY_LEN 256 /* rb[0] is reserved for pri */
-#define LOG_MSG_LEN (LOG_ENTRY_LEN - 1) /* the length of the log message */
+#define LOG_ENTRY_LEN 256
+#define LOG_MSG_LEN (LOG_ENTRY_LEN - 1)
 #define LOG_ENTRYS (1024 * 32)
 
 #define UBBD_LOG_FILENAME_MAX	32
@@ -86,45 +89,6 @@ void ubbd_set_log_level(int level)
 
 	ubbd_info("log level now is %s\n", loglevel_string(level));
 	ubbd_log_level = level;
-}
-
-static inline uint8_t rb_get_pri(struct log_buf *logbuf, unsigned int cur)
-{
-	return logbuf->buf[cur][0];
-}
-
-static inline void rb_set_pri(struct log_buf *logbuf, unsigned int cur, uint8_t pri)
-{
-	logbuf->buf[cur][0] = (char)pri;
-}
-
-static inline char *rb_get_msg(struct log_buf *logbuf, unsigned int cur)
-{
-	return logbuf->buf[cur] + 1;
-}
-
-static inline bool rb_is_empty(struct log_buf *logbuf)
-{
-	return logbuf->tail == logbuf->head;
-}
-
-static inline bool rb_is_full(struct log_buf *logbuf)
-{
-	return logbuf->tail == (logbuf->head + 1) % LOG_ENTRYS;
-}
-
-static inline void rb_update_tail(struct log_buf *logbuf)
-{
-	logbuf->tail = (logbuf->tail + 1) % LOG_ENTRYS;
-}
-
-static inline void rb_update_head(struct log_buf *logbuf)
-{
-	/* when the ring buffer is full, the oldest log will be dropped */
-	if (rb_is_full(logbuf))
-		rb_update_tail(logbuf);
-
-	logbuf->head = (logbuf->head + 1) % LOG_ENTRYS;
 }
 
 static void log_cleanup_output(struct log_output *output)

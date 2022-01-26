@@ -22,7 +22,7 @@ int main()
 
 	start_netlink_thread(&nl_thread);
 	start_mgmt_thread(&mgmt_thread);
-	ubbd_err("test err message\n");
+	ubbd_info("ubbdd started.....\n");
 	ret = pthread_join(mgmt_thread, &join_retval);
 	ret = pthread_join(nl_thread, &join_retval);
 

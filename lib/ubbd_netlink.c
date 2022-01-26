@@ -133,7 +133,6 @@ int send_netlink_remove_prepare(struct ubbd_device *ubbd_dev)
 
 	/* Ignore ack. There is nothing we can do. */
 	ret = nl_send_auto(socket, msg);
-	ubbd_err("ret of send  remove prepare sync: %d\n", ret);
 	ubbd_socket_close(socket);
 	if (ret < 0) {
 		ubbd_err("Could not send netlink cmd %d\n", UBBD_CMD_REMOVE_PREPARE);
@@ -143,10 +142,8 @@ int send_netlink_remove_prepare(struct ubbd_device *ubbd_dev)
 		ubbd_dev->status = UBBD_DEV_STATUS_REMOVE_PREPARED;
 		// TODO get ubbddevice from global list
 		ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
-		ubbd_err("ret of join: %d\n", ret);
 		device_close_shm(ubbd_dev);
 
-		ubbd_err("after close shm\n");
 		ubbd_nl_queue_req(UBBD_CMD_REMOVE, ubbd_dev);
 	}
 	return ret;
@@ -191,10 +188,10 @@ static int send_netlink_add(struct ubbd_device *ubbd_dev)
 	ret = nl_send_auto(socket, msg);
 	ubbd_socket_close(socket);
 	if (ret) {
-		printf("ret of send auto netlink add: %d\n", ret);
+		ubbd_info("ret of send auto netlink add: %d\n", ret);
 	} else {
-		printf("adde done\n");
-		ubbd_err("ubbd_dev: %p, dev_id: %u, uio_id: %d", ubbd_dev, ubbd_dev->dev_id, ubbd_dev->uio_id);
+		ubbd_info("adde done\n");
+		ubbd_info("ubbd_dev: %p, dev_id: %u, uio_id: %d", ubbd_dev, ubbd_dev->dev_id, ubbd_dev->uio_id);
 	}
 	return ret;
 
@@ -211,31 +208,19 @@ static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
 	int ret;
-	struct ubbd_sb *sb;
-	struct ubbd_dev_info *dev_info;
 
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
 	if (ret)
 		ubbd_err("Invalid response from the kernel\n");
 
-	printf("added device test\n");
 	ubbd_dev = (struct ubbd_device *)(nla_get_u64(msg_attr[UBBD_ATTR_PRIV_DATA]));
 	ubbd_dev->status = UBBD_DEV_STATUS_ADD_PREPARED;
 	ubbd_dev->dev_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_DEV_ID]));
 	ubbd_dev->uio_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_UIO_ID]));
 	ubbd_dev->uio_map_size = (uint64_t)(nla_get_u64(msg_attr[UBBD_ATTR_UIO_MAP_SIZE]));
-	ubbd_err("ubbd_dev: %p, dev_id: %u, uio_id: %d", ubbd_dev, ubbd_dev->dev_id, ubbd_dev->uio_id);
 	if (!device_open_shm(ubbd_dev))
 		exit(-1);
-
-	sb = ubbd_dev->map;
-	ubbd_err("info_off: %u, info_size: %u\n", sb->info_off, sb->info_size);
-	ubbd_err("user type: %d", ubbd_dev->dev_info.type);
-	//dev_info = (struct ubbd_dev_info *)((char *)ubbd_dev->map + 56);
-	dev_info = ubbd_uio_get_dev_info(ubbd_dev->map);
-	ubbd_err("kernel type: %d\n", dev_info->type);
-	ubbd_err("kernel type: %d\n", ((struct ubbd_dev_info *)ubbd_uio_get_dev_info(ubbd_dev->map))->type);
 
 	memcpy(ubbd_uio_get_dev_info(ubbd_dev->map), &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
 	// TODO get ubbddevice from global list
@@ -289,7 +274,6 @@ int send_netlink_add_prepare(struct ubbd_device *ubbd_dev)
 
 	/* Ignore ack. There is nothing we can do. */
 	ret = nl_send_sync(socket, msg);
-	printf("ret of send sync: %d\n", ret);
 	ubbd_socket_close(socket);
 	if (ret < 0)
 		ubbd_err("Could not send netlink cmd %d\n", UBBD_CMD_ADD_PREPARE);
@@ -336,7 +320,6 @@ static int status_callback(struct nl_msg *msg, void *arg)
 				goto out;
 			}
 
-			ubbd_err("dev_id: %d, uio_id: %d, status: %d\n", nla_get_s32(status[UBBD_STATUS_DEV_ID]), nla_get_s32(status[UBBD_STATUS_UIO_ID]), nla_get_u8(status[UBBD_STATUS_STATUS]));
 			dev_status = calloc(1, sizeof(struct ubbd_nl_dev_status));
 			if (!dev_status) {
 				ret = -ENOMEM;
@@ -385,7 +368,6 @@ int ubbd_nl_dev_list(struct list_head *dev_list)
 
 	/* Ignore ack. There is nothing we can do. */
 	ret = nl_send_sync(socket, msg);
-	ubbd_err("ret of send sync: %d\n", ret);
 	ubbd_socket_close(socket);
 	if (ret < 0)
 		ubbd_err("Could not send netlink cmd %d\n", UBBD_CMD_ADD_PREPARE);
