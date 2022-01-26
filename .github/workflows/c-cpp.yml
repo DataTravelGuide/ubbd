@@ -1,0 +1,19 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: install dependency
+      run: sudo add-apt-repository "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse"; sudo apt update; sudo apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev
+    - name: make
+      run: make

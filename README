@@ -1,0 +1,46 @@
+1. What is UBBD?
+	UBBD is Userspace Backend Block Device.
+
+2. Why we need UBBD?
+	a) block device driver upgrade online.
+	b) driver bug dont crash kernel.
+	c) Dont reinvent the wheel.
+		Some block storage especially cloud storage has a userspace library
+	but there is no linux kernel driver to use it. ubbd can make it very easy
+	to enable linux block device driver for it via library.
+3. Who:
+	Who would use UBBD?
+	Who should not use UBBD?
+
+4. How does UBBD work?
+
+5. Roadmap:
+	kernel driver:
+		- support unmap --force
+		- add timeout for cmd
+		- support more parameter in add netlink, e.g: discard, writezero_bytes
+	framework:
+		- start new process for each dev rather than thread
+	drivers:
+		- generic_bd
+			- file							[Done]
+			- null
+		- kv_bd
+			- rocksdb_backend_bd
+		- cloudstoraget_bd
+			- s3_bd
+			- ceph_rbd						[Done]
+		- virtual_bd
+			- qcow
+			- vdi
+			- ...
+		- multi_bd
+			- raid
+			- cache
+		- spdk_bd
+
+6. build and install
+   [centos]
+    yum install librbd-devel glibc-devel libnl3-devel
+   [ubuntu]
+    apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev
