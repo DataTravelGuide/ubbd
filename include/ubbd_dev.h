@@ -43,6 +43,8 @@ struct ubbd_dev_info {
 struct ubbd_dev_features {
 	bool	write_cache;
 	bool	fua;
+	bool	discard;
+	bool	write_zeros;
 };
 
 struct ubbd_device {
@@ -94,6 +96,8 @@ struct ubbd_dev_ops {
 	int (*writev) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
 	int (*readv) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
 	int (*flush) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
+	int (*discard) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
+	int (*write_zeros) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
 };
 
 

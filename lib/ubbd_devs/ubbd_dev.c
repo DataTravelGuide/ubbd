@@ -157,13 +157,37 @@ static void handle_cmd(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 		break;
 	case UBBD_OP_FLUSH:
 		ubbd_dbg("UBBD_OP_FLUSH\n");
+		if (!ubbd_dev->dev_ops->flush) {
+			ret = -EOPNOTSUPP;
+			ubbd_dev_err(ubbd_dev, "flush is not supportted.\n");
+			goto out;
+		}
 		ret = ubbd_dev->dev_ops->flush(ubbd_dev, se);
+		break;
+	case UBBD_OP_DISCARD:
+		ubbd_dbg("UBBD_OP_DISCARD\n");
+		if (!ubbd_dev->dev_ops->discard) {
+			ret = -EOPNOTSUPP;
+			ubbd_dev_err(ubbd_dev, "discard is not supportted.\n");
+			goto out;
+		}
+		ret = ubbd_dev->dev_ops->discard(ubbd_dev, se);
+		break;
+	case UBBD_OP_WRITE_ZEROS:
+		ubbd_dbg("UBBD_OP_WRITE_ZEROS\n");
+		if (!ubbd_dev->dev_ops->write_zeros) {
+			ret = -EOPNOTSUPP;
+			ubbd_dev_err(ubbd_dev, "write_zeros is not supportted.\n");
+			goto out;
+		}
+		ret = ubbd_dev->dev_ops->write_zeros(ubbd_dev, se);
 		break;
 	default:
 		ubbd_err("error handle_cmd\n");
 		exit(EXIT_FAILURE);
 	}
 
+out:
 	if (ret) {
 		ubbd_err("ret of se: %llu: %d", se->priv_data, ret);
 		exit(EXIT_FAILURE);

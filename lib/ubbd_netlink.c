@@ -268,6 +268,13 @@ int send_netlink_add_prepare(struct ubbd_device *ubbd_dev)
 
 	if (ubbd_dev->dev_features.fua)
 		dev_features |= UBBD_DEV_FEATURE_FUA;
+
+	if (ubbd_dev->dev_features.discard)
+		dev_features |= UBBD_DEV_FEATURE_DISCARD;
+
+	if (ubbd_dev->dev_features.write_zeros)
+		dev_features |= UBBD_DEV_FEATURE_WRITE_ZEROS;
+
         ret = nla_put_u64(msg, UBBD_ATTR_DEV_FEATURES, dev_features);
         if (ret < 0)
                 goto free_msg;

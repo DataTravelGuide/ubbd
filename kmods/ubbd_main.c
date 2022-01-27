@@ -34,27 +34,28 @@ static blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		return BLK_STS_OK;
 	case REQ_OP_DISCARD:
 		pr_debug("discard");
-		//memset(ubbd_dev->data + offset, 0, length);
-		break;
+		ret = queue_ubbd_op_nodata(ubbd_dev, UBBD_OP_DISCARD, req);
+		if (ret)
+			goto err;
+		return BLK_STS_OK;
 	case REQ_OP_WRITE_ZEROES:
 		pr_debug("writezero");
-		//memset(ubbd_dev->data + offset, 0, length);
-		break;
+		ret = queue_ubbd_op_nodata(ubbd_dev, UBBD_OP_WRITE_ZEROS, req);
+		if (ret)
+			goto err;
+		return BLK_STS_OK;
 	case REQ_OP_WRITE:
 		pr_debug("write");
-		//copy_data_from_bio(ubbd_dev->data + offset, req->bio, length);
 		ret = queue_ubbd_op(ubbd_dev, UBBD_OP_WRITE, req);
 		if (ret)
 			goto err;
 		return BLK_STS_OK;
-		break;
 	case REQ_OP_READ:
 		pr_debug("read");
 		ret = queue_ubbd_op(ubbd_dev, UBBD_OP_READ, req);
 		if (ret)
 			goto err;
 		return BLK_STS_OK;
-		break;
 	default:
 		atomic_dec(&ubbd_inflight);
 		pr_debug("unknown req_op %d", req_op(bd->rq));

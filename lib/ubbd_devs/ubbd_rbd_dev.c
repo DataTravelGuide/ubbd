@@ -67,6 +67,8 @@ static int rbd_dev_open(struct ubbd_device *ubbd_dev)
 
 	ubbd_dev->dev_features.write_cache = false;
 	ubbd_dev->dev_features.fua = false;
+	ubbd_dev->dev_features.discard = true;
+	ubbd_dev->dev_features.write_zeros = true;
 
 	return 0;
 }
@@ -75,6 +77,8 @@ enum rbd_aio_type {
 	RBD_AIO_TYPE_WRITE = 0,
 	RBD_AIO_TYPE_READ,
 	RBD_AIO_TYPE_FLUSH,
+	RBD_AIO_TYPE_DISCARD,
+	RBD_AIO_TYPE_WRITE_ZEROS,
 };
 
 struct rbd_aio_cb {
@@ -93,9 +97,9 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 	int64_t ret;
 	struct ubbd_ce *ce;
 
-	ubbd_dev_err(ubbd_dev, "into finish op \n");
+	ubbd_dev_dbg(ubbd_dev, "into finish op \n");
 	ret = rbd_aio_get_return_value(completion);
-	ubbd_dev_err(ubbd_dev, "ret: %ld\n", ret);
+	ubbd_dev_dbg(ubbd_dev, "ret: %ld\n", ret);
 
 	pthread_mutex_lock(&ubbd_dev->lock);
 	ce = get_available_ce(ubbd_dev);
@@ -108,8 +112,8 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 		ret = (ret == se->len? 0 : ret);
 
 	ce->result = ret;
-	ubbd_dev_err(ubbd_dev, "finish se id: %p\n", se);
-	ubbd_dev_err(ubbd_dev, "append ce: %llu\n", ce->priv_data);
+	ubbd_dev_dbg(ubbd_dev, "finish se id: %p\n", se);
+	ubbd_dev_dbg(ubbd_dev, "append ce: %llu\n", ce->priv_data);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
 	//ubbd_uio_advance_cmd_ring(ubbd_dev);
 	pthread_mutex_unlock(&ubbd_dev->lock);
@@ -137,7 +141,7 @@ static int rbd_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 
 	iov = aio_cb->iovec;
 	for (i = 0; i < se->iov_cnt; i++) {
-		ubbd_dev_err(ubbd_dev, "iov_base: %lu", (size_t)se->iov[i].iov_base);
+		ubbd_dev_dbg(ubbd_dev, "iov_base: %lu", (size_t)se->iov[i].iov_base);
 		iov[i].iov_base = (void*)ubbd_dev->map + (size_t)se->iov[i].iov_base;
 		iov[i].iov_len = se->iov[i].iov_len;
 	}
@@ -152,7 +156,7 @@ static int rbd_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 		ubbd_dev_err(ubbd_dev, "create completion failed\n");
 		return -1;
 	}
-	ubbd_dev_err(ubbd_dev, "writev");
+	ubbd_dev_dbg(ubbd_dev, "writev");
 	ret = rbd_aio_writev(rbd_dev->image, iov, se->iov_cnt, se->offset, completion);
 	return ret;
 }
@@ -178,7 +182,7 @@ static int rbd_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 
 	iov = aio_cb->iovec;
 	for (i = 0; i < se->iov_cnt; i++) {
-		ubbd_dev_err(ubbd_dev, "iov_base: %lu", (size_t)se->iov[i].iov_base);
+		ubbd_dev_dbg(ubbd_dev, "iov_base: %lu", (size_t)se->iov[i].iov_base);
 		iov[i].iov_base = (void*)ubbd_dev->map + (size_t)se->iov[i].iov_base;
 		iov[i].iov_len = se->iov[i].iov_len;
 	}
@@ -188,10 +192,10 @@ static int rbd_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	if (ret < 0) {
 		return -1;
 	}
-	ubbd_dev_err(ubbd_dev, "readv");
+	ubbd_dev_dbg(ubbd_dev, "readv");
 
 	ret = rbd_aio_readv(rbd_dev->image, iov, se->iov_cnt, se->offset, completion);
-	ubbd_dev_err(ubbd_dev, "after wait\n");
+	ubbd_dev_dbg(ubbd_dev, "after wait\n");
 	return ret;
 }
 
@@ -224,10 +228,68 @@ static int rbd_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	if (ret < 0) {
 		return -1;
 	}
-	ubbd_dev_err(ubbd_dev, "flush");
+	ubbd_dev_dbg(ubbd_dev, "flush");
 
 	ret = rbd_aio_flush(rbd_dev->image, completion);
-	ubbd_dev_err(ubbd_dev, "after wait\n");
+	ubbd_dev_dbg(ubbd_dev, "after wait\n");
+	return ret;
+}
+
+static int rbd_dev_discard(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
+{
+	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
+	struct rbd_aio_cb *aio_cb;
+	rbd_completion_t completion;
+	ssize_t ret;
+
+	aio_cb = calloc(1, sizeof(*aio_cb) + sizeof(struct iovec) * se->iov_cnt);
+	if (!aio_cb) {
+		ubbd_dev_err(ubbd_dev, "Could not allocate aio_cb.\n");
+		return -1;
+	}
+
+	aio_cb->type = RBD_AIO_TYPE_DISCARD;
+	aio_cb->se = se;
+	aio_cb->ubbd_dev = ubbd_dev;
+
+	ret = rbd_aio_create_completion
+		(aio_cb, (rbd_callback_t) rbd_finish_aio_generic, &completion);
+	if (ret < 0) {
+		return -1;
+	}
+	ubbd_dev_dbg(ubbd_dev, "discard");
+
+	ret = rbd_aio_discard(rbd_dev->image, se->offset, se->len, completion);
+	ubbd_dev_dbg(ubbd_dev, "after wait\n");
+	return ret;
+}
+
+static int rbd_dev_write_zeros(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
+{
+	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
+	struct rbd_aio_cb *aio_cb;
+	rbd_completion_t completion;
+	ssize_t ret;
+
+	aio_cb = calloc(1, sizeof(*aio_cb) + sizeof(struct iovec) * se->iov_cnt);
+	if (!aio_cb) {
+		ubbd_dev_err(ubbd_dev, "Could not allocate aio_cb.\n");
+		return -1;
+	}
+
+	aio_cb->type = RBD_AIO_TYPE_WRITE_ZEROS;
+	aio_cb->se = se;
+	aio_cb->ubbd_dev = ubbd_dev;
+
+	ret = rbd_aio_create_completion
+		(aio_cb, (rbd_callback_t) rbd_finish_aio_generic, &completion);
+	if (ret < 0) {
+		return -1;
+	}
+	ubbd_dev_dbg(ubbd_dev, "write_zeros");
+
+	ret = rbd_aio_write_zeroes(rbd_dev->image, se->offset, se->len, completion, 0, 0);
+	ubbd_dev_dbg(ubbd_dev, "after wait\n");
 	return ret;
 }
 
@@ -237,6 +299,8 @@ struct ubbd_dev_ops rbd_dev_ops = {
 	.readv = rbd_dev_readv,
 	.release = rbd_dev_release,
 	.flush = rbd_dev_flush,
+	.discard = rbd_dev_discard,
+	.write_zeros = rbd_dev_write_zeros,
 };
 
 

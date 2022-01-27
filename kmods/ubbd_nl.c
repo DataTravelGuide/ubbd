@@ -371,6 +371,16 @@ static int do_ubbd_genl_add(u64 priv_data, u64 device_size, struct genl_info *nl
 		blk_queue_write_cache(ubbd_dev->disk->queue, false, false);
 	}
 
+	if (dev_features & UBBD_DEV_FEATURE_DISCARD) {
+		blk_queue_flag_set(QUEUE_FLAG_DISCARD, ubbd_dev->disk->queue);
+		ubbd_dev->disk->queue->limits.discard_granularity = 4096;
+		blk_queue_max_discard_sectors(ubbd_dev->disk->queue, 8 * 1024);
+	}
+
+	if (dev_features & UBBD_DEV_FEATURE_WRITE_ZEROS) {
+		blk_queue_max_write_zeroes_sectors(ubbd_dev->disk->queue, 8 * 1024);
+	}
+
 	mutex_lock(&ubbd_dev_list_mutex);
 	ubbd_total_devs++;
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);

@@ -293,6 +293,8 @@ int queue_ubbd_op_nodata(struct ubbd_device *ubbd_dev, enum ubbd_op op, struct r
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(rq);
 	struct ubbd_se	*se;
 	struct ubbd_se_hdr *header;
+	u64 offset = (u64)blk_rq_pos(rq) << SECTOR_SHIFT;
+	u64 length = blk_rq_bytes(rq);
 	size_t command_size;
 	int ret = 0;
 
@@ -322,8 +324,9 @@ int queue_ubbd_op_nodata(struct ubbd_device *ubbd_dev, enum ubbd_op op, struct r
 	ubbd_se_hdr_set_len(&header->len_op, command_size);
 
 	pr_debug("len_op: %x", header->len_op);
-	//se->priv_data = ubbd_req;
 	se->priv_data = ubbd_req->req_tid;
+	se->offset = offset;
+	se->len = length;
 	pr_debug("se id: %llu", se->priv_data);
 
 	pr_debug("%s, %d;", __func__, __LINE__);
@@ -472,12 +475,14 @@ static void ubbd_req_release(struct ubbd_request *ubbd_req)
 	pr_debug("finish releaes ubbd");
 }
 
+
 static struct ubbd_request *find_inflight_req(struct ubbd_device *ubbd_dev, u64 req_tid)
 {
-	struct ubbd_request *req, *next;
+	struct ubbd_request *req;
 	bool found = false;
 
-	list_for_each_entry_safe(req, next, &ubbd_dev->inflight_reqs, inflight_reqs_node) {
+	list_for_each_entry(req, &ubbd_dev->inflight_reqs, inflight_reqs_node) {
+		pr_debug("find_inflight_req: req: %llu, req_tid: %llu", req->req_tid, req_tid);
 		if (req->req_tid == req_tid) {
 			found = true;
 			break;
@@ -528,13 +533,11 @@ again:
 	ubbd_flush_dcache_range(ce, sizeof(*ce));
 	pr_debug("ce: %p", ce);
 	pr_debug("ce id: %llu", ce->priv_data);
-	//req = ce->priv_data;
 	req = find_inflight_req(ubbd_dev, ce->priv_data);
 	WARN_ON(!req);
 	if (!req) {
 		spin_unlock(&ubbd_dev->req_lock);
 		pr_debug("cant find inflight");
-		udelay(100);
 		goto again;
 	}
 
