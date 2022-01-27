@@ -30,7 +30,7 @@ static int rbd_dev_open(struct ubbd_device *ubbd_dev)
                 printf("\nRead the config file.\n");
         }
 
-	rados_conf_set(rbd_dev->cluster, "rbd_cache", "true");
+	rados_conf_set(rbd_dev->cluster, "rbd_cache", "false");
 
         /* Connect to the cluster */
         err = rados_connect(rbd_dev->cluster);
@@ -65,7 +65,7 @@ static int rbd_dev_open(struct ubbd_device *ubbd_dev)
                 printf("\nimage get size: %lu.\n", ubbd_dev->dev_size);
         }
 
-	ubbd_dev->dev_features.write_cache = true;
+	ubbd_dev->dev_features.write_cache = false;
 	ubbd_dev->dev_features.fua = false;
 
 	return 0;
