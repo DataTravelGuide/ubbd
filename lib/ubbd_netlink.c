@@ -369,7 +369,7 @@ int ubbd_nl_dev_list(struct list_head *dev_list)
 	if (!hdr)
 		goto free_msg;
 
-	ret = nla_put_s64(msg, UBBD_ATTR_DEV_ID, -1);
+	ret = nla_put_s32(msg, UBBD_ATTR_DEV_ID, -1);
 	if (ret < 0)
 		goto free_msg;
 
@@ -377,7 +377,7 @@ int ubbd_nl_dev_list(struct list_head *dev_list)
 	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
 	if (ret < 0)
-		ubbd_err("Could not send netlink cmd %d\n", UBBD_CMD_ADD_PREPARE);
+		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_STATUS, ret);
 	return ret;
 
 free_msg:
