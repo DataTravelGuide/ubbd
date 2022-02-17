@@ -15,6 +15,7 @@
 static LIST_HEAD(ubbd_nl_req_list);
 static pthread_mutex_t ubbd_nl_req_list_lock;
 static pthread_cond_t	ubbd_nl_thread_cond;
+static int ubbd_nl_queue_req(struct ubbd_device *ubbd_dev, struct ubbd_nl_req *req);
 
 static struct nla_policy ubbd_status_policy[UBBD_STATUS_ATTR_MAX + 1] = {
 	[UBBD_STATUS_DEV_ID] = { .type = NLA_S32 },
@@ -53,8 +54,25 @@ static void ubbd_socket_close(struct nl_sock *socket)
 	nl_socket_free(socket);
 }
 
-static int send_netlink_remove(struct ubbd_device *ubbd_dev)
+static int nl_callback(struct nl_msg *msg, void *arg)
 {
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
+	int ret;
+
+	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+			genlmsg_attrlen(gnlh, 0), NULL);
+	if (ret)
+		ubbd_err("Invalid response from the kernel\n");
+
+	ret = nla_get_s32(msg_attr[UBBD_ATTR_RETVAL]);
+
+	return ret;
+}
+
+static int send_netlink_remove(struct ubbd_nl_req *req)
+{
+	struct ubbd_device *ubbd_dev = req->ubbd_dev;
 	struct nl_msg *msg;
 	void *hdr;
 	int ret = -ENOMEM;
@@ -64,6 +82,8 @@ static int send_netlink_remove(struct ubbd_device *ubbd_dev)
 	socket = get_ubbd_socket(&driver_id);
 	if (!socket)
 		return -1;
+
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, nl_callback, NULL);
 
 	msg = nlmsg_alloc();
 	if (!msg)
@@ -82,8 +102,7 @@ static int send_netlink_remove(struct ubbd_device *ubbd_dev)
 	if (ret < 0)
 		goto free_msg;
 
-	/* Ignore ack. There is nothing we can do. */
-	ret = nl_send_auto(socket, msg);
+	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
 	if (ret) {
 		ubbd_err("send_netlink_remove ret of send: %d\n", ret);
@@ -100,19 +119,21 @@ close_sock:
 	return ret;
 }
 
-int send_netlink_remove_prepare(struct ubbd_device *ubbd_dev)
+int send_netlink_remove_prepare(struct ubbd_nl_req *req)
 {
+	struct ubbd_device *ubbd_dev = req->ubbd_dev;
 	struct nl_msg *msg;
 	void *hdr;
 	int ret = -ENOMEM;
 	struct nl_sock *socket;
 	int driver_id;
+	uint64_t flags = 0;
 
 	socket = get_ubbd_socket(&driver_id);
 	if (!socket)
 		return -1;
 
-	//nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, remove_prepare_done_callback, NULL);
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, nl_callback, NULL);
 
 	msg = nlmsg_alloc();
 	if (!msg)
@@ -131,33 +152,47 @@ int send_netlink_remove_prepare(struct ubbd_device *ubbd_dev)
 	if (ret < 0)
 		goto free_msg;
 
-	/* Ignore ack. There is nothing we can do. */
-	ret = nl_send_auto(socket, msg);
+	if (req->req_opts.remove_opts.force)
+		flags |= UBBD_ATTR_FLAGS_REMOVE_FORCE;
+
+	ret = nla_put_u64(msg, UBBD_ATTR_FLAGS, flags);
+	if (ret < 0)
+		goto free_msg;
+
+	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
-	if (ret < 0) {
-		ubbd_err("Could not send netlink cmd %d\n", UBBD_CMD_REMOVE_PREPARE);
+	if (ret) {
+		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_REMOVE_PREPARE, ret);
 	} else {
 		void *join_retval;
+		struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
 
 		ubbd_dev->status = UBBD_DEV_STATUS_REMOVE_PREPARED;
 		// TODO get ubbddevice from global list
 		ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
 		device_close_shm(ubbd_dev);
 
-		ubbd_nl_queue_req(UBBD_CMD_REMOVE, ubbd_dev);
+		INIT_LIST_HEAD(&req->node);
+		req->type = UBBD_NL_REQ_REMOVE;
+		req->ubbd_dev = ubbd_dev;
+
+		ubbd_nl_queue_req(ubbd_dev, req);
 	}
+
 	return ret;
 
 free_msg:
 	nlmsg_free(msg);
 close_sock:
 	ubbd_socket_close(socket);
+
 	return ret;
 
 }
 
-static int send_netlink_add(struct ubbd_device *ubbd_dev)
+static int send_netlink_add(struct ubbd_nl_req *req)
 {
+	struct ubbd_device *ubbd_dev = req->ubbd_dev;
 	struct nl_msg *msg;
 	void *hdr;
 	int ret = -ENOMEM;
@@ -167,6 +202,8 @@ static int send_netlink_add(struct ubbd_device *ubbd_dev)
 	socket = get_ubbd_socket(&driver_id);
 	if (!socket)
 		return -1;
+
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, nl_callback, NULL);
 
 	msg = nlmsg_alloc();
 	if (!msg)
@@ -185,7 +222,7 @@ static int send_netlink_add(struct ubbd_device *ubbd_dev)
 	if (ret < 0)
 		goto free_msg;
 
-	ret = nl_send_auto(socket, msg);
+	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
 	if (ret) {
 		ubbd_info("ret of send auto netlink add: %d\n", ret);
@@ -207,6 +244,7 @@ static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 	struct ubbd_device *ubbd_dev;
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
+	struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
 	int ret;
 
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
@@ -226,13 +264,18 @@ static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 	// TODO get ubbddevice from global list
 	pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev);
 
-	ubbd_nl_queue_req(UBBD_CMD_ADD, ubbd_dev);
+	INIT_LIST_HEAD(&req->node);
+	req->type = UBBD_NL_REQ_ADD;
+	req->ubbd_dev = ubbd_dev;
+
+	ubbd_nl_queue_req(ubbd_dev, req);
 
 	return NL_OK;
 }
 
-int send_netlink_add_prepare(struct ubbd_device *ubbd_dev)
+int send_netlink_add_prepare(struct ubbd_nl_req *req)
 {
+	struct ubbd_device *ubbd_dev = req->ubbd_dev;
 	struct nl_msg *msg;
 	void *hdr;
 	int ret = -ENOMEM;
@@ -264,22 +307,21 @@ int send_netlink_add_prepare(struct ubbd_device *ubbd_dev)
 		goto free_msg;
 
         if (ubbd_dev->dev_features.write_cache)
-                dev_features |= UBBD_DEV_FEATURE_WRITECACHE;
+                dev_features |= UBBD_ATTR_FLAGS_ADD_WRITECACHE;
 
 	if (ubbd_dev->dev_features.fua)
-		dev_features |= UBBD_DEV_FEATURE_FUA;
+		dev_features |= UBBD_ATTR_FLAGS_ADD_FUA;
 
 	if (ubbd_dev->dev_features.discard)
-		dev_features |= UBBD_DEV_FEATURE_DISCARD;
+		dev_features |= UBBD_ATTR_FLAGS_ADD_DISCARD;
 
 	if (ubbd_dev->dev_features.write_zeros)
-		dev_features |= UBBD_DEV_FEATURE_WRITE_ZEROS;
+		dev_features |= UBBD_ATTR_FLAGS_ADD_WRITE_ZEROS;
 
-        ret = nla_put_u64(msg, UBBD_ATTR_DEV_FEATURES, dev_features);
+        ret = nla_put_u64(msg, UBBD_ATTR_FLAGS, dev_features);
         if (ret < 0)
                 goto free_msg;
 
-	/* Ignore ack. There is nothing we can do. */
 	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
 	if (ret < 0)
@@ -304,6 +346,10 @@ static int status_callback(struct nl_msg *msg, void *arg)
 			genlmsg_attrlen(gnlh, 0), NULL);
 	if (ret)
 		ubbd_err("Invalid response from the kernel\n");
+
+	ret = nla_get_s32(msg_attr[UBBD_ATTR_RETVAL]);
+	if (ret)
+		return ret;
 
 	if (msg_attr[UBBD_ATTR_DEV_LIST]) {
 		struct nlattr *attr;
@@ -373,8 +419,8 @@ int ubbd_nl_dev_list(struct list_head *dev_list)
 	if (ret < 0)
 		goto free_msg;
 
-	/* Ignore ack. There is nothing we can do. */
 	ret = nl_send_sync(socket, msg);
+	ubbd_err("ret of nl_send_sync: %d\n", ret);
 	ubbd_socket_close(socket);
 	if (ret < 0)
 		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_STATUS, ret);
@@ -388,14 +434,8 @@ close_sock:
 
 }
 
-int ubbd_nl_queue_req(enum ubbd_nl_req_type req_type, struct ubbd_device *ubbd_dev)
+int ubbd_nl_queue_req(struct ubbd_device *ubbd_dev, struct ubbd_nl_req *req)
 {
-	struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
-
-	INIT_LIST_HEAD(&req->node);
-	req->type = req_type;
-	req->ubbd_dev = ubbd_dev;
-
 	pthread_mutex_lock(&ubbd_nl_req_list_lock);
 	list_add_tail(&req->node, &ubbd_nl_req_list);
 	pthread_cond_signal(&ubbd_nl_thread_cond);
@@ -404,22 +444,45 @@ int ubbd_nl_queue_req(enum ubbd_nl_req_type req_type, struct ubbd_device *ubbd_d
 	return 0;
 }
 
+void ubbd_nl_req_add(struct ubbd_device *ubbd_dev)
+{
+	struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
+
+	INIT_LIST_HEAD(&req->node);
+	req->type = UBBD_NL_REQ_ADD_PREPARE;
+	req->ubbd_dev = ubbd_dev;
+
+	ubbd_nl_queue_req(ubbd_dev, req);
+}
+
+void ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force)
+{
+	struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
+
+	INIT_LIST_HEAD(&req->node);
+	req->type = UBBD_NL_REQ_REMOVE_PREPARE;
+	req->ubbd_dev = ubbd_dev;
+	req->req_opts.remove_opts.force = force;
+
+	ubbd_nl_queue_req(ubbd_dev, req);
+}
+
 static int handle_nl_req(struct ubbd_nl_req *req)
 {
 	int ret = 0;
 
 	switch (req->type) {
 	case UBBD_NL_REQ_ADD_PREPARE:
-		ret = send_netlink_add_prepare(req->ubbd_dev);
+		ret = send_netlink_add_prepare(req);
 		break;
 	case UBBD_NL_REQ_ADD:
-		ret = send_netlink_add(req->ubbd_dev);
+		ret = send_netlink_add(req);
 		break;
 	case UBBD_NL_REQ_REMOVE_PREPARE:
-		ret = send_netlink_remove_prepare(req->ubbd_dev);
+		ret = send_netlink_remove_prepare(req);
 		break;
 	case UBBD_NL_REQ_REMOVE:
-		ret = send_netlink_remove(req->ubbd_dev);
+		ret = send_netlink_remove(req);
 		break;
 	default:
 		ubbd_err("unknown netlink request type: %d\n", req->type);

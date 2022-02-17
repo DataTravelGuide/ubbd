@@ -24,9 +24,6 @@
 #include "ubbd.h"
 #include "compat.h"
 
-#undef pr_err
-#define pr_err pr_debug
-
 #define DEV_NAME_LEN 32
 #define UBBD_SINGLE_MAJOR_PART_SHIFT 4
 #define UBBD_DRV_NAME "ubbd"
@@ -35,7 +32,7 @@ enum ubbd_dev_status {
 	UBBD_DEV_STATUS_INIT = 0,
 	UBBD_DEV_STATUS_ADD_PREPARED,
 	UBBD_DEV_STATUS_RUNNING,
-	UBBD_DEV_STATUS_REMOVE_PREPARED,
+	UBBD_DEV_STATUS_REMOVING,
 };
 
 struct ubbd_device {
@@ -173,8 +170,9 @@ static inline void ubbd_flush_dcache_range(void *vaddr, size_t size)
 }
 extern struct genl_family ubbd_genl_family;
 void complete_work_fn(struct work_struct *work);
-int queue_ubbd_op(struct ubbd_device *ubbd_dev, enum ubbd_op op, struct request *rq);
-int queue_ubbd_op_nodata(struct ubbd_device *ubbd_dev, enum ubbd_op op, struct request *rq);
+blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
+		const struct blk_mq_queue_data *bd);
+void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret);
 struct ubbd_device *ubbd_dev_create(void);
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev);
 void ubbd_free_disk(struct ubbd_device *ubbd_dev);

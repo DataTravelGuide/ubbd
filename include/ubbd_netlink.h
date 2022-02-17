@@ -16,6 +16,9 @@ struct ubbd_nl_req {
 		struct add_options {
 			bool write_cache;
 		} add_opts;
+		struct remove_options {
+			bool force;
+		} remove_opts;
 	} req_opts;
 	struct ubbd_device *ubbd_dev;
 	struct list_head node;
@@ -29,7 +32,8 @@ struct ubbd_nl_dev_status {
 	uint8_t	status;
 };
 
-int ubbd_nl_queue_req(enum ubbd_nl_req_type, struct ubbd_device *ubbd_dev);
+void ubbd_nl_req_add(struct ubbd_device *ubbd_dev);
+void ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force);
 int start_netlink_thread(pthread_t *t);
 int ubbd_nl_dev_list(struct list_head *dev_list);
 #endif	/* UBBD_NETLINK_H */

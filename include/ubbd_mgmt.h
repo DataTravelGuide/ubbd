@@ -19,6 +19,7 @@ struct ubbd_mgmt_request {
 		} add;
 		struct {
 			int dev_id;
+			bool force;
 		} remove;
 	} u;
 };

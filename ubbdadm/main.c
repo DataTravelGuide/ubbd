@@ -41,6 +41,7 @@ static struct option const long_options[] =
 	{"type", required_argument, NULL, 't'},
 	{"filepath", required_argument, NULL, 'f'},
 	{"filesize", required_argument, NULL, 's'},
+	{"force", no_argument, NULL, 'o'},
 	{"pool", required_argument, NULL, 'p'},
 	{"image", required_argument, NULL, 'i'},
 	{"ubbdid", required_argument, NULL, 'u'},
@@ -48,7 +49,7 @@ static struct option const long_options[] =
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:t:f:p:i:u:h:s";
+static char *short_options = "c:t:f:p:i:u:h:s:o";
 
 static void usage(int status)
 { 
@@ -99,13 +100,14 @@ static int do_rbd_map(char *pool, char *image)
 	return 0;
 }
 
-static int do_unmap(int ubbdid)
+static int do_unmap(int ubbdid, bool force)
 {
 	struct ubbd_mgmt_request req;
 	int fd;
 
 	req.cmd = UBBD_MGMT_CMD_UNMAP;
 	req.u.remove.dev_id = ubbdid;
+	req.u.remove.force = force;
 	ubbdd_request(&fd, &req);
 
 	return 0;
@@ -119,6 +121,7 @@ int main(int argc, char **argv)
 	char *filepath, *pool, *image;
 	uint64_t filesize;
 	int ubbdid;
+	bool force = false;
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
@@ -135,6 +138,9 @@ int main(int argc, char **argv)
 			break;
 		case 's':
 			filesize = atoll(optarg);
+			break;
+		case 'o':
+			force = true;
 			break;
 		case 'p':
 			pool = optarg;
@@ -170,7 +176,7 @@ int main(int argc, char **argv)
 		}
 	} else if (command == UBBD_MGMT_CMD_UNMAP) {
 		ubbd_err("unmap ubbdid: %d\n", ubbdid);
-		do_unmap(ubbdid);
+		do_unmap(ubbdid, force);
 	} else {
 		printf("error command: %d\n", command);
 		exit(-1);

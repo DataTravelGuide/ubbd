@@ -299,17 +299,16 @@ int ubbd_dev_add(struct ubbd_device *ubbd_dev)
 {
 	int ret = 0;
 
-	ubbd_nl_queue_req(UBBD_NL_REQ_ADD_PREPARE, ubbd_dev);
+	ubbd_nl_req_add(ubbd_dev);
 
 	return ret;
 }
 
-int ubbd_dev_remove(struct ubbd_device *ubbd_dev)
+int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force)
 {
 	int ret = 0;
 
-	//send_netlink_remove_prepare(ubbd_dev);
-	ubbd_nl_queue_req(UBBD_NL_REQ_REMOVE_PREPARE, ubbd_dev);
+	ubbd_nl_req_remove(ubbd_dev, force);
 
 	return ret;
 }

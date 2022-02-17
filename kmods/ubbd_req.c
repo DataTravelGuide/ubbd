@@ -304,6 +304,13 @@ int queue_ubbd_op_nodata(struct ubbd_device *ubbd_dev, enum ubbd_op op, struct r
 	command_size = ubbd_cmd_get_base_cmd_size(0);
 
 	spin_lock(&ubbd_dev->req_lock);
+
+	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
+		ret = -EIO;
+		spin_unlock(&ubbd_dev->req_lock);
+		return ret;
+	}
+
 	ubbd_req->req_tid = ++ubbd_dev->req_tid;
 	pr_debug("req_tid: %llu", ubbd_req->req_tid);
 	if (!submit_ring_space_enough(ubbd_dev, command_size)) {
@@ -383,6 +390,13 @@ int queue_ubbd_op(struct ubbd_device *ubbd_dev, enum ubbd_op op, struct request 
 	command_size = ubbd_cmd_get_base_cmd_size(ubbd_req->pi_cnt);
 
 	spin_lock(&ubbd_dev->req_lock);
+
+	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
+		ret = -EIO;
+		spin_unlock(&ubbd_dev->req_lock);
+		goto err_free_pages;
+	}
+
 	ubbd_req->req_tid = ++ubbd_dev->req_tid;
 	pr_debug("req_tid: %llu", ubbd_req->req_tid);
 	if (!submit_ring_space_enough(ubbd_dev, command_size)) {
@@ -455,6 +469,69 @@ err_free_pi:
 	return ret;
 }
 
+blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
+		const struct blk_mq_queue_data *bd)
+{
+	struct ubbd_device *ubbd_dev = hctx->queue->queuedata;
+	struct request *req = bd->rq;
+	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(bd->rq);
+	int ret = 0;
+
+	memset(ubbd_req, 0, sizeof(struct ubbd_request));
+	INIT_LIST_HEAD(&ubbd_req->inflight_reqs_node);
+
+	pr_debug("start request: %p", req);
+	blk_mq_start_request(bd->rq);
+	atomic_inc(&ubbd_inflight);
+	pr_debug("inc inflight: %d", atomic_read(&ubbd_inflight));
+	switch (req_op(bd->rq)) {
+	case REQ_OP_FLUSH:
+		pr_debug("flush");
+		ret = queue_ubbd_op_nodata(ubbd_dev, UBBD_OP_FLUSH, req);
+		if (ret)
+			goto err;
+		return BLK_STS_OK;
+	case REQ_OP_DISCARD:
+		pr_debug("discard");
+		ret = queue_ubbd_op_nodata(ubbd_dev, UBBD_OP_DISCARD, req);
+		if (ret)
+			goto err;
+		return BLK_STS_OK;
+	case REQ_OP_WRITE_ZEROES:
+		pr_debug("writezero");
+		ret = queue_ubbd_op_nodata(ubbd_dev, UBBD_OP_WRITE_ZEROS, req);
+		if (ret)
+			goto err;
+		return BLK_STS_OK;
+	case REQ_OP_WRITE:
+		pr_debug("write");
+		ret = queue_ubbd_op(ubbd_dev, UBBD_OP_WRITE, req);
+		if (ret)
+			goto err;
+		return BLK_STS_OK;
+	case REQ_OP_READ:
+		pr_debug("read");
+		ret = queue_ubbd_op(ubbd_dev, UBBD_OP_READ, req);
+		if (ret)
+			goto err;
+		return BLK_STS_OK;
+	default:
+		atomic_dec(&ubbd_inflight);
+		pr_debug("unknown req_op %d", req_op(bd->rq));
+		return BLK_STS_IOERR;
+	}
+
+	atomic_dec(&ubbd_inflight);
+	pr_debug("inflight: %d", atomic_read(&ubbd_inflight));
+	blk_mq_end_request(req, errno_to_blk_status(0));
+	return BLK_STS_OK;
+err:
+	atomic_dec(&ubbd_inflight);
+
+	return errno_to_blk_status(ret);
+}
+
+
 /* requests */
 static void ubbd_req_release(struct ubbd_request *ubbd_req)
 {
@@ -524,6 +601,11 @@ void complete_work_fn(struct work_struct *work)
 
 again:
 	spin_lock(&ubbd_dev->req_lock);
+	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
+		spin_unlock(&ubbd_dev->req_lock);
+		return;
+	}
+
 	ce = get_complete_entry(ubbd_dev);
 	if (!ce) {
 		spin_unlock(&ubbd_dev->req_lock);
@@ -536,9 +618,7 @@ again:
 	req = find_inflight_req(ubbd_dev, ce->priv_data);
 	WARN_ON(!req);
 	if (!req) {
-		spin_unlock(&ubbd_dev->req_lock);
-		pr_debug("cant find inflight");
-		goto again;
+		goto advance_compr;
 	}
 
 	se = req->se;
@@ -559,10 +639,26 @@ again:
 
 	advance_cmd_ring(ubbd_dev);
 	pr_debug("after advance ring");
+
+advance_compr:
 	UPDATE_COMPR_TAIL(ubbd_dev->sb_addr->compr_tail, sizeof(struct ubbd_ce), ubbd_dev->sb_addr->compr_size);
 	pr_debug("update compr tail");
 	spin_unlock(&ubbd_dev->req_lock);
 
 	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
 	goto again;
+}
+
+void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret)
+{
+	struct ubbd_request *req;
+
+	while (!list_empty(&ubbd_dev->inflight_reqs)) {
+		req = list_first_entry(&ubbd_dev->inflight_reqs,
+				struct ubbd_request, inflight_reqs_node);
+		list_del_init(&req->inflight_reqs_node);
+		atomic_dec(&ubbd_inflight);
+		ubbd_req_release(req);
+		blk_mq_end_request(req->req, errno_to_blk_status(ret));
+	}
 }

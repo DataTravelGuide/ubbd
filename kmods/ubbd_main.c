@@ -10,68 +10,6 @@ static int ubbd_major;
 static DEFINE_IDA(ubbd_dev_id_ida);
 struct device *ubbd_uio_root_device;
 
-static blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
-		const struct blk_mq_queue_data *bd)
-{
-	struct ubbd_device *ubbd_dev = hctx->queue->queuedata;
-	struct request *req = bd->rq;
-	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(bd->rq);
-	int ret = 0;
-
-	memset(ubbd_req, 0, sizeof(struct ubbd_request));
-	INIT_LIST_HEAD(&ubbd_req->inflight_reqs_node);
-
-	pr_debug("start request: %p", req);
-	blk_mq_start_request(bd->rq);
-	atomic_inc(&ubbd_inflight);
-	pr_debug("inc inflight: %d", atomic_read(&ubbd_inflight));
-	switch (req_op(bd->rq)) {
-	case REQ_OP_FLUSH:
-		pr_err("flush");
-		ret = queue_ubbd_op_nodata(ubbd_dev, UBBD_OP_FLUSH, req);
-		if (ret)
-			goto err;
-		return BLK_STS_OK;
-	case REQ_OP_DISCARD:
-		pr_debug("discard");
-		ret = queue_ubbd_op_nodata(ubbd_dev, UBBD_OP_DISCARD, req);
-		if (ret)
-			goto err;
-		return BLK_STS_OK;
-	case REQ_OP_WRITE_ZEROES:
-		pr_debug("writezero");
-		ret = queue_ubbd_op_nodata(ubbd_dev, UBBD_OP_WRITE_ZEROS, req);
-		if (ret)
-			goto err;
-		return BLK_STS_OK;
-	case REQ_OP_WRITE:
-		pr_debug("write");
-		ret = queue_ubbd_op(ubbd_dev, UBBD_OP_WRITE, req);
-		if (ret)
-			goto err;
-		return BLK_STS_OK;
-	case REQ_OP_READ:
-		pr_debug("read");
-		ret = queue_ubbd_op(ubbd_dev, UBBD_OP_READ, req);
-		if (ret)
-			goto err;
-		return BLK_STS_OK;
-	default:
-		atomic_dec(&ubbd_inflight);
-		pr_debug("unknown req_op %d", req_op(bd->rq));
-		return BLK_STS_IOERR;
-	}
-
-	atomic_dec(&ubbd_inflight);
-	pr_debug("inflight: %d", atomic_read(&ubbd_inflight));
-	blk_mq_end_request(req, errno_to_blk_status(0));
-	return BLK_STS_OK;
-err:
-	atomic_dec(&ubbd_inflight);
-
-	return BLK_STS_RESOURCE;
-}
-
 static const struct blk_mq_ops ubbd_mq_ops = {
 	.queue_rq	= ubbd_queue_rq,
 };
