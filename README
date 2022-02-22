@@ -66,9 +66,9 @@
 
 7. Roadmap:
 	kernel driver:
-		- support unmap --force
+		- support unmap --force						[Done]
 		- add timeout for cmd
-		- support more parameter in add netlink, e.g: discard, writezero_bytes
+		- support more parameter in add netlink, e.g: discard, writezero_bytes [Done]
 	framework:
 		- start new process for each dev rather than thread
 	drivers:
