@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef UTILS_H
 #define UTILS_H
 #include <poll.h>

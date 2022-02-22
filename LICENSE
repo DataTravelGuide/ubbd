@@ -1,0 +1,4 @@
+- include/list.h is copied from linux kernel
+
+Others are following LGPL:
+General Public License, version 2.1 ("LGPL"):

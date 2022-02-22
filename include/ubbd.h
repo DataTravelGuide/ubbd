@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef __USER_BLOCKE_DEVICE_H
 #define __USER_BLOCKE_DEVICE_H
 

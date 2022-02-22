@@ -10,11 +10,61 @@
 	to enable linux block device driver for it via library.
 3. Who:
 	Who would use UBBD?
+		a) Who are wanting a POC of your block device, build a driver via UBBD quickly.
+		b) Who are not care about latency, such as cloud storage, build a UBBD driver.
+		c) Who are already having a userspace library for your storage, build a UBBD driver easily.
+		d) Who are expecting upgrade your driver online, to make your driver evolvable, build a UBBD driver.
 	Who should not use UBBD?
+		a) Very care about latency, dont use UBBD driver.
 
 4. How does UBBD work?
+	a) how to build
+		install requirement packages:
+		   [centos]
+		    yum install librbd-devel glibc-devel libnl3-devel
+		   [ubuntu]
+		    apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev
+	b) compile
+		$ make
 
-5. Roadmap:
+	c) insert kernel module
+		$ modprobe uio
+		$ insmod kmods/ubbd.ko
+
+	d) start ubbdd daemon
+		$ ./ubbdd/ubbdd &
+
+	e) setup a ramdisk and map ubbd device by ubbdadm
+		$ modprobe brd rd_nr=1 rd_size=2048000 max_part=0
+		$ ./ubbdadm/ubbdadm --command map --type file --filepath /dev/ram0 --filesize $((1*1024*1024*1024))
+
+	f) use the /dev/ubbd0 device
+		$ mkfs.xfs /dev/ubbd0
+
+5. Compare with librbd and krbd
+	---------------------------------------------------------------------------------------------------------
+	|	solution	|	iops	|	latency	|	rbd journaling	|linux block device	|
+	---------------------------------------------------------------------------------------------------------
+	|	librbd		|	10184	|	1549us	|	support		|	No		|
+	---------------------------------------------------------------------------------------------------------
+	|	krbd		|	10724	|	1385us	|	not support	|	Yes		|
+	---------------------------------------------------------------------------------------------------------
+	|	ubbd + librbd	|	10830	|	1652us	|	support		|	Yes		|
+	---------------------------------------------------------------------------------------------------------
+
+	Note:
+		a) ubbd + librbd is mapped by:
+			$ ubbdadm/ubbdadm --command map --type rbd --pool rbd --image test
+		b) krbd is mapped by:
+			$ rbd map test
+		c) librbd is tested by fio with ioengine=rbd.
+		d) iops is tested by fio with iodepth=128 and numjobs=1.
+		e) latency is tested by fio with iodepth=1 and numjobs=1.
+6. Testing:
+	$ git clone https://github.com/kdave/xfstests.git
+	$ XFSTESTS_DIR=xfstests tests/test_ram.sh
+
+7. Roadmap:
 	kernel driver:
 		- support unmap --force
 		- add timeout for cmd
@@ -38,9 +88,3 @@
 			- raid
 			- cache
 		- spdk_bd
-
-6. build and install
-   [centos]
-    yum install librbd-devel glibc-devel libnl3-devel
-   [ubuntu]
-    apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev
