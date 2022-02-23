@@ -54,6 +54,7 @@ static struct ubbd_device *__ubbd_dev_create(void)
 
 static void __ubbd_dev_free(struct ubbd_device *ubbd_dev)
 {
+	destroy_workqueue(ubbd_dev->task_wq);
 	bitmap_free(ubbd_dev->data_bitmap);
 	kfree(ubbd_dev);
 }
