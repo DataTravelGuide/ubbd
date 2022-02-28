@@ -28,6 +28,12 @@
 #define UBBD_SINGLE_MAJOR_PART_SHIFT 4
 #define UBBD_DRV_NAME "ubbd"
 
+#define UBBD_UIO_DATA_PAGES	(256 * 1024)
+/* TODO make reserve_percent configable */
+#define UBBD_UIO_DATA_RESERVE_PERCENT	75
+
+extern struct workqueue_struct *ubbd_wq;
+
 enum ubbd_dev_status {
 	UBBD_DEV_STATUS_INIT = 0,
 	UBBD_DEV_STATUS_ADD_PREPARED,
@@ -45,7 +51,7 @@ struct ubbd_device {
 	char			name[DEV_NAME_LEN]; /* blkdev name, e.g. ubbd3 */
 
 	spinlock_t		lock;		/* open_count */
-	spinlock_t		req_lock;
+	struct mutex   		req_lock;
 	struct inode		*inode;
 	struct list_head	dev_node;	/* ubbd_dev_list */
 
@@ -59,7 +65,7 @@ struct ubbd_device {
 	unsigned long		open_count;	/* protected by lock */
 
 	struct uio_info		uio_info;
-	struct xarray		data_pages;
+	struct xarray		data_pages_array;
 	unsigned long		*data_bitmap;
 
 	struct ubbd_sb		*sb_addr;
@@ -67,7 +73,9 @@ struct ubbd_device {
 	void			*cmdr;
 	void			*compr;
 	size_t			data_off;
-	int			data_area_sb;
+	u64			data_pages;
+	u64			data_pages_allocated;
+	u64			data_pages_reserve;
 	uint32_t		max_blocks;
 	size_t			mmap_pages;
 
@@ -130,11 +138,13 @@ struct ubbd_request {
 	struct ubbd_ce		*ce;
 	struct request		*req;
 
+	enum ubbd_op		op;
 	u64			req_tid;
 	struct list_head	inflight_reqs_node;
 	uint32_t		pi_cnt;
 	uint32_t		inline_pi[UBBD_REQ_INLINE_PI_MAX];
 	uint32_t		*pi;
+	struct work_struct	work;
 };
 
 #define UPDATE_CMDR_HEAD(head, used, size) smp_store_release(&head, ((head % size) + used) % size)
@@ -173,7 +183,7 @@ void complete_work_fn(struct work_struct *work);
 blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		const struct blk_mq_queue_data *bd);
 void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret);
-struct ubbd_device *ubbd_dev_create(void);
+struct ubbd_device *ubbd_dev_create(u64 data_size);
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev);
 void ubbd_free_disk(struct ubbd_device *ubbd_dev);
 int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev, u64 device_size);

@@ -83,8 +83,9 @@ enum rbd_aio_type {
 
 struct rbd_aio_cb {
 	enum rbd_aio_type type;
-	struct ubbd_se *se;
 	struct ubbd_device *ubbd_dev;
+	uint64_t priv_data;
+	uint32_t len;
 	struct iovec iovec[0];
 };
 
@@ -93,7 +94,6 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 {
 	struct ubbd_device *ubbd_dev = aio_cb->ubbd_dev;
 	struct ubbd_sb *sb = ubbd_dev->map;
-	struct ubbd_se *se = aio_cb->se;
 	int64_t ret;
 	struct ubbd_ce *ce;
 
@@ -104,15 +104,14 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 	pthread_mutex_lock(&ubbd_dev->lock);
 	ce = get_available_ce(ubbd_dev);
 	memset(ce, 0, sizeof(*ce));
-	ce->priv_data = se->priv_data;
+	ce->priv_data = aio_cb->priv_data;
 	ce->flags = 0;
 
 	if (aio_cb->type == RBD_AIO_TYPE_READ ||
 			aio_cb->type == RBD_AIO_TYPE_WRITE)
-		ret = (ret == se->len? 0 : ret);
+		ret = (ret == aio_cb->len? 0 : ret);
 
 	ce->result = ret;
-	ubbd_dev_dbg(ubbd_dev, "finish se id: %p\n", se);
 	ubbd_dev_dbg(ubbd_dev, "append ce: %llu\n", ce->priv_data);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
 	//ubbd_uio_advance_cmd_ring(ubbd_dev);
@@ -147,7 +146,8 @@ static int rbd_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	}
 
 	aio_cb->type = RBD_AIO_TYPE_WRITE;
-	aio_cb->se = se;
+	aio_cb->priv_data = se->priv_data;
+	aio_cb->len = se->len;
 	aio_cb->ubbd_dev = ubbd_dev;
 
 	ret = rbd_aio_create_completion
@@ -177,7 +177,8 @@ static int rbd_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	}
 
 	aio_cb->type = RBD_AIO_TYPE_READ;
-	aio_cb->se = se;
+	aio_cb->priv_data = se->priv_data;
+	aio_cb->len = se->len;
 	aio_cb->ubbd_dev = ubbd_dev;
 
 	iov = aio_cb->iovec;
@@ -220,7 +221,8 @@ static int rbd_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	}
 
 	aio_cb->type = RBD_AIO_TYPE_FLUSH;
-	aio_cb->se = se;
+	aio_cb->priv_data = se->priv_data;
+	aio_cb->len = se->len;
 	aio_cb->ubbd_dev = ubbd_dev;
 
 	ret = rbd_aio_create_completion
@@ -249,7 +251,8 @@ static int rbd_dev_discard(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	}
 
 	aio_cb->type = RBD_AIO_TYPE_DISCARD;
-	aio_cb->se = se;
+	aio_cb->priv_data = se->priv_data;
+	aio_cb->len = se->len;
 	aio_cb->ubbd_dev = ubbd_dev;
 
 	ret = rbd_aio_create_completion
@@ -278,7 +281,8 @@ static int rbd_dev_write_zeros(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	}
 
 	aio_cb->type = RBD_AIO_TYPE_WRITE_ZEROS;
-	aio_cb->se = se;
+	aio_cb->priv_data = se->priv_data;
+	aio_cb->len = se->len;
 	aio_cb->ubbd_dev = ubbd_dev;
 
 	ret = rbd_aio_create_completion

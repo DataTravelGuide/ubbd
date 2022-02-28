@@ -49,7 +49,7 @@ static struct page *ubbd_try_get_data_page(struct ubbd_device *ubbd_dev, uint32_
 {
 	struct page *page;
 
-	page = xa_load(&ubbd_dev->data_pages, dpi);
+	page = xa_load(&ubbd_dev->data_pages_array, dpi);
 	if (unlikely(!page)) {
 		pr_debug("Invalid addr to data page mapping (dpi %u) on device %s\n",
 		       dpi, ubbd_dev->name);

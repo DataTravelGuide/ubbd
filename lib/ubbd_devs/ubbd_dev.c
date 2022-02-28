@@ -69,6 +69,7 @@ void *cmd_process(void *arg)
 	struct ubbd_device *ubbd_dev = arg;
 	struct ubbd_se *se;
 	struct ubbd_sb *sb = ubbd_dev->map;
+	uint32_t op_len = 0;
 
 	struct pollfd pollfds[128];
 	int ret;
@@ -84,12 +85,16 @@ void *cmd_process(void *arg)
 			ubbdlib_processing_start(ubbd_dev);
 
 			se = device_cmd_to_handle(ubbd_dev);
-			if (se == device_cmd_head(ubbd_dev))
+			if (se == device_cmd_head(ubbd_dev)) {
 				break;
+			}
+			op_len = ubbd_se_hdr_get_len(se->header.len_op);
 			ubbd_dbg("len_op: %x\n", se->header.len_op);
-			ubbd_dbg("op: %d, length: %u se id: %llu\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op), se->priv_data);
+			ubbd_dbg("op: %d, length: %u\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op));
+			if (ubbd_se_hdr_get_op(se->header.len_op) != UBBD_OP_PAD)
+				ubbd_dbg("se id: %llu\n", se->priv_data);
 			handle_cmd(ubbd_dev, se);
-			UBBD_UPDATE_CMD_TO_HANDLE(ubbd_dev, sb, se);
+			UBBD_UPDATE_CMD_TO_HANDLE(ubbd_dev, sb, op_len);
 			ubbd_dbg("finish handle_cmd\n");
 		}
 

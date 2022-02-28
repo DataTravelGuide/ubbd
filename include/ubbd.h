@@ -10,7 +10,7 @@
 #define UBBD_SB_VERSION 1
 #define ALIGN_SIZE sizeof(__u64)
 
-#define RING_SIZE (10000 * 1024)
+#define RING_SIZE (1024 * 4096)
 #define CMDR_RESERVED ALIGN_SIZE
 #define CMPR_RESERVED sizeof(struct ubbd_ce)
 /* Offset of cmd ring is size of sb */
@@ -18,7 +18,7 @@
 #define UBBD_INFO_OFF (sizeof(struct ubbd_sb))
 #define UBBD_INFO_SIZE (4096)
 #define COMPR_OFF (UBBD_INFO_OFF + UBBD_INFO_SIZE)
-#define COMPR_SIZE (sizeof(struct ubbd_ce) * 256)
+#define COMPR_SIZE (sizeof(struct ubbd_ce) * 1024)
 #define CMDR_OFF (COMPR_OFF + COMPR_SIZE)
 #define CMDR_SIZE (RING_SIZE - CMDR_OFF)
 

@@ -44,7 +44,7 @@ static int file_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 
 	ce->result = (ret == se->len? 0 : ret);
 	ubbd_dbg("finish se id: %p\n", se);
-	ubbd_dbg("append ce: %llu\n", ce->priv_data);
+	ubbd_dbg("append ce: %llu, result: %d\n", ce->priv_data, ce->result);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
 	pthread_mutex_unlock(&ubbd_dev->lock);
 	ubbdlib_processing_complete(ubbd_dev);

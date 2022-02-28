@@ -125,9 +125,9 @@ do { \
 	ubbd_dbg("compr_head: %u, compr_tail: %u\n", sb->compr_head, sb->compr_tail); \
 } while (0)
 
-#define UBBD_UPDATE_CMD_TO_HANDLE(dev, sb, ce) \
+#define UBBD_UPDATE_CMD_TO_HANDLE(dev, sb, len) \
 do { \
-        dev->se_to_handle = (dev->se_to_handle + ubbd_se_hdr_get_len(se->header.len_op)) % sb->cmdr_size; \
+        dev->se_to_handle = (dev->se_to_handle + len) % sb->cmdr_size; \
 } while (0)
 
 struct ubbd_device *find_ubbd_dev(int dev_id);

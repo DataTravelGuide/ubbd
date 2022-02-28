@@ -4,7 +4,7 @@
 
 #include "ubbd_internal.h"
 
-static struct workqueue_struct *ubbd_wq;
+struct workqueue_struct *ubbd_wq;
 atomic_t ubbd_inflight;
 static int ubbd_major;
 static DEFINE_IDA(ubbd_dev_id_ida);
@@ -15,7 +15,7 @@ static const struct blk_mq_ops ubbd_mq_ops = {
 };
 
 /* ubbd_dev lifecycle */
-static struct ubbd_device *__ubbd_dev_create(void)
+static struct ubbd_device *__ubbd_dev_create(u64 data_pages)
 {
 	struct ubbd_device *ubbd_dev;
 
@@ -23,7 +23,8 @@ static struct ubbd_device *__ubbd_dev_create(void)
 	if (!ubbd_dev)
 		return NULL;
 
-	ubbd_dev->data_bitmap = bitmap_zalloc(1024 * 256, GFP_KERNEL);
+	ubbd_dev->data_pages = data_pages;
+	ubbd_dev->data_bitmap = bitmap_zalloc(ubbd_dev->data_pages, GFP_KERNEL);
 	if (!ubbd_dev->data_bitmap) {
 		kfree(ubbd_dev);
 		return NULL;
@@ -38,10 +39,10 @@ static struct ubbd_device *__ubbd_dev_create(void)
 
 	INIT_WORK(&ubbd_dev->complete_work, complete_work_fn);
 	ubbd_dev->status = UBBD_DEV_STATUS_INIT;
-	xa_init(&ubbd_dev->data_pages);
+	xa_init(&ubbd_dev->data_pages_array);
 
 	spin_lock_init(&ubbd_dev->lock);
-	spin_lock_init(&ubbd_dev->req_lock);
+	mutex_init(&ubbd_dev->req_lock);
 	INIT_LIST_HEAD(&ubbd_dev->dev_node);
 	INIT_LIST_HEAD(&ubbd_dev->inflight_reqs);
 	spin_lock_init(&ubbd_dev->inflight_reqs_lock);
@@ -61,22 +62,22 @@ static void __ubbd_dev_free(struct ubbd_device *ubbd_dev)
 
 static void ubbd_page_release(struct ubbd_device *ubbd_dev)
 {
-	XA_STATE(xas, &ubbd_dev->data_pages, 0);
+	XA_STATE(xas, &ubbd_dev->data_pages_array, 0);
 	struct page *page;
 
 	xas_lock(&xas);
-	xas_for_each(&xas, page, 256*1024) {
+	xas_for_each(&xas, page, ubbd_dev->data_pages) {
 		xas_store(&xas, NULL);
 		__free_page(page);
 	}
 	xas_unlock(&xas);
 }
 
-struct ubbd_device *ubbd_dev_create(void)
+struct ubbd_device *ubbd_dev_create(u64 data_pages)
 {
 	struct ubbd_device *ubbd_dev;
 
-	ubbd_dev = __ubbd_dev_create();
+	ubbd_dev = __ubbd_dev_create(data_pages);
 	if (!ubbd_dev)
 		return NULL;
 
@@ -101,7 +102,7 @@ fail_ubbd_dev:
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev)
 {
 	ubbd_page_release(ubbd_dev);
-	xa_destroy(&ubbd_dev->data_pages);
+	xa_destroy(&ubbd_dev->data_pages_array);
 	ida_simple_remove(&ubbd_dev_id_ida, ubbd_dev->dev_id);
 	__ubbd_dev_free(ubbd_dev);
 	module_put(THIS_MODULE);
@@ -205,7 +206,6 @@ err_out_blkdev:
 int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev)
 {
 	struct ubbd_sb *sb;
-	u64 data_size;
 
 	sb = vzalloc(RING_SIZE);
 	if (!sb) {
@@ -216,8 +216,7 @@ int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev)
 	ubbd_dev->cmdr = (void *)sb + CMDR_OFF;
 	ubbd_dev->compr = (void *)sb + COMPR_OFF;
 	ubbd_dev->data_off = RING_SIZE;
-	data_size = 1024*1024*256;;
-	ubbd_dev->mmap_pages = (data_size + RING_SIZE) >> PAGE_SHIFT;
+	ubbd_dev->mmap_pages = (ubbd_dev->data_pages + (RING_SIZE >> PAGE_SHIFT));
 
 	/* Initialise the sb of the ring buffer */
 	sb->version = UBBD_SB_VERSION;
@@ -227,7 +226,11 @@ int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev)
 	sb->cmdr_size = CMDR_SIZE;
 	sb->compr_off = COMPR_OFF;
 	sb->compr_size = COMPR_SIZE;
-	pr_debug("info_off: %u, info_size: %u, cmdr_off: %u, cmdr_size: %u, compr_off: %u, compr_size: %u", sb->info_off, sb->info_size, sb->cmdr_off, sb->cmdr_size, sb->compr_off, sb->compr_size);
+	pr_debug("info_off: %u, info_size: %u, cmdr_off: %u, cmdr_size: %u, \
+			compr_off: %u, compr_size: %u, data_off: %lu",
+			sb->info_off, sb->info_size, sb->cmdr_off,
+			sb->cmdr_size, sb->compr_off, sb->compr_size,
+			ubbd_dev->data_off);
 
 	return 0;
 }

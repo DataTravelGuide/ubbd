@@ -93,11 +93,14 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 	if (!try_module_get(THIS_MODULE))
 		return -ENODEV;
 
-	ubbd_dev = ubbd_dev_create();
+	ubbd_dev = ubbd_dev_create(UBBD_UIO_DATA_PAGES);
 	if (!ubbd_dev) {
 		rc = -ENOMEM;
 		goto out;
 	}
+
+	ubbd_dev->data_pages_reserve = ubbd_dev->data_pages * UBBD_UIO_DATA_RESERVE_PERCENT / 100;
+
 	rc = ubbd_dev_sb_init(ubbd_dev);
 	if (rc) {
 		pr_debug("failed to init dev sb: %d.", rc);
@@ -231,10 +234,10 @@ static int handle_cmd_remove_prepare(struct sk_buff *skb, struct genl_info *info
 		pr_err("force remove ubbd%d", dev_id);
 	}
 
-	spin_lock(&ubbd_dev->req_lock);
+	mutex_lock(&ubbd_dev->req_lock);
 	if (!force && ubbd_dev->open_count) {
 		rc = -EBUSY;
-		spin_unlock(&ubbd_dev->req_lock);
+		mutex_unlock(&ubbd_dev->req_lock);
 		goto out;
 	}
 
@@ -244,7 +247,7 @@ static int handle_cmd_remove_prepare(struct sk_buff *skb, struct genl_info *info
 		ubbd_end_inflight_reqs(ubbd_dev, -EIO);
 	}
 
-	spin_unlock(&ubbd_dev->req_lock);
+	mutex_unlock(&ubbd_dev->req_lock);
 
 	del_gendisk(ubbd_dev->disk);
 
