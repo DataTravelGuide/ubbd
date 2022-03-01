@@ -302,7 +302,6 @@ static void insert_padding(struct ubbd_device *ubbd_dev, u32 cmd_size)
 	memset(header, 0, pad_len);
 	ubbd_se_hdr_set_op(&header->len_op, UBBD_OP_PAD);
 	ubbd_se_hdr_set_len(&header->len_op, pad_len);
-	header->flags |= 1;
 	pr_debug("len_op: %x", header->len_op);
 	pr_debug("insert pad: %u", pad_len);
 

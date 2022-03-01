@@ -149,6 +149,7 @@ static void handle_cmd(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	switch (ubbd_se_hdr_get_op(header->len_op)) {
 	case UBBD_OP_PAD:
 		ubbd_dbg("set pad op to done\n");
+		header->flags |= 1;
 		ret = 0;
 		ubbdlib_processing_complete(ubbd_dev);
 		break;
