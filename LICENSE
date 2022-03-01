@@ -1,4 +1,5 @@
 - include/list.h is copied from linux kernel
+- lib/ubbd_log.c is almost taken from tcmu-runner
 
 Others are following LGPL:
 General Public License, version 2.1 ("LGPL"):
