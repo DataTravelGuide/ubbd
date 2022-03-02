@@ -70,7 +70,7 @@ static void decrease_page_allocated(struct ubbd_device *ubbd_dev, int page_index
 	}
 }
 
-static int ubbd_get_empty_block(struct ubbd_device *ubbd_dev, struct bio *bio, struct ubbd_request *req)
+static int ubbd_get_data_pages(struct ubbd_device *ubbd_dev, struct bio *bio, struct ubbd_request *req)
 {
 	struct page *page = NULL;
 	int cnt = 0;
@@ -149,24 +149,21 @@ static void ubbd_set_se_iov(struct ubbd_request *ubbd_req)
 	uint32_t page_index;
 	struct ubbd_se *se = ubbd_req->se;
 
-	pr_debug("%s, %d;", __func__, __LINE__);
 next:
 	bio_for_each_segment(bv, bio, iter) {
-		pr_debug("%s, %d;", __func__, __LINE__);
 		page_index = ubbd_req_get_pi(ubbd_req, bvec_index);
 
-		pr_debug("ydsyds_2: bvec_index: %u, page_index: %u", bvec_index, page_index);
+		pr_debug("bvec_index: %u, page_index: %u", bvec_index, page_index);
 		se->iov[bvec_index].iov_base = (void *)((page_index * PAGE_SIZE) + ubbd_req->ubbd_dev->data_off + bv.bv_offset);
 		se->iov[bvec_index].iov_len = bv.bv_len;
 		bvec_index++;
 	}
 
-	pr_debug("%s, %d;", __func__, __LINE__);
 	if (bio->bi_next) {
 		bio = bio->bi_next;
 		goto next;
 	}
-	pr_debug("%s, %d;", __func__, __LINE__);
+
 	return;
 }
 
@@ -206,7 +203,6 @@ copy:
 		dst = kmap_atomic(bv.bv_page);
 		src = kmap_atomic(page);
 
-		pr_debug("copy page %p", page);
 		memcpy(dst + bv.bv_offset, src + bv.bv_offset, bv.bv_len);
 		kunmap_atomic(src);
 		kunmap_atomic(dst);
@@ -230,32 +226,26 @@ static void copy_data_to_ubbdreq(struct ubbd_request *ubbd_req)
 	struct bio *bio = ubbd_req->req->bio;
 	struct page *page = NULL;
 
-	pr_debug("%s, %d;", __func__, __LINE__);
 copy:
 	bio_for_each_segment(bv, bio, iter) {
-		pr_debug("%s, %d;", __func__, __LINE__);
 		page = ubbd_req_get_page(ubbd_req, bvec_index);
 		BUG_ON(!page);
 
-		pr_debug("%s, %d;", __func__, __LINE__);
 		src = kmap_atomic(bv.bv_page);
 		dst = kmap_atomic(page);
 
-		pr_debug("%s, %d;", __func__, __LINE__);
 		memcpy(dst + bv.bv_offset, src + bv.bv_offset, bv.bv_len);
-		pr_debug("%s, %d;", __func__, __LINE__);
 		kunmap_atomic(dst);
 		kunmap_atomic(src);
 
 		bvec_index++;
 	}
 
-	pr_debug("%s, %d;", __func__, __LINE__);
 	if (bio->bi_next) {
 		bio = bio->bi_next;
 		goto copy;
 	}
-	pr_debug("%s, %d;", __func__, __LINE__);
+
 	return;
 }
 
@@ -302,8 +292,6 @@ static void insert_padding(struct ubbd_device *ubbd_dev, u32 cmd_size)
 	memset(header, 0, pad_len);
 	ubbd_se_hdr_set_op(&header->len_op, UBBD_OP_PAD);
 	ubbd_se_hdr_set_len(&header->len_op, pad_len);
-	pr_debug("len_op: %x", header->len_op);
-	pr_debug("insert pad: %u", pad_len);
 
 	UPDATE_CMDR_HEAD(ubbd_dev->sb_addr->cmd_head, pad_len, ubbd_dev->sb_addr->cmdr_size);
 }
@@ -340,16 +328,14 @@ void ubbd_queue_nodata_workfn(struct work_struct *work)
 	}
 
 	ubbd_req->req_tid = ++ubbd_dev->req_tid;
-	pr_debug("req_tid: %llu", ubbd_req->req_tid);
 	if (!submit_ring_space_enough(ubbd_dev, command_size)) {
-		pr_debug("space is not enough");
+		pr_err("cmd ring space is not enough");
 		ret = -ENOMEM;
 		mutex_unlock(&ubbd_dev->req_lock);
 		goto end_request;
 	}
 
 	insert_padding(ubbd_dev, command_size);
-	pr_debug("after insert padding");
 
 	se = get_submit_entry(ubbd_dev);
 	memset(se, 0, command_size);
@@ -358,35 +344,23 @@ void ubbd_queue_nodata_workfn(struct work_struct *work)
 	ubbd_se_hdr_set_op(&header->len_op, ubbd_req->op);
 	ubbd_se_hdr_set_len(&header->len_op, command_size);
 
-	pr_debug("len_op: %x", header->len_op);
 	se->priv_data = ubbd_req->req_tid;
 	se->offset = offset;
 	se->len = length;
-	pr_debug("se id: %llu", se->priv_data);
 
-	pr_debug("%s, %d;", __func__, __LINE__);
 	ubbd_req->se = se;
-	pr_debug("%s, %d;", __func__, __LINE__);
-	pr_debug("%s, %d: ubbd_req: %p;", __func__, __LINE__, ubbd_req);
-
-	pr_debug("%s, %d; ubbd_req->req: %p", __func__, __LINE__, ubbd_req->req);
-	pr_debug("%s, %d;", __func__, __LINE__);
-
 	list_add_tail(&ubbd_req->inflight_reqs_node, &ubbd_dev->inflight_reqs);
 
 	UPDATE_CMDR_HEAD(ubbd_dev->sb_addr->cmd_head, command_size, ubbd_dev->sb_addr->cmdr_size);
-	pr_debug("head: %u, tail: %u", ubbd_dev->sb_addr->cmd_head, ubbd_dev->sb_addr->cmd_tail);
 	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
 	mutex_unlock(&ubbd_dev->req_lock);
 
-	pr_debug("notify");
 	uio_event_notify(&ubbd_dev->uio_info);
 
 	return;
 
 end_request:
 	atomic_dec(&ubbd_inflight);
-	pr_debug("requeue inflight: %d", atomic_read(&ubbd_inflight));
 	if (ret == -ENOMEM)
 		blk_mq_requeue_request(ubbd_req->req, true);
 	else
@@ -419,14 +393,13 @@ void ubbd_queue_workfn(struct work_struct *work)
 	}
 
 	if (!submit_ring_space_enough(ubbd_dev, command_size)) {
-		pr_debug("space is not enough");
+		pr_debug("cmd ring space is not enough");
 		ret = -ENOMEM;
 		mutex_unlock(&ubbd_dev->req_lock);
 		goto end_request;
 	}
 
 	ubbd_req->req_tid = ++ubbd_dev->req_tid;
-	pr_debug("req_tid: %llu", ubbd_req->req_tid);
 
 	if (ubbd_req->pi_cnt > UBBD_REQ_INLINE_PI_MAX) {
 		ubbd_req->pi = kcalloc(ubbd_req->pi_cnt - UBBD_REQ_INLINE_PI_MAX, sizeof(uint32_t), GFP_NOIO);
@@ -438,14 +411,13 @@ void ubbd_queue_workfn(struct work_struct *work)
 
 	}
 
-	ret = ubbd_get_empty_block(ubbd_dev, bio, ubbd_req);
+	ret = ubbd_get_data_pages(ubbd_dev, bio, ubbd_req);
 	if (ret) {
-		pr_err("get empty failed");
+		pr_err("get data page failed");
 		goto err_free_pi;
 	}
 
 	insert_padding(ubbd_dev, command_size);
-	pr_debug("after insert padding");
 
 	se = get_submit_entry(ubbd_dev);
 	memset(se, 0, command_size);
@@ -454,38 +426,24 @@ void ubbd_queue_workfn(struct work_struct *work)
 	ubbd_se_hdr_set_op(&header->len_op, ubbd_req->op);
 	ubbd_se_hdr_set_len(&header->len_op, command_size);
 
-	pr_debug("len_op: %x", header->len_op);
-	//se->priv_data = ubbd_req;
 	se->priv_data = ubbd_req->req_tid;
-	pr_debug("se id: %llu", se->priv_data);
 	se->offset = offset;
 	se->len = length;
 	se->iov_cnt = ubbd_req->pi_cnt;
 
-	pr_debug("%s, %d;", __func__, __LINE__);
 	ubbd_req->se = se;
-	pr_debug("%s, %d;", __func__, __LINE__);
-	pr_debug("%s, %d: ubbd_req: %p;", __func__, __LINE__, ubbd_req);
-
-	pr_debug("%s, %d; ubbd_req->req: %p", __func__, __LINE__, ubbd_req->req);
-	pr_debug("%s, %d;", __func__, __LINE__);
-
 	ubbd_set_se_iov(ubbd_req);
 
 	if (req_op(ubbd_req->req) == REQ_OP_WRITE) {
-		pr_debug("%s, %d;", __func__, __LINE__);
 		copy_data_to_ubbdreq(ubbd_req);
-		pr_debug("%s, %d;", __func__, __LINE__);
 	}
 	
 	list_add_tail(&ubbd_req->inflight_reqs_node, &ubbd_dev->inflight_reqs);
 
 	UPDATE_CMDR_HEAD(ubbd_dev->sb_addr->cmd_head, command_size, ubbd_dev->sb_addr->cmdr_size);
-	pr_debug("head: %u, tail: %u", ubbd_dev->sb_addr->cmd_head, ubbd_dev->sb_addr->cmd_tail);
 	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
 	mutex_unlock(&ubbd_dev->req_lock);
 
-	pr_debug("notify");
 	uio_event_notify(&ubbd_dev->uio_info);
 
 	return;
@@ -496,7 +454,6 @@ err_free_pi:
 
 end_request:
 	atomic_dec(&ubbd_inflight);
-	pr_debug("requeue inflight: %d", atomic_read(&ubbd_inflight));
 	if (ret == -ENOMEM)
 		blk_mq_requeue_request(ubbd_req->req, true);
 	else
@@ -515,51 +472,40 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	memset(ubbd_req, 0, sizeof(struct ubbd_request));
 	INIT_LIST_HEAD(&ubbd_req->inflight_reqs_node);
 
-	pr_debug("start request: %p", req);
 	blk_mq_start_request(bd->rq);
 	atomic_inc(&ubbd_inflight);
-	pr_debug("inc inflight: %d", atomic_read(&ubbd_inflight));
 
 	switch (req_op(bd->rq)) {
 	case REQ_OP_FLUSH:
-		pr_debug("flush");
 		ubbd_req_init(ubbd_dev, UBBD_OP_FLUSH, req);
 		INIT_WORK(&ubbd_req->work, ubbd_queue_nodata_workfn);
 		break;
 	case REQ_OP_DISCARD:
-		pr_debug("discard");
 		ubbd_req_init(ubbd_dev, UBBD_OP_DISCARD, req);
 		INIT_WORK(&ubbd_req->work, ubbd_queue_nodata_workfn);
 		break;
 	case REQ_OP_WRITE_ZEROES:
-		pr_debug("writezero");
 		ubbd_req_init(ubbd_dev, UBBD_OP_WRITE_ZEROS, req);
 		INIT_WORK(&ubbd_req->work, ubbd_queue_nodata_workfn);
 		break;
 	case REQ_OP_WRITE:
-		pr_debug("write");
 		ubbd_req_init(ubbd_dev, UBBD_OP_WRITE, req);
 		INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
 		break;
 	case REQ_OP_READ:
-		pr_debug("read");
 		ubbd_req_init(ubbd_dev, UBBD_OP_READ, req);
 		INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
 		break;
 	default:
 		atomic_dec(&ubbd_inflight);
-		pr_debug("unknown req_op %d", req_op(bd->rq));
 		return BLK_STS_IOERR;
 	}
 
 	queue_work(ubbd_wq, &ubbd_req->work);
-	pr_debug("inflight: %d", atomic_read(&ubbd_inflight));
 
 	return BLK_STS_OK;
 }
 
-
-/* requests */
 static void ubbd_req_release(struct ubbd_request *ubbd_req)
 {
 	uint32_t bvec_index = 0;
@@ -568,7 +514,8 @@ static void ubbd_req_release(struct ubbd_request *ubbd_req)
 
 	for (bvec_index = 0; bvec_index < ubbd_req->pi_cnt; bvec_index++) {
 		page_index = ubbd_req_get_pi(ubbd_req, bvec_index);
-		pr_debug("release page: %u, req: %p, bvec_index: %u ", page_index, ubbd_req, bvec_index);
+		pr_debug("release page: %u, req: %p, bvec_index: %u ",
+				page_index, ubbd_req, bvec_index);
 
 		decrease_page_allocated(ubbd_dev, page_index);
 		clear_bit(page_index, ubbd_dev->data_bitmap);
@@ -578,7 +525,6 @@ static void ubbd_req_release(struct ubbd_request *ubbd_req)
 		kfree(ubbd_req->pi);
 		ubbd_req->pi = NULL;
 	}
-	pr_debug("finish releaes ubbd");
 }
 
 
@@ -588,7 +534,6 @@ static struct ubbd_request *find_inflight_req(struct ubbd_device *ubbd_dev, u64 
 	bool found = false;
 
 	list_for_each_entry(req, &ubbd_dev->inflight_reqs, inflight_reqs_node) {
-		pr_debug("find_inflight_req: req: %llu, req_tid: %llu", req->req_tid, req_tid);
 		if (req->req_tid == req_tid) {
 			found = true;
 			break;
@@ -610,7 +555,9 @@ again:
                goto out;
 
 	if (se->header.flags) {
-		UPDATE_CMDR_TAIL(ubbd_dev->sb_addr->cmd_tail, ubbd_se_hdr_get_len(se->header.len_op), ubbd_dev->sb_addr->cmdr_size);
+		UPDATE_CMDR_TAIL(ubbd_dev->sb_addr->cmd_tail,
+				ubbd_se_hdr_get_len(se->header.len_op),
+			       	ubbd_dev->sb_addr->cmdr_size);
 		goto again;
        }
 out:
@@ -624,8 +571,6 @@ void complete_work_fn(struct work_struct *work)
 	struct ubbd_ce *ce;
 	struct ubbd_se *se;
 	struct ubbd_request *req;
-
-	pr_debug("ubbd_irqcontrol");
 
 again:
 	mutex_lock(&ubbd_dev->req_lock);
@@ -641,8 +586,6 @@ again:
 	}
 
 	ubbd_flush_dcache_range(ce, sizeof(*ce));
-	pr_debug("ce: %p", ce);
-	pr_debug("ce id: %llu", ce->priv_data);
 	req = find_inflight_req(ubbd_dev, ce->priv_data);
 	WARN_ON(!req);
 	if (!req) {
@@ -655,22 +598,14 @@ again:
 		copy_data_from_ubbdreq(req);
 
 	se->header.flags |= 1;
-	pr_debug("end_request: %p: se: %p, se->priv_data: %llu, ce->result: %d ce->priv_data: %llu", req->req, se, se->priv_data, ce->result, ce->priv_data);
-
 	atomic_dec(&ubbd_inflight);
-	pr_debug("inflight: %d", atomic_read(&ubbd_inflight));
 	list_del(&req->inflight_reqs_node);
 	ubbd_req_release(req);
-	pr_debug("end_request: %p", req->req);
 	blk_mq_end_request(req->req, errno_to_blk_status(ce->result));
-	pr_debug("after end request");
-
 	advance_cmd_ring(ubbd_dev);
-	pr_debug("after advance ring");
 
 advance_compr:
 	UPDATE_COMPR_TAIL(ubbd_dev->sb_addr->compr_tail, sizeof(struct ubbd_ce), ubbd_dev->sb_addr->compr_size);
-	pr_debug("update compr tail");
 	mutex_unlock(&ubbd_dev->req_lock);
 
 	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));

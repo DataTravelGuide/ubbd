@@ -27,10 +27,6 @@ static void ubbd_vma_close(struct vm_area_struct *vma)
 	//kref_put(&ubbd_dev->kref, _kref_release);
 }
 
-/*
- * mmap code from uio.c. Copied here because we want to hook mmap()
- * and this stuff must come along.
- */
 static int ubbd_find_mem_index(struct vm_area_struct *vma)
 {
 	struct ubbd_device *ubbd_dev = vma->vm_private_data;
@@ -43,7 +39,6 @@ static int ubbd_find_mem_index(struct vm_area_struct *vma)
 	}
 	return -1;
 }
-
 
 static struct page *ubbd_try_get_data_page(struct ubbd_device *ubbd_dev, uint32_t dpi)
 {
@@ -71,32 +66,23 @@ static vm_fault_t ubbd_vma_fault(struct vm_fault *vmf)
 	if (mi < 0)
 		return VM_FAULT_SIGBUS;
 
-	/*
-	 * We need to subtract mi because userspace uses offset = N*PAGE_SIZE
-	 * to use mem[N].
-	 */
 	offset = (vmf->pgoff - mi) << PAGE_SHIFT;
 
 	if (offset < ubbd_dev->data_off) {
-		/* For the vmalloc()ed cmd area pages */
 		addr = (void *)(unsigned long)info->mem[mi].addr + offset;
 		page = vmalloc_to_page(addr);
 	} else {
 		uint32_t dpi;
 
-		/* For the dynamically growing data area pages */
 		dpi = (offset - ubbd_dev->data_off) / PAGE_SIZE;
-		pr_debug("dpi: %u", dpi);
 		page = ubbd_try_get_data_page(ubbd_dev, dpi);
 		if (!page)
 			return VM_FAULT_SIGBUS;
-		//addr = (void *)(unsigned long)ubbd_dev->data + offset - ubbd_dev->data_off;
-		//page = vmalloc_to_page(addr);
-		pr_debug("fault page: %p", page);
+		pr_debug("ubbd uio fault page: %p", page);
 	}
 
 	get_page(page);
-	pr_debug("fault return page: %p", page);
+	pr_debug("ubbd uio fault return page: %p", page);
 	vmf->page = page;
 	return 0;
 }
@@ -116,7 +102,6 @@ static int ubbd_uio_mmap(struct uio_info *info, struct vm_area_struct *vma)
 
 	vma->vm_private_data = ubbd_dev;
 
-	/* Ensure the mmap is exactly the right size */
 	if (vma_pages(vma) != ubbd_dev->mmap_pages)
 		return -EINVAL;
 

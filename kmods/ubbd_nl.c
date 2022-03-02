@@ -103,11 +103,14 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 
 	rc = ubbd_dev_sb_init(ubbd_dev);
 	if (rc) {
-		pr_debug("failed to init dev sb: %d.", rc);
+		pr_err("failed to init dev sb: %d.", rc);
 		goto err_free_ubbd;
 	}
 
-	pr_debug("sizeof(struct sb): %lu, sizeof(struct se): %lu, sizeof(struct ce): %lu. sizeof(struct iov): %lu", sizeof(struct ubbd_sb), sizeof(struct ubbd_se), sizeof(struct ubbd_ce), sizeof(struct iovec));
+	pr_debug("sizeof(struct sb): %lu, sizeof(struct se): %lu, \
+			sizeof(struct ce): %lu. sizeof(struct iov): %lu",
+		       	sizeof(struct ubbd_sb), sizeof(struct ubbd_se),
+		       	sizeof(struct ubbd_ce), sizeof(struct iovec));
 
 	rc = ubbd_dev_uio_init(ubbd_dev);
 	if (rc) {
@@ -149,7 +152,6 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 	ubbd_dev->status = UBBD_DEV_STATUS_ADD_PREPARED;
 
 	rc = ubbd_nl_reply_add_prepare_done(ubbd_dev, priv_data, info);
-	pr_debug("send: rc: %d", rc);
 	if (rc)
 		goto err_free_disk;
 
@@ -196,14 +198,13 @@ static int handle_cmd_add(struct sk_buff *skb, struct genl_info *info)
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 	ubbd_dev = find_ubbd_dev(dev_id);
 	if (!ubbd_dev) {
-		pr_debug("cant find dev: %d", dev_id);
+		pr_err("cant find dev: %d", dev_id);
 		rc = -ENOENT;
 		goto out;
 	}
 
 	add_disk(ubbd_dev->disk);
 	blk_put_queue(ubbd_dev->disk->queue);
-	pr_debug("handle cmd add done: %d", rc);
 	ubbd_dev->status = UBBD_DEV_STATUS_RUNNING;
 
 out:
@@ -231,7 +232,7 @@ static int handle_cmd_remove_prepare(struct sk_buff *skb, struct genl_info *info
 
 	if (remove_flags & UBBD_ATTR_FLAGS_REMOVE_FORCE) {
 		force = true;
-		pr_err("force remove ubbd%d", dev_id);
+		pr_debug("force remove ubbd%d", dev_id);
 	}
 
 	mutex_lock(&ubbd_dev->req_lock);
@@ -291,7 +292,6 @@ static int fill_ubbd_status(struct ubbd_device *ubbd_dev, struct sk_buff *reply_
 		return -EMSGSIZE;
 	ret = nla_put_s32(reply_skb, UBBD_STATUS_DEV_ID,
 				ubbd_dev->dev_id);
-	pr_debug("dev_id: %d", ubbd_dev->dev_id);
 	ret = nla_put_s32(reply_skb, UBBD_STATUS_UIO_ID,
 				ubbd_dev->uio_info.uio_dev->minor);
 	ret = nla_put_u64_64bit(reply_skb, UBBD_STATUS_UIO_MAP_SIZE,
@@ -313,7 +313,6 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 	size_t msg_size;
 	int ret = 0;
 
-	pr_debug("%s:%d ", __func__, __LINE__);
 	if (info->attrs[UBBD_ATTR_DEV_ID])
 		dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 
