@@ -73,9 +73,9 @@ struct ubbd_device {
 	void			*cmdr;
 	void			*compr;
 	size_t			data_off;
-	u64			data_pages;
-	u64			data_pages_allocated;
-	u64			data_pages_reserve;
+	u32			data_pages;
+	u32			data_pages_allocated;
+	u32			data_pages_reserve;
 	uint32_t		max_blocks;
 	size_t			mmap_pages;
 
@@ -183,7 +183,7 @@ void complete_work_fn(struct work_struct *work);
 blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		const struct blk_mq_queue_data *bd);
 void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret);
-struct ubbd_device *ubbd_dev_create(u64 data_size);
+struct ubbd_device *ubbd_dev_create(u32 data_pages);
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev);
 void ubbd_free_disk(struct ubbd_device *ubbd_dev);
 int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev, u64 device_size);

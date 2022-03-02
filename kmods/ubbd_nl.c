@@ -86,14 +86,31 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev = NULL;
 	u64 dev_features;
-	u64 priv_data = nla_get_u64(info->attrs[UBBD_ATTR_PRIV_DATA]);
-	u64 device_size = nla_get_u64(info->attrs[UBBD_ATTR_DEV_SIZE]);
+	u64 priv_data;
+	u64 device_size;
+	u32 data_pages;
 	int rc;
 
 	if (!try_module_get(THIS_MODULE))
 		return -ENODEV;
 
-	ubbd_dev = ubbd_dev_create(UBBD_UIO_DATA_PAGES);
+	if (!info->attrs[UBBD_ATTR_PRIV_DATA] ||
+			!info->attrs[UBBD_ATTR_DEV_SIZE] ||
+			!info->attrs[UBBD_ATTR_FLAGS]) {
+		rc = -EINVAL;
+		goto out;
+	}
+
+	priv_data = nla_get_u64(info->attrs[UBBD_ATTR_PRIV_DATA]);
+	device_size = nla_get_u64(info->attrs[UBBD_ATTR_DEV_SIZE]);
+	dev_features = nla_get_u64(info->attrs[UBBD_ATTR_FLAGS]);
+
+	if (info->attrs[UBBD_ATTR_DATA_PAGES])
+		data_pages = nla_get_u32(info->attrs[UBBD_ATTR_DATA_PAGES]);
+	else
+		data_pages = UBBD_UIO_DATA_PAGES;
+
+	ubbd_dev = ubbd_dev_create(data_pages);
 	if (!ubbd_dev) {
 		rc = -ENOMEM;
 		goto out;
@@ -124,7 +141,6 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 		goto err_unregister_uio;
 	}
 
-	dev_features = nla_get_u64(info->attrs[UBBD_ATTR_FLAGS]);
 	if (dev_features & UBBD_ATTR_FLAGS_ADD_WRITECACHE) {
 		if (dev_features & UBBD_ATTR_FLAGS_ADD_FUA)
 			blk_queue_write_cache(ubbd_dev->disk->queue, true, true);

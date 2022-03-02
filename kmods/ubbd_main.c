@@ -15,7 +15,7 @@ static const struct blk_mq_ops ubbd_mq_ops = {
 };
 
 /* ubbd_dev lifecycle */
-static struct ubbd_device *__ubbd_dev_create(u64 data_pages)
+static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 {
 	struct ubbd_device *ubbd_dev;
 
@@ -73,7 +73,7 @@ static void ubbd_page_release(struct ubbd_device *ubbd_dev)
 	xas_unlock(&xas);
 }
 
-struct ubbd_device *ubbd_dev_create(u64 data_pages)
+struct ubbd_device *ubbd_dev_create(u32 data_pages)
 {
 	struct ubbd_device *ubbd_dev;
 
