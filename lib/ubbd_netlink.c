@@ -66,6 +66,8 @@ static int nl_callback(struct nl_msg *msg, void *arg)
 		ubbd_err("Invalid response from the kernel\n");
 
 	ret = nla_get_s32(msg_attr[UBBD_ATTR_RETVAL]);
+	if (ret)
+		ubbd_err("error: %d", ret);
 
 	return ret;
 }
@@ -110,6 +112,62 @@ static int send_netlink_remove(struct ubbd_nl_req *req)
 	        list_del(&ubbd_dev->dev_node);
 	        ubbd_dev_release(ubbd_dev);
 	}
+	return ret;
+
+free_msg:
+	nlmsg_free(msg);
+close_sock:
+	ubbd_socket_close(socket);
+	return ret;
+}
+
+static int send_netlink_config(struct ubbd_nl_req *req)
+{
+	struct ubbd_device *ubbd_dev = req->ubbd_dev;
+	struct nl_msg *msg;
+	void *hdr;
+	int ret = -ENOMEM;
+	struct nl_sock *socket;
+	int driver_id;
+	struct nlattr *sock_attr;
+
+	socket = get_ubbd_socket(&driver_id);
+	if (!socket)
+		return -1;
+
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, nl_callback, NULL);
+
+	msg = nlmsg_alloc();
+	if (!msg)
+		goto close_sock;
+
+	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
+			  0, 0, UBBD_CMD_CONFIG, UBBD_NL_VERSION);
+	if (!hdr)
+		goto free_msg;
+
+	ret = nla_put_s32(msg, UBBD_ATTR_DEV_ID, ubbd_dev->dev_id);
+	if (ret < 0)
+		goto free_msg;
+
+	sock_attr = nla_nest_start(msg, UBBD_ATTR_DEV_CONFIG);
+	if (!sock_attr) {
+		ubbd_dev_err(ubbd_dev, "Couldn't nest config\n");
+		goto free_msg;
+	}
+
+	ret = nla_put_u32(msg, UBBD_DEV_CONFIG_DP_RESERVE, req->req_opts.config_opts.data_pages_reserve);
+	if (ret < 0)
+		goto free_msg;
+
+	nla_nest_end(msg, sock_attr);
+
+	ret = nl_send_sync(socket, msg);
+	ubbd_socket_close(socket);
+	if (ret) {
+		ubbd_err("send_netlink_config ret of send: %d\n", ret);
+	}
+
 	return ret;
 
 free_msg:
@@ -249,8 +307,10 @@ static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
-	if (ret)
+	if (ret) {
 		ubbd_err("Invalid response from the kernel\n");
+		exit(-1);
+	}
 
 	ubbd_dev = (struct ubbd_device *)(nla_get_u64(msg_attr[UBBD_ATTR_PRIV_DATA]));
 	ubbd_dev->status = UBBD_DEV_STATUS_ADD_PREPARED;
@@ -467,6 +527,18 @@ void ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force)
 	ubbd_nl_queue_req(ubbd_dev, req);
 }
 
+void ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve)
+{
+	struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
+
+	INIT_LIST_HEAD(&req->node);
+	req->type = UBBD_NL_REQ_CONFIG;
+	req->ubbd_dev = ubbd_dev;
+	req->req_opts.config_opts.data_pages_reserve = data_pages_reserve;
+
+	ubbd_nl_queue_req(ubbd_dev, req);
+}
+
 static int handle_nl_req(struct ubbd_nl_req *req)
 {
 	int ret = 0;
@@ -483,6 +555,9 @@ static int handle_nl_req(struct ubbd_nl_req *req)
 		break;
 	case UBBD_NL_REQ_REMOVE:
 		ret = send_netlink_remove(req);
+		break;
+	case UBBD_NL_REQ_CONFIG:
+		ret = send_netlink_config(req);
 		break;
 	default:
 		ubbd_err("unknown netlink request type: %d\n", req->type);

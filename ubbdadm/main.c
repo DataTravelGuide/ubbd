@@ -15,6 +15,8 @@ enum ubbd_mgmt_cmd str_to_cmd(char *str)
 		cmd = UBBD_MGMT_CMD_MAP;
 	else if (!strcmp("unmap", str))
 		cmd = UBBD_MGMT_CMD_UNMAP;
+	else if (!strcmp("config", str))
+		cmd = UBBD_MGMT_CMD_CONFIG;
 	else
 		cmd = -1;
 
@@ -45,11 +47,12 @@ static struct option const long_options[] =
 	{"pool", required_argument, NULL, 'p'},
 	{"image", required_argument, NULL, 'i'},
 	{"ubbdid", required_argument, NULL, 'u'},
+	{"data-pages-reserve", required_argument, NULL, 'r'},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:t:f:p:i:u:h:s:o";
+static char *short_options = "c:t:f:p:i:u:h:s:o:r";
 
 static void usage(int status)
 { 
@@ -113,6 +116,19 @@ static int do_unmap(int ubbdid, bool force)
 	return 0;
 }
 
+static int do_config(int ubbdid, int data_pages_reserve)
+{
+	struct ubbd_mgmt_request req;
+	int fd;
+
+	req.cmd = UBBD_MGMT_CMD_CONFIG;
+	req.u.config.dev_id = ubbdid;
+	req.u.config.data_pages_reserve = data_pages_reserve;
+	ubbdd_request(&fd, &req);
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	int ch, longindex;
@@ -121,6 +137,7 @@ int main(int argc, char **argv)
 	char *filepath, *pool, *image;
 	uint64_t filesize;
 	int ubbdid;
+	int data_pages_reserve;
 	bool force = false;
 
 	optopt = 0;
@@ -150,7 +167,9 @@ int main(int argc, char **argv)
 			break;
 		case 'u':
 			ubbdid = atoi(optarg);
-			ubbd_err("ubbdid: %d", ubbdid);
+			break;
+		case 'r':
+			data_pages_reserve = atoi(optarg);
 			break;
 		case 'h':
 			usage(0);
@@ -175,8 +194,15 @@ int main(int argc, char **argv)
 			exit(-1);
 		}
 	} else if (command == UBBD_MGMT_CMD_UNMAP) {
-		ubbd_err("unmap ubbdid: %d\n", ubbdid);
 		do_unmap(ubbdid, force);
+	} else if (command == UBBD_MGMT_CMD_CONFIG) {
+		if (data_pages_reserve < 0 ||
+				data_pages_reserve > 100) {
+			ubbd_err("data_pages_reserve should be [0 - 100]\n");
+			exit(-1);
+		}
+
+		do_config(ubbdid, data_pages_reserve);
 	} else {
 		printf("error command: %d\n", command);
 		exit(-1);

@@ -8,6 +8,7 @@ enum ubbd_nl_req_type {
 	UBBD_NL_REQ_ADD,
 	UBBD_NL_REQ_REMOVE_PREPARE,
 	UBBD_NL_REQ_REMOVE,
+	UBBD_NL_REQ_CONFIG,
 };
 
 struct ubbd_nl_req {
@@ -19,6 +20,9 @@ struct ubbd_nl_req {
 		struct remove_options {
 			bool force;
 		} remove_opts;
+		struct config_options {
+			int data_pages_reserve;
+		} config_opts;
 	} req_opts;
 	struct ubbd_device *ubbd_dev;
 	struct list_head node;
@@ -34,6 +38,7 @@ struct ubbd_nl_dev_status {
 
 void ubbd_nl_req_add(struct ubbd_device *ubbd_dev);
 void ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force);
+void ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve);
 int start_netlink_thread(pthread_t *t);
 int ubbd_nl_dev_list(struct list_head *dev_list);
 #endif	/* UBBD_NETLINK_H */

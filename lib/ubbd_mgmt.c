@@ -173,6 +173,16 @@ static void *mgmt_thread_fn(void* args)
 					continue;
 				}
 				ret = ubbd_dev_remove(ubbd_dev, mgmt_req->u.remove.force);
+			} else if (mgmt_req->cmd == UBBD_MGMT_CMD_CONFIG) {
+				ubbd_dev = find_ubbd_dev(mgmt_req->u.remove.dev_id);
+				if (!ubbd_dev) {
+					ubbd_err("cant find ubbddev\n");
+					continue;
+				}
+				ret = ubbd_dev_config(ubbd_dev, mgmt_req->u.config.data_pages_reserve);
+			} else {
+				ubbd_err("unrecognized command: %d", mgmt_req->cmd);
+				continue;
 			}
 		}
 	}

@@ -137,6 +137,7 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info);
 int ubbd_dev_open(struct ubbd_device *ubbd_dev);
 int ubbd_dev_add(struct ubbd_device *ubbd_dev);
 int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force);
+int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve);
 
 int ubd_dev_reopen_devs(void);
 

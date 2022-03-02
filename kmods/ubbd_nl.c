@@ -225,7 +225,6 @@ static int handle_cmd_add(struct sk_buff *skb, struct genl_info *info)
 
 out:
 	ubbd_nl_reply(info, UBBD_CMD_ADD, rc);
-
 	return rc;
 }
 
@@ -372,14 +371,68 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 	}
 	nla_nest_end(reply_skb, dev_list);
 
+	mutex_unlock(&ubbd_dev_list_mutex);
 	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0))
 		goto out;
 
 	genlmsg_end(reply_skb, msg_head);
-	ret = genlmsg_reply(reply_skb, info);
+	return genlmsg_reply(reply_skb, info);
 out:
 	mutex_unlock(&ubbd_dev_list_mutex);
 	ubbd_nl_reply(info, UBBD_CMD_STATUS, ret);
+	return ret;
+}
+
+static struct nla_policy ubbd_dev_config_attr_policy[UBBD_DEV_CONFIG_MAX+1] = {
+	[UBBD_DEV_CONFIG_DP_RESERVE]	= { .type = NLA_U32 },
+};
+
+static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
+{
+	struct ubbd_device *ubbd_dev;
+	struct nlattr *config[UBBD_DEV_CONFIG_MAX + 1];
+	int dev_id;
+	u32 config_dp_reserve;
+	int ret = 0;
+
+	if (!info->attrs[UBBD_ATTR_DEV_ID] ||
+			!info->attrs[UBBD_ATTR_DEV_CONFIG]) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
+	ubbd_dev = find_ubbd_dev(dev_id);
+	if (!ubbd_dev) {
+		pr_err("cant find dev: %d", dev_id);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = nla_parse_nested_deprecated(config, UBBD_DEV_CONFIG_MAX,
+			info->attrs[UBBD_ATTR_DEV_CONFIG],
+			ubbd_dev_config_attr_policy,
+			info->extack);
+	if (ret) {
+		pr_err("failed to parse config");
+		goto out;
+	}
+
+	mutex_lock(&ubbd_dev->req_lock);
+	if (config[UBBD_DEV_CONFIG_DP_RESERVE]) {
+		config_dp_reserve = nla_get_u32(config[UBBD_DEV_CONFIG_DP_RESERVE]);
+		if (config_dp_reserve > 100) {
+			ret = -EINVAL;
+			pr_err("dp_reserve is not valide: %u", config_dp_reserve);
+			mutex_unlock(&ubbd_dev->req_lock);
+			goto out;
+		}
+		ubbd_dev->data_pages_reserve = config_dp_reserve * ubbd_dev->data_pages / 100;
+	}
+	mutex_unlock(&ubbd_dev->req_lock);
+
+out:
+	ubbd_nl_reply(info, UBBD_CMD_CONFIG, ret);
 	return ret;
 }
 
@@ -415,6 +468,12 @@ static const struct genl_small_ops ubbd_genl_ops[] = {
 		.flags	= GENL_ADMIN_PERM,
 		.doit	= handle_cmd_status,
 	},
+	{
+		.cmd	= UBBD_CMD_CONFIG,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags	= GENL_ADMIN_PERM,
+		.doit	= handle_cmd_config,
+	},
 };
 #else
 static const struct genl_ops ubbd_genl_ops[] = {
@@ -443,6 +502,11 @@ static const struct genl_ops ubbd_genl_ops[] = {
 		.flags	= GENL_ADMIN_PERM,
 		.doit	= handle_cmd_status,
 	},
+	{
+		.cmd	= UBBD_CMD_CONFIG,
+		.flags	= GENL_ADMIN_PERM,
+		.doit	= handle_cmd_config,
+	},
 };
 #endif
 
@@ -463,6 +527,7 @@ static struct nla_policy ubbd_attr_policy[UBBD_ATTR_MAX+1] = {
 	[UBBD_ATTR_UIO_MAP_SIZE]	= { .type = NLA_U64 },
 	[UBBD_ATTR_DEV_SIZE]	= { .type = NLA_U64 },
 	[UBBD_ATTR_FLAGS]	= { .type = NLA_U64 },
+	[UBBD_ATTR_DEV_CONFIG]	= { .type = NLA_NESTED },
 };
 #endif
 

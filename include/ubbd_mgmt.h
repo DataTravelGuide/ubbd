@@ -8,7 +8,8 @@
 
 enum ubbd_mgmt_cmd {
 	UBBD_MGMT_CMD_MAP,
-	UBBD_MGMT_CMD_UNMAP
+	UBBD_MGMT_CMD_UNMAP,
+	UBBD_MGMT_CMD_CONFIG
 };
 
 struct ubbd_mgmt_request {
@@ -21,6 +22,10 @@ struct ubbd_mgmt_request {
 			int dev_id;
 			bool force;
 		} remove;
+		struct {
+			int dev_id;
+			int data_pages_reserve;
+		} config;
 	} u;
 };
 

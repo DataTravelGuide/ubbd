@@ -319,6 +319,15 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force)
 	return ret;
 }
 
+int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve)
+{
+	int ret = 0;
+
+	ubbd_nl_req_config(ubbd_dev, data_pages_reserve);
+
+	return ret;
+}
+
 static int reopen_dev(struct ubbd_nl_dev_status *dev_status)
 {
 	char *mmap_name;
