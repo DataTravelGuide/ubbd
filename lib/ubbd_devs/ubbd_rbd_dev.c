@@ -68,7 +68,11 @@ static int rbd_dev_open(struct ubbd_device *ubbd_dev)
 	ubbd_dev->dev_features.write_cache = false;
 	ubbd_dev->dev_features.fua = false;
 	ubbd_dev->dev_features.discard = true;
+#ifdef LIBRBD_SUPPORTS_WRITE_ZEROES
 	ubbd_dev->dev_features.write_zeros = true;
+#else
+	ubbd_dev->dev_features.write_zeros = false;
+#endif
 
 	return 0;
 }
@@ -267,6 +271,7 @@ static int rbd_dev_discard(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	return ret;
 }
 
+#ifdef LIBRBD_SUPPORTS_WRITE_ZEROES
 static int rbd_dev_write_zeros(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 {
 	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
@@ -296,6 +301,14 @@ static int rbd_dev_write_zeros(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	ubbd_dev_dbg(ubbd_dev, "after wait\n");
 	return ret;
 }
+#else
+static int rbd_dev_write_zeros(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
+{
+	ubbd_dev_err(ubbd_dev, "write_zeros is not supported");
+
+	return -1;
+}
+#endif
 
 struct ubbd_dev_ops rbd_dev_ops = {
 	.open = rbd_dev_open,
