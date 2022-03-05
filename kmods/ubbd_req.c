@@ -110,43 +110,37 @@ static int ubbd_xa_store_page(struct ubbd_device *ubbd_dev, int page_index,
 
 static int ubbd_get_data_pages(struct ubbd_device *ubbd_dev, struct bio *bio, struct ubbd_request *req)
 {
-	struct page *page = NULL;
-	int bvec_index = 0;
-	int page_index = 0;
+	struct page *page;
+	int bvec_index = 0, page_index = 0;
 	struct bio_vec bv;
 	struct bvec_iter iter;
 	int ret = 0;
 
 next_bio:
 	bio_for_each_segment(bv, bio, iter) {
-again:
 		page_index = find_first_zero_bit(ubbd_dev->data_bitmap, ubbd_dev->data_pages);
 		if (page_index == ubbd_dev->data_pages) {
 			ret = -ENOMEM;
 			goto out;
 		}
 
-		if (!xa_load(&ubbd_dev->data_pages_array, page_index)) {
-			if (page) {
-				ret = ubbd_xa_store_page(ubbd_dev, page_index, page);
-				if (ret) {
-					pr_err("xa_store failed.");
-					goto out;
-				}
-				page = NULL;
-			} else {
-				page = ubbd_alloc_page(ubbd_dev);
-				if (!page) {
-					pr_err("failed to alloc page.");
-					ret = -ENOMEM;
-					goto out;
-				}
-				goto again;
+		page = xa_load(&ubbd_dev->data_pages_array, page_index);
+		if (!page) {
+			page = ubbd_alloc_page(ubbd_dev);
+			if (!page) {
+				pr_err("failed to alloc page.");
+				ret = -ENOMEM;
+				goto out;
+			}
+			ret = ubbd_xa_store_page(ubbd_dev, page_index, page);
+			if (ret) {
+				pr_err("xa_store failed.");
+				__ubbd_release_page(ubbd_dev, page);
+				goto out;
 			}
 		}
 
 		set_bit(page_index, ubbd_dev->data_bitmap);
-
 		ubbd_req_set_pi(req, bvec_index++, page_index);
 	}
 
@@ -156,10 +150,6 @@ again:
 	}
 
 out:
-	if (page) {
-		__ubbd_release_page(ubbd_dev, page);
-	}
-
 	if (ret) {
 		pr_err("ret is %d, bvec_index: %d", ret, bvec_index);
 		while (bvec_index > 0) {
