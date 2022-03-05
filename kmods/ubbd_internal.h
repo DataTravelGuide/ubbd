@@ -151,19 +151,6 @@ struct ubbd_request {
 
 #define UPDATE_COMPR_TAIL(tail, used, size) smp_store_release(&tail, ((tail % size) + used) % size)
 
-static inline size_t ubbd_cmd_get_base_cmd_size(size_t iov_cnt)
-{
-	u32 cmd_size = sizeof(struct ubbd_se) + (sizeof(struct iovec) * iov_cnt);
-
-	return round_up(cmd_size, UBBD_OP_ALIGN_SIZE);
-}
-
-static inline size_t ubbd_cmd_get_base_comp_size(size_t iov_cnt)
-{
-	return sizeof(struct ubbd_se) + (sizeof(struct iovec) * iov_cnt);
-}
-
-
 static inline void ubbd_flush_dcache_range(void *vaddr, size_t size)
 {
         unsigned long offset = offset_in_page(vaddr);
