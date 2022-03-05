@@ -67,12 +67,16 @@ static void __ubbd_release_page(struct ubbd_device *ubbd_dev, struct page *page)
 	ubbd_dev->data_pages_allocated--;
 }
 
-static void ubbd_release_page(struct ubbd_device *ubbd_dev, int page_index)
+static void ubbd_release_page(struct ubbd_device *ubbd_dev,
+		struct ubbd_request *ubbd_req, int bvec_index)
 {
 	struct page *page = NULL;
+	int page_index = ubbd_req_get_pi(ubbd_req, bvec_index);
+
+	pr_debug("release page: %u, req: %p, bvec_index: %u ",
+			page_index, ubbd_req, bvec_index);
 
 	clear_bit(page_index, ubbd_dev->data_bitmap);
-
 	if (ubbd_dev->data_pages_allocated > ubbd_dev->data_pages_reserve) {
 		loff_t off;
 
@@ -117,6 +121,7 @@ again:
 			} else {
 				page = ubbd_alloc_page(ubbd_dev);
 				if (!page) {
+					pr_err("failed to alloc page.");
 					ret = -ENOMEM;
 					goto out;
 				}
@@ -140,12 +145,10 @@ out:
 	}
 
 	if (ret) {
-		pr_err("ret is %d", ret);
-		do {
-			bvec_index--;
-			page_index = ubbd_req_get_pi(req, bvec_index);
-			ubbd_release_page(ubbd_dev, page_index);
-		} while (bvec_index >= 0);
+		pr_err("ret is %d, bvec_index: %d", ret, bvec_index);
+		while (bvec_index > 0) {
+			ubbd_release_page(ubbd_dev, req, --bvec_index);
+		}
 	}
 	return ret;
 }
@@ -352,14 +355,12 @@ void ubbd_queue_workfn(struct work_struct *work)
 	mutex_lock(&ubbd_dev->req_lock);
 	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
 		ret = -EIO;
-		mutex_unlock(&ubbd_dev->req_lock);
 		goto end_request;
 	}
 
 	if (!submit_ring_space_enough(ubbd_dev, command_size)) {
 		pr_debug("cmd ring space is not enough");
 		ret = -ENOMEM;
-		mutex_unlock(&ubbd_dev->req_lock);
 		goto end_request;
 	}
 
@@ -422,6 +423,7 @@ err_free_pi:
 
 end_request:
 	atomic_dec(&ubbd_inflight);
+	mutex_unlock(&ubbd_dev->req_lock);
 	if (ret == -ENOMEM)
 		blk_mq_requeue_request(ubbd_req->req, true);
 	else
@@ -473,15 +475,10 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 static void ubbd_req_release(struct ubbd_request *ubbd_req)
 {
 	uint32_t bvec_index = 0;
-	uint32_t page_index;
 	struct ubbd_device *ubbd_dev = ubbd_req->ubbd_dev;
 
 	for (bvec_index = 0; bvec_index < ubbd_req->pi_cnt; bvec_index++) {
-		page_index = ubbd_req_get_pi(ubbd_req, bvec_index);
-		pr_debug("release page: %u, req: %p, bvec_index: %u ",
-				page_index, ubbd_req, bvec_index);
-
-		ubbd_release_page(ubbd_dev, page_index);
+		ubbd_release_page(ubbd_dev, ubbd_req, bvec_index);
 	}
 
 	if (ubbd_req->pi) {
