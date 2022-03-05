@@ -91,14 +91,11 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 	u32 data_pages;
 	int rc;
 
-	if (!try_module_get(THIS_MODULE))
-		return -ENODEV;
-
 	if (!info->attrs[UBBD_ATTR_PRIV_DATA] ||
 			!info->attrs[UBBD_ATTR_DEV_SIZE] ||
 			!info->attrs[UBBD_ATTR_FLAGS]) {
 		rc = -EINVAL;
-		goto out;
+		goto reply;
 	}
 
 	priv_data = nla_get_u64(info->attrs[UBBD_ATTR_PRIV_DATA]);
@@ -113,10 +110,8 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 	ubbd_dev = ubbd_dev_create(data_pages);
 	if (!ubbd_dev) {
 		rc = -ENOMEM;
-		goto out;
+		goto reply;
 	}
-
-	ubbd_dev->data_pages_reserve = ubbd_dev->data_pages * UBBD_UIO_DATA_RESERVE_PERCENT / 100;
 
 	rc = ubbd_dev_sb_init(ubbd_dev);
 	if (rc) {
@@ -124,40 +119,16 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 		goto err_dev_put;
 	}
 
-	pr_debug("sizeof(struct sb): %lu, sizeof(struct se): %lu, \
-			sizeof(struct ce): %lu. sizeof(struct iov): %lu",
-		       	sizeof(struct ubbd_sb), sizeof(struct ubbd_se),
-		       	sizeof(struct ubbd_ce), sizeof(struct iovec));
-
 	rc = ubbd_dev_uio_init(ubbd_dev);
 	if (rc) {
 		pr_debug("failed to init uio: %d.", rc);
 		goto err_dev_put;
 	}
 
-	rc = ubbd_dev_device_setup(ubbd_dev, device_size);
+	rc = ubbd_dev_device_setup(ubbd_dev, device_size, dev_features);
 	if (rc) {
 		rc = -EINVAL;
 		goto err_dev_put;
-	}
-
-	if (dev_features & UBBD_ATTR_FLAGS_ADD_WRITECACHE) {
-		if (dev_features & UBBD_ATTR_FLAGS_ADD_FUA)
-			blk_queue_write_cache(ubbd_dev->disk->queue, true, true);
-		else
-			blk_queue_write_cache(ubbd_dev->disk->queue, true, false);
-	} else {
-		blk_queue_write_cache(ubbd_dev->disk->queue, false, false);
-	}
-
-	if (dev_features & UBBD_ATTR_FLAGS_ADD_DISCARD) {
-		blk_queue_flag_set(QUEUE_FLAG_DISCARD, ubbd_dev->disk->queue);
-		ubbd_dev->disk->queue->limits.discard_granularity = 4096;
-		blk_queue_max_discard_sectors(ubbd_dev->disk->queue, 8 * 1024);
-	}
-
-	if (dev_features & UBBD_ATTR_FLAGS_ADD_WRITE_ZEROS) {
-		blk_queue_max_write_zeroes_sectors(ubbd_dev->disk->queue, 8 * 1024);
 	}
 
 	mutex_lock(&ubbd_dev_list_mutex);
@@ -171,14 +142,13 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 	if (rc)
 		goto err_free_disk;
 
-	module_put(THIS_MODULE);
 	return rc;
 
 err_free_disk:
 	ubbd_free_disk(ubbd_dev);
 err_dev_put:
 	ubbd_dev_put(ubbd_dev);
-out:
+reply:
 	ubbd_nl_reply(info, UBBD_CMD_ADD_PREPARE, rc);
 	return rc;
 }

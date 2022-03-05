@@ -171,7 +171,8 @@ void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret);
 struct ubbd_device *ubbd_dev_create(u32 data_pages);
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev);
 void ubbd_free_disk(struct ubbd_device *ubbd_dev);
-int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev, u64 device_size);
+int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
+			u64 device_size, u64 dev_features);
 int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev);
 void ubbd_dev_sb_destroy(struct ubbd_device *ubbd_dev);
 int ubbd_dev_uio_init(struct ubbd_device *ubbd_dev);

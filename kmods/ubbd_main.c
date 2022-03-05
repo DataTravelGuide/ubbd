@@ -23,6 +23,9 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 		return NULL;
 
 	ubbd_dev->data_pages = data_pages;
+	ubbd_dev->data_pages_reserve = \
+		ubbd_dev->data_pages * UBBD_UIO_DATA_RESERVE_PERCENT / 100;
+
 	ubbd_dev->data_bitmap = bitmap_zalloc(ubbd_dev->data_pages, GFP_KERNEL);
 	if (!ubbd_dev->data_bitmap) {
 		kfree(ubbd_dev);
@@ -127,7 +130,6 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	disk->fops = &ubbd_bd_ops;
 	disk->private_data = ubbd_dev;
 
-
 	memset(&ubbd_dev->tag_set, 0, sizeof(ubbd_dev->tag_set));
 	ubbd_dev->tag_set.ops = &ubbd_mq_ops;
 	ubbd_dev->tag_set.queue_depth = 128;
@@ -182,7 +184,9 @@ void ubbd_free_disk(struct ubbd_device *ubbd_dev)
 	ubbd_dev->disk = NULL;
 }
 
-int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev, u64 device_size)
+int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
+			u64 device_size,
+			u64 dev_features)
 {
 	int ret;
 
@@ -196,7 +200,27 @@ int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev, u64 device_size)
 	set_capacity(ubbd_dev->disk, device_size / SECTOR_SIZE);
 	set_disk_ro(ubbd_dev->disk, 0);
 
+	if (dev_features & UBBD_ATTR_FLAGS_ADD_WRITECACHE) {
+		if (dev_features & UBBD_ATTR_FLAGS_ADD_FUA)
+			blk_queue_write_cache(ubbd_dev->disk->queue, true, true);
+		else
+			blk_queue_write_cache(ubbd_dev->disk->queue, true, false);
+	} else {
+		blk_queue_write_cache(ubbd_dev->disk->queue, false, false);
+	}
+
+	if (dev_features & UBBD_ATTR_FLAGS_ADD_DISCARD) {
+		blk_queue_flag_set(QUEUE_FLAG_DISCARD, ubbd_dev->disk->queue);
+		ubbd_dev->disk->queue->limits.discard_granularity = 4096;
+		blk_queue_max_discard_sectors(ubbd_dev->disk->queue, 8 * 1024);
+	}
+
+	if (dev_features & UBBD_ATTR_FLAGS_ADD_WRITE_ZEROS) {
+		blk_queue_max_write_zeroes_sectors(ubbd_dev->disk->queue, 8 * 1024);
+	}
+
 	return 0;
+
 err_out_blkdev:
 	return ret;
 }
