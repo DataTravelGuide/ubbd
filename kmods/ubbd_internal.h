@@ -29,7 +29,6 @@
 #define UBBD_DRV_NAME "ubbd"
 
 #define UBBD_UIO_DATA_PAGES	(256 * 1024)
-/* TODO make reserve_percent configable */
 #define UBBD_UIO_DATA_RESERVE_PERCENT	75
 
 extern struct workqueue_struct *ubbd_wq;
