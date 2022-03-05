@@ -91,7 +91,7 @@ static void ubbd_release_page(struct ubbd_device *ubbd_dev, int page_index)
 static int ubbd_get_data_pages(struct ubbd_device *ubbd_dev, struct bio *bio, struct ubbd_request *req)
 {
 	struct page *page = NULL;
-	int cnt = 0;
+	int bvec_index = 0;
 	int page_index = 0;
 	struct bio_vec bv;
 	struct bvec_iter iter;
@@ -103,7 +103,6 @@ again:
 		page_index = find_first_zero_bit(ubbd_dev->data_bitmap, ubbd_dev->data_pages);
 		if (page_index == ubbd_dev->data_pages) {
 			ret = -ENOMEM;
-			cnt--;
 			goto out;
 		}
 
@@ -112,7 +111,6 @@ again:
 				ret = xa_err(xa_store(&ubbd_dev->data_pages_array, page_index, page, GFP_NOIO));
 				if (ret) {
 					pr_err("xa_store failed.");
-					cnt--;
 					goto out;
 				}
 				page = NULL;
@@ -120,7 +118,6 @@ again:
 				page = ubbd_alloc_page(ubbd_dev);
 				if (!page) {
 					ret = -ENOMEM;
-					cnt--;
 					goto out;
 				}
 				goto again;
@@ -129,8 +126,7 @@ again:
 
 		set_bit(page_index, ubbd_dev->data_bitmap);
 
-		ubbd_req_set_pi(req, cnt, page_index);
-		cnt++;
+		ubbd_req_set_pi(req, bvec_index++, page_index);
 	}
 
 	if (bio->bi_next) {
@@ -145,11 +141,11 @@ out:
 
 	if (ret) {
 		pr_err("ret is %d", ret);
-		while (cnt >= 0) {
-			page_index = ubbd_req_get_pi(req, cnt);
+		do {
+			bvec_index--;
+			page_index = ubbd_req_get_pi(req, bvec_index);
 			ubbd_release_page(ubbd_dev, page_index);
-			cnt--;
-		}
+		} while (bvec_index >= 0);
 	}
 	return ret;
 }
