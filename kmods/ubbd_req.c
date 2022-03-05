@@ -506,6 +506,25 @@ static void ubbd_req_release(struct ubbd_request *ubbd_req)
 	}
 }
 
+static void advance_cmd_ring(struct ubbd_device *ubbd_dev)
+{
+       struct ubbd_se *se;
+
+again:
+       se = get_oldest_se(ubbd_dev);
+        if (!se)
+               goto out;
+
+	if (ubbd_se_hdr_flags_test(se, UBBD_SE_HDR_DONE)) {
+		UPDATE_CMDR_TAIL(ubbd_dev->sb_addr->cmd_tail,
+				ubbd_se_hdr_get_len(se->header.len_op),
+				ubbd_dev->sb_addr->cmdr_size);
+		goto again;
+       }
+out:
+       ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
+       return;
+}
 
 static struct ubbd_request *find_inflight_req(struct ubbd_device *ubbd_dev, u64 req_tid)
 {
@@ -524,31 +543,18 @@ static struct ubbd_request *find_inflight_req(struct ubbd_device *ubbd_dev, u64 
 	return NULL;
 }
 
-static void advance_cmd_ring(struct ubbd_device *ubbd_dev)
+static void complete_inflight_req(struct ubbd_device *ubbd_dev, struct ubbd_request *req, int ret)
 {
-       struct ubbd_se *se;
-
-again:
-       se = get_oldest_se(ubbd_dev);
-        if (!se)
-               goto out;
-
-	if (ubbd_se_hdr_flags_test(se, UBBD_SE_HDR_DONE)) {
-		UPDATE_CMDR_TAIL(ubbd_dev->sb_addr->cmd_tail,
-				ubbd_se_hdr_get_len(se->header.len_op),
-			       	ubbd_dev->sb_addr->cmdr_size);
-		goto again;
-       }
-out:
-       ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
-       return;
+	atomic_dec(&ubbd_inflight);
+	list_del_init(&req->inflight_reqs_node);
+	ubbd_req_release(req);
+	blk_mq_end_request(req->req, errno_to_blk_status(ret));
 }
 
 void complete_work_fn(struct work_struct *work)
 {
 	struct ubbd_device *ubbd_dev = container_of(work, struct ubbd_device, complete_work);
 	struct ubbd_ce *ce;
-	struct ubbd_se *se;
 	struct ubbd_request *req;
 
 again:
@@ -571,15 +577,11 @@ again:
 		goto advance_compr;
 	}
 
-	se = req->se;
 	if (req_op(req->req) == REQ_OP_READ)
 		copy_data_from_ubbdreq(req);
 
-	ubbd_se_hdr_flags_set(se, UBBD_SE_HDR_DONE);
-	atomic_dec(&ubbd_inflight);
-	list_del(&req->inflight_reqs_node);
-	ubbd_req_release(req);
-	blk_mq_end_request(req->req, errno_to_blk_status(ce->result));
+	ubbd_se_hdr_flags_set(req->se, UBBD_SE_HDR_DONE);
+	complete_inflight_req(ubbd_dev, req, ce->result);
 	advance_cmd_ring(ubbd_dev);
 
 advance_compr:
@@ -597,9 +599,6 @@ void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret)
 	while (!list_empty(&ubbd_dev->inflight_reqs)) {
 		req = list_first_entry(&ubbd_dev->inflight_reqs,
 				struct ubbd_request, inflight_reqs_node);
-		list_del_init(&req->inflight_reqs_node);
-		atomic_dec(&ubbd_inflight);
-		ubbd_req_release(req);
-		blk_mq_end_request(req->req, errno_to_blk_status(ret));
+		complete_inflight_req(ubbd_dev, req, ret);
 	}
 }
