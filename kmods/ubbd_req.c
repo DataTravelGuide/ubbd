@@ -319,68 +319,19 @@ void ubbd_req_init(struct ubbd_device *ubbd_dev, enum ubbd_op op, struct request
 	ubbd_req->op = op;
 }
 
-void ubbd_queue_nodata_workfn(struct work_struct *work)
+static bool ubbd_req_nodata(struct ubbd_request *ubbd_req)
 {
-	struct ubbd_request *ubbd_req =
-		container_of(work, struct ubbd_request, work);
-	struct ubbd_device *ubbd_dev = ubbd_req->ubbd_dev;
-	struct ubbd_se	*se;
-	struct ubbd_se_hdr *header;
-	u64 offset = (u64)blk_rq_pos(ubbd_req->req) << SECTOR_SHIFT;
-	u64 length = blk_rq_bytes(ubbd_req->req);
-	size_t command_size;
-	int ret = 0;
-
-	command_size = ubbd_cmd_get_base_cmd_size(0);
-
-	mutex_lock(&ubbd_dev->req_lock);
-
-	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
-		ret = -EIO;
-		mutex_unlock(&ubbd_dev->req_lock);
-		goto end_request;
+	switch (ubbd_req->op) {
+		case UBBD_OP_WRITE:
+		case UBBD_OP_READ:
+			return false;
+		case UBBD_OP_DISCARD:
+		case UBBD_OP_WRITE_ZEROS:
+		case UBBD_OP_FLUSH:
+			return true;
+		default:
+			BUG();
 	}
-
-	ubbd_req->req_tid = ++ubbd_dev->req_tid;
-	if (!submit_ring_space_enough(ubbd_dev, command_size)) {
-		pr_err("cmd ring space is not enough");
-		ret = -ENOMEM;
-		mutex_unlock(&ubbd_dev->req_lock);
-		goto end_request;
-	}
-
-	insert_padding(ubbd_dev, command_size);
-
-	se = get_submit_entry(ubbd_dev);
-	memset(se, 0, command_size);
-	header = &se->header;
-
-	ubbd_se_hdr_set_op(&header->len_op, ubbd_req->op);
-	ubbd_se_hdr_set_len(&header->len_op, command_size);
-
-	se->priv_data = ubbd_req->req_tid;
-	se->offset = offset;
-	se->len = length;
-
-	ubbd_req->se = se;
-	list_add_tail(&ubbd_req->inflight_reqs_node, &ubbd_dev->inflight_reqs);
-
-	UPDATE_CMDR_HEAD(ubbd_dev->sb_addr->cmd_head, command_size, ubbd_dev->sb_addr->cmdr_size);
-	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
-	mutex_unlock(&ubbd_dev->req_lock);
-
-	uio_event_notify(&ubbd_dev->uio_info);
-
-	return;
-
-end_request:
-	atomic_dec(&ubbd_inflight);
-	if (ret == -ENOMEM)
-		blk_mq_requeue_request(ubbd_req->req, true);
-	else
-		blk_mq_end_request(ubbd_req->req, errno_to_blk_status(ret));
-
-	return;
 }
 
 void ubbd_queue_workfn(struct work_struct *work)
@@ -396,9 +347,12 @@ void ubbd_queue_workfn(struct work_struct *work)
 	size_t command_size;
 	int ret = 0;
 
-	ubbd_req->pi_cnt = ubbd_bio_segments(bio);
-	command_size = ubbd_cmd_get_base_cmd_size(ubbd_req->pi_cnt);
+	if (ubbd_req_nodata(ubbd_req))
+		ubbd_req->pi_cnt = 0;
+	else
+		ubbd_req->pi_cnt = ubbd_bio_segments(bio);
 
+	command_size = ubbd_cmd_get_base_cmd_size(ubbd_req->pi_cnt);
 	mutex_lock(&ubbd_dev->req_lock);
 	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
 		ret = -EIO;
@@ -413,8 +367,6 @@ void ubbd_queue_workfn(struct work_struct *work)
 		goto end_request;
 	}
 
-	ubbd_req->req_tid = ++ubbd_dev->req_tid;
-
 	if (ubbd_req->pi_cnt > UBBD_REQ_INLINE_PI_MAX) {
 		ubbd_req->pi = kcalloc(ubbd_req->pi_cnt - UBBD_REQ_INLINE_PI_MAX, sizeof(uint32_t), GFP_NOIO);
 		if (!ubbd_req->pi) {
@@ -425,14 +377,17 @@ void ubbd_queue_workfn(struct work_struct *work)
 
 	}
 
-	ret = ubbd_get_data_pages(ubbd_dev, bio, ubbd_req);
-	if (ret) {
-		pr_err("get data page failed");
-		goto err_free_pi;
+	if (ubbd_req->pi_cnt) {
+		ret = ubbd_get_data_pages(ubbd_dev, bio, ubbd_req);
+		if (ret) {
+			pr_err("get data page failed");
+			goto err_free_pi;
+		}
 	}
 
 	insert_padding(ubbd_dev, command_size);
 
+	ubbd_req->req_tid = ++ubbd_dev->req_tid;
 	se = get_submit_entry(ubbd_dev);
 	memset(se, 0, command_size);
 	header = &se->header;
@@ -446,7 +401,10 @@ void ubbd_queue_workfn(struct work_struct *work)
 	se->iov_cnt = ubbd_req->pi_cnt;
 
 	ubbd_req->se = se;
-	ubbd_set_se_iov(ubbd_req);
+
+	if (ubbd_req->pi_cnt) {
+		ubbd_set_se_iov(ubbd_req);
+	}
 
 	if (req_op(ubbd_req->req) == REQ_OP_WRITE) {
 		copy_data_to_ubbdreq(ubbd_req);
@@ -492,29 +450,25 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	switch (req_op(bd->rq)) {
 	case REQ_OP_FLUSH:
 		ubbd_req_init(ubbd_dev, UBBD_OP_FLUSH, req);
-		INIT_WORK(&ubbd_req->work, ubbd_queue_nodata_workfn);
 		break;
 	case REQ_OP_DISCARD:
 		ubbd_req_init(ubbd_dev, UBBD_OP_DISCARD, req);
-		INIT_WORK(&ubbd_req->work, ubbd_queue_nodata_workfn);
 		break;
 	case REQ_OP_WRITE_ZEROES:
 		ubbd_req_init(ubbd_dev, UBBD_OP_WRITE_ZEROS, req);
-		INIT_WORK(&ubbd_req->work, ubbd_queue_nodata_workfn);
 		break;
 	case REQ_OP_WRITE:
 		ubbd_req_init(ubbd_dev, UBBD_OP_WRITE, req);
-		INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
 		break;
 	case REQ_OP_READ:
 		ubbd_req_init(ubbd_dev, UBBD_OP_READ, req);
-		INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
 		break;
 	default:
 		atomic_dec(&ubbd_inflight);
 		return BLK_STS_IOERR;
 	}
 
+	INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
 	queue_work(ubbd_wq, &ubbd_req->work);
 
 	return BLK_STS_OK;
