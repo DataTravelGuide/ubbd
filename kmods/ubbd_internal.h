@@ -190,6 +190,8 @@ int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev);
 void ubbd_dev_sb_destroy(struct ubbd_device *ubbd_dev);
 int ubbd_dev_uio_init(struct ubbd_device *ubbd_dev);
 void ubbd_dev_uio_destroy(struct ubbd_device *ubbd_dev);
+void ubbd_dev_get(struct ubbd_device *ubbd_dev);
+void ubbd_dev_put(struct ubbd_device *ubbd_dev);
 
 #undef UBBD_FAULT_INJECT
 

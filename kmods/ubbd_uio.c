@@ -11,20 +11,18 @@ static int ubbd_irqcontrol(struct uio_info *info, s32 irq_on)
 
 static void ubbd_vma_open(struct vm_area_struct *vma)
 {
+	struct ubbd_device *ubbd_dev = vma->vm_private_data;
 
 	pr_debug("vma_open\n");
-
-	//kref_get(&ubbd_dev->kref);
+	ubbd_dev_get(ubbd_dev);
 }
 
 static void ubbd_vma_close(struct vm_area_struct *vma)
 {
-//	struct ubbd_device *ubbd_dev = vma->vm_private_data;
+	struct ubbd_device *ubbd_dev = vma->vm_private_data;
 
 	pr_debug("vma_close\n");
-
-	// TODO
-	//kref_put(&ubbd_dev->kref, _kref_release);
+	ubbd_dev_put(ubbd_dev);
 }
 
 static int ubbd_find_mem_index(struct vm_area_struct *vma)

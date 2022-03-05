@@ -121,7 +121,7 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 	rc = ubbd_dev_sb_init(ubbd_dev);
 	if (rc) {
 		pr_err("failed to init dev sb: %d.", rc);
-		goto err_free_ubbd;
+		goto err_dev_put;
 	}
 
 	pr_debug("sizeof(struct sb): %lu, sizeof(struct se): %lu, \
@@ -132,13 +132,13 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 	rc = ubbd_dev_uio_init(ubbd_dev);
 	if (rc) {
 		pr_debug("failed to init uio: %d.", rc);
-		goto err_free_sb;
+		goto err_dev_put;
 	}
 
 	rc = ubbd_dev_device_setup(ubbd_dev, device_size);
 	if (rc) {
 		rc = -EINVAL;
-		goto err_unregister_uio;
+		goto err_dev_put;
 	}
 
 	if (dev_features & UBBD_ATTR_FLAGS_ADD_WRITECACHE) {
@@ -171,21 +171,16 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 	if (rc)
 		goto err_free_disk;
 
-out:
 	module_put(THIS_MODULE);
 	return rc;
 
 err_free_disk:
 	ubbd_free_disk(ubbd_dev);
-err_unregister_uio:
-	ubbd_dev_uio_destroy(ubbd_dev);
-err_free_sb:
-	ubbd_dev_sb_destroy(ubbd_dev);
-err_free_ubbd:
-	ubbd_dev_destroy(ubbd_dev);
-
+err_dev_put:
+	ubbd_dev_put(ubbd_dev);
+out:
 	ubbd_nl_reply(info, UBBD_CMD_ADD_PREPARE, rc);
-	goto out;
+	return rc;
 }
 
 static struct ubbd_device *find_ubbd_dev(int dev_id)
@@ -288,10 +283,7 @@ static int handle_cmd_remove(struct sk_buff *skb, struct genl_info *info)
 	list_del_init(&ubbd_dev->dev_node);
 
 	ubbd_free_disk(ubbd_dev);
-	ubbd_dev_uio_destroy(ubbd_dev);
-	ubbd_dev_sb_destroy(ubbd_dev);
-	ubbd_dev_destroy(ubbd_dev);
-
+	ubbd_dev_put(ubbd_dev);
 out:
 	ubbd_nl_reply(info, UBBD_CMD_REMOVE, rc);
 	return rc;

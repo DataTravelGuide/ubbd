@@ -240,6 +240,24 @@ void ubbd_dev_sb_destroy(struct ubbd_device *ubbd_dev)
 	vfree(ubbd_dev->sb_addr);
 }
 
+void ubbd_dev_get(struct ubbd_device *ubbd_dev)
+{
+	kref_get(&ubbd_dev->kref);
+}
+
+static void __dev_release(struct kref *kref)
+{
+	struct ubbd_device *ubbd_dev = container_of(kref, struct ubbd_device, kref);
+
+	ubbd_dev_uio_destroy(ubbd_dev);
+	ubbd_dev_sb_destroy(ubbd_dev);
+	ubbd_dev_destroy(ubbd_dev);
+}
+
+void ubbd_dev_put(struct ubbd_device *ubbd_dev)
+{
+	kref_put(&ubbd_dev->kref, &__dev_release);
+}
 
 static int __init ubbd_init(void)
 {
