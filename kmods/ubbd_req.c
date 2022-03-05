@@ -45,14 +45,33 @@ static void ubbd_req_set_pi(struct ubbd_request *req, uint32_t index, int value)
 		req->pi[index - UBBD_REQ_INLINE_PI_MAX] = value;
 }
 
-static void increase_page_allocated(struct ubbd_device *ubbd_dev)
+static struct page *ubbd_alloc_page(struct ubbd_device *ubbd_dev)
 {
+	struct page *page;
+
+	page = alloc_page(GFP_NOIO);
+	if (!page) {
+		return NULL;
+	}
+
+	pr_debug("alloc page: %p", page);
 	ubbd_dev->data_pages_allocated++;
+
+	return page;
 }
 
-static void decrease_page_allocated(struct ubbd_device *ubbd_dev, int page_index)
+static void __ubbd_release_page(struct ubbd_device *ubbd_dev, struct page *page)
+{
+	pr_debug("release page: %p", page);
+	__free_page(page);
+	ubbd_dev->data_pages_allocated--;
+}
+
+static void ubbd_release_page(struct ubbd_device *ubbd_dev, int page_index)
 {
 	struct page *page = NULL;
+
+	clear_bit(page_index, ubbd_dev->data_bitmap);
 
 	if (ubbd_dev->data_pages_allocated > ubbd_dev->data_pages_reserve) {
 		loff_t off;
@@ -65,8 +84,7 @@ static void decrease_page_allocated(struct ubbd_device *ubbd_dev, int page_index
 		unmap_mapping_range(ubbd_dev->inode->i_mapping, off, 2, 1);
 
 		xa_erase(&ubbd_dev->data_pages_array, page_index);
-		__free_page(page);
-		ubbd_dev->data_pages_allocated--;
+		__ubbd_release_page(ubbd_dev, page);
 	}
 }
 
@@ -99,14 +117,12 @@ again:
 				}
 				page = NULL;
 			} else {
-				page = alloc_page(GFP_NOIO);
+				page = ubbd_alloc_page(ubbd_dev);
 				if (!page) {
 					ret = -ENOMEM;
 					cnt--;
 					goto out;
 				}
-				pr_debug("alloc page: %p", page);
-				increase_page_allocated(ubbd_dev);
 				goto again;
 			}
 		}
@@ -124,16 +140,14 @@ again:
 
 out:
 	if (page) {
-		__free_page(page);
-		ubbd_dev->data_pages_allocated--;
+		__ubbd_release_page(ubbd_dev, page);
 	}
 
 	if (ret) {
 		pr_err("ret is %d", ret);
 		while (cnt >= 0) {
 			page_index = ubbd_req_get_pi(req, cnt);
-			decrease_page_allocated(ubbd_dev, page_index);
-			clear_bit(page_index, ubbd_dev->data_bitmap);
+			ubbd_release_page(ubbd_dev, page_index);
 			cnt--;
 		}
 	}
@@ -517,8 +531,7 @@ static void ubbd_req_release(struct ubbd_request *ubbd_req)
 		pr_debug("release page: %u, req: %p, bvec_index: %u ",
 				page_index, ubbd_req, bvec_index);
 
-		decrease_page_allocated(ubbd_dev, page_index);
-		clear_bit(page_index, ubbd_dev->data_bitmap);
+		ubbd_release_page(ubbd_dev, page_index);
 	}
 
 	if (ubbd_req->pi) {
