@@ -543,7 +543,7 @@ again:
         if (!se)
                goto out;
 
-	if (se->header.flags) {
+	if (ubbd_se_hdr_flags_test(se, UBBD_SE_HDR_DONE)) {
 		UPDATE_CMDR_TAIL(ubbd_dev->sb_addr->cmd_tail,
 				ubbd_se_hdr_get_len(se->header.len_op),
 			       	ubbd_dev->sb_addr->cmdr_size);
@@ -585,7 +585,7 @@ again:
 	if (req_op(req->req) == REQ_OP_READ)
 		copy_data_from_ubbdreq(req);
 
-	se->header.flags |= 1;
+	ubbd_se_hdr_flags_set(se, UBBD_SE_HDR_DONE);
 	atomic_dec(&ubbd_inflight);
 	list_del(&req->inflight_reqs_node);
 	ubbd_req_release(req);

@@ -103,6 +103,18 @@ static inline void ubbd_se_hdr_set_len(__u32 *len_op, __u32 len)
 	*len_op |= (len << UBBD_OP_SHIFT);
 }
 
+#define UBBD_SE_HDR_DONE	1
+
+static inline bool ubbd_se_hdr_flags_test(struct ubbd_se *se, __u32 bit)
+{
+	return (se->header.flags & bit);
+}
+
+static inline void ubbd_se_hdr_flags_set(struct ubbd_se *se, __u32 bit)
+{
+	se->header.flags |= bit;
+}
+
 #define UBBD_OP_ALIGN_SIZE sizeof(__u64)
 
 enum ubbd_genl_cmd {
