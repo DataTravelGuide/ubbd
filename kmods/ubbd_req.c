@@ -49,6 +49,11 @@ static struct page *ubbd_alloc_page(struct ubbd_device *ubbd_dev)
 {
 	struct page *page;
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_req_need_fault())
+		return NULL;
+#endif /* UBBD_FAULT_INJECT */
+
 	page = alloc_page(GFP_NOIO);
 	if (!page) {
 		return NULL;
@@ -92,6 +97,17 @@ static void ubbd_release_page(struct ubbd_device *ubbd_dev,
 	}
 }
 
+static int ubbd_xa_store_page(struct ubbd_device *ubbd_dev, int page_index,
+		struct page *page)
+{
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_req_need_fault())
+		return -ENOMEM;
+#endif /* UBBD_FAULT_INJECT */
+	return xa_err(xa_store(&ubbd_dev->data_pages_array,
+				page_index, page, GFP_NOIO));
+}
+
 static int ubbd_get_data_pages(struct ubbd_device *ubbd_dev, struct bio *bio, struct ubbd_request *req)
 {
 	struct page *page = NULL;
@@ -112,7 +128,7 @@ again:
 
 		if (!xa_load(&ubbd_dev->data_pages_array, page_index)) {
 			if (page) {
-				ret = xa_err(xa_store(&ubbd_dev->data_pages_array, page_index, page, GFP_NOIO));
+				ret = ubbd_xa_store_page(ubbd_dev, page_index, page);
 				if (ret) {
 					pr_err("xa_store failed.");
 					goto out;
@@ -333,6 +349,20 @@ static bool ubbd_req_nodata(struct ubbd_request *ubbd_req)
 	}
 }
 
+static int ubbd_req_pi_alloc(struct ubbd_request *ubbd_req)
+{
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_req_need_fault())
+		return -ENOMEM;
+#endif /* UBBD_FAULT_INJECT */
+	ubbd_req->pi = kcalloc(ubbd_req->pi_cnt - UBBD_REQ_INLINE_PI_MAX,
+				sizeof(uint32_t), GFP_NOIO);
+	if (!ubbd_req->pi)
+		return -ENOMEM;
+
+	return 0;
+}
+
 void ubbd_queue_workfn(struct work_struct *work)
 {
 	struct ubbd_request *ubbd_req =
@@ -365,10 +395,9 @@ void ubbd_queue_workfn(struct work_struct *work)
 	}
 
 	if (ubbd_req->pi_cnt > UBBD_REQ_INLINE_PI_MAX) {
-		ubbd_req->pi = kcalloc(ubbd_req->pi_cnt - UBBD_REQ_INLINE_PI_MAX, sizeof(uint32_t), GFP_NOIO);
-		if (!ubbd_req->pi) {
-			pr_debug("kcalloc failed");
-			ret = -ENOMEM;
+		ret = ubbd_req_pi_alloc(ubbd_req);
+		if (ret) {
+			pr_err("pi kcalloc failed");
 			goto end_request;
 		}
 
@@ -553,7 +582,6 @@ again:
 	}
 
 	se = req->se;
-
 	if (req_op(req->req) == REQ_OP_READ)
 		copy_data_from_ubbdreq(req);
 

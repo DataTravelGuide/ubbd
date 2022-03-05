@@ -190,4 +190,19 @@ int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev);
 void ubbd_dev_sb_destroy(struct ubbd_device *ubbd_dev);
 int ubbd_dev_uio_init(struct ubbd_device *ubbd_dev);
 void ubbd_dev_uio_destroy(struct ubbd_device *ubbd_dev);
+
+#undef UBBD_FAULT_INJECT
+
+#ifdef UBBD_FAULT_INJECT
+#define UBBD_REQ_FAULT_MASK	0xfff
+
+#include <linux/random.h>
+
+static inline bool ubbd_req_need_fault(void)
+{
+	return ((get_random_u32() & UBBD_REQ_FAULT_MASK) == 1);
+}
+
+#endif /* UBBD_FAULT_INJECT */
+
 #endif /* UBBD_INTERNAL_H */
