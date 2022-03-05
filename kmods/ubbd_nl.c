@@ -259,65 +259,38 @@ out:
 	return rc;
 }
 
-static int fill_ubbd_status(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb)
+static int fill_ubbd_status_item(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb)
 {
 	struct nlattr *dev_nest;
-	int ret;
 
 	dev_nest = nla_nest_start(reply_skb, UBBD_STATUS_ITEM);
 	if (!dev_nest)
 		return -EMSGSIZE;
-	ret = nla_put_s32(reply_skb, UBBD_STATUS_DEV_ID,
-				ubbd_dev->dev_id);
-	ret = nla_put_s32(reply_skb, UBBD_STATUS_UIO_ID,
-				ubbd_dev->uio_info.uio_dev->minor);
-	ret = nla_put_u64_64bit(reply_skb, UBBD_STATUS_UIO_MAP_SIZE,
-				ubbd_dev->uio_info.mem[0].size, UBBD_ATTR_PAD);
-	ret = nla_put_u8(reply_skb, UBBD_STATUS_STATUS,
-				ubbd_dev->status);
+
+	if (nla_put_s32(reply_skb, UBBD_STATUS_DEV_ID,
+				ubbd_dev->dev_id) ||
+		nla_put_s32(reply_skb, UBBD_STATUS_UIO_ID,
+				ubbd_dev->uio_info.uio_dev->minor) ||
+		nla_put_u64_64bit(reply_skb, UBBD_STATUS_UIO_MAP_SIZE,
+				ubbd_dev->uio_info.mem[0].size, UBBD_ATTR_PAD) ||
+		nla_put_u8(reply_skb, UBBD_STATUS_STATUS,
+				ubbd_dev->status))
+		return -EMSGSIZE;
 	nla_nest_end(reply_skb, dev_nest);
 
 	return 0;
 }
 
-static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
+static int fill_ubbd_status(struct ubbd_device *ubbd_dev,
+			struct sk_buff *reply_skb, int dev_id)
 {
-	struct ubbd_device *ubbd_dev;
 	struct nlattr *dev_list;
-	int dev_id = -1;
-	struct sk_buff *reply_skb = NULL;
-	void *msg_head = NULL;
-	size_t msg_size;
 	int ret = 0;
-
-	if (info->attrs[UBBD_ATTR_DEV_ID])
-		dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
-
-	mutex_lock(&ubbd_dev_list_mutex);
-	msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
-			          nla_attr_size(sizeof(s32)) +
-			          nla_attr_size(sizeof(s32)) +
-			          nla_attr_size(sizeof(u64)) +
-				  nla_attr_size(sizeof(u8)));
-	msg_size *= (dev_id == -1? ubbd_total_devs : 1);
-	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
-	if (!reply_skb) {
-		ret = -ENOMEM;
-		goto out;
-	}
-
-	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
-				     UBBD_CMD_STATUS);
-	if (!msg_head) {
-		nlmsg_free(reply_skb);
-		ret = -ENOMEM;
-		goto out;
-	}
 
 	dev_list = nla_nest_start(reply_skb, UBBD_ATTR_DEV_LIST);
 	if (dev_id == -1) {
 		list_for_each_entry(ubbd_dev, &ubbd_dev_list, dev_node) {
-			ret = fill_ubbd_status(ubbd_dev, reply_skb);
+			ret = fill_ubbd_status_item(ubbd_dev, reply_skb);
 			if (ret)
 				goto out;
 		}
@@ -327,19 +300,68 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 			ret = -ENOENT;
 			goto out;
 		}
-		ret = fill_ubbd_status(ubbd_dev, reply_skb);
+		ret = fill_ubbd_status_item(ubbd_dev, reply_skb);
 		if (ret)
 			goto out;
 	}
 	nla_nest_end(reply_skb, dev_list);
+out:
+	return ret;
+}
+
+static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
+{
+	struct ubbd_device *ubbd_dev;
+	int dev_id = -1;
+	struct sk_buff *reply_skb = NULL;
+	void *msg_head = NULL;
+	size_t msg_size;
+	int ret = 0;
+
+	if (info->attrs[UBBD_ATTR_DEV_ID])
+		dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
+
+	msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
+			          nla_attr_size(sizeof(s32)) +
+			          nla_attr_size(sizeof(u64)) +
+				  nla_attr_size(sizeof(u8)));
+
+	mutex_lock(&ubbd_dev_list_mutex);
+	/* msg_size for all devs */
+	msg_size *= (dev_id == -1? ubbd_total_devs : 1);
+	/* add size for retval */
+	msg_size += nla_attr_size(sizeof(s32));
+
+	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
+	if (!reply_skb) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
+				     UBBD_CMD_STATUS);
+	if (!msg_head) {
+		nlmsg_free(reply_skb);
+		ret = -ENOMEM;
+		goto err_free;
+	}
+
+	ret = fill_ubbd_status(ubbd_dev, reply_skb, dev_id);
+	if (ret)
+		goto err_cancel;
 
 	mutex_unlock(&ubbd_dev_list_mutex);
 	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0))
-		goto out;
+		goto err_cancel;
 
 	genlmsg_end(reply_skb, msg_head);
 	return genlmsg_reply(reply_skb, info);
-out:
+
+err_cancel:
+	genlmsg_cancel(reply_skb, msg_head);
+err_free:
+	nlmsg_free(reply_skb);
+err:
 	mutex_unlock(&ubbd_dev_list_mutex);
 	ubbd_nl_reply(info, UBBD_CMD_STATUS, ret);
 	return ret;
