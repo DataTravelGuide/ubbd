@@ -5,7 +5,6 @@
 #include "ubbd_internal.h"
 
 struct workqueue_struct *ubbd_wq;
-atomic_t ubbd_inflight;
 static int ubbd_major;
 static DEFINE_IDA(ubbd_dev_id_ida);
 struct device *ubbd_uio_root_device;
@@ -263,8 +262,6 @@ static int __init ubbd_init(void)
 {
 	int rc;
 
-	atomic_set(&ubbd_inflight, 0);
-	
 	ubbd_wq = alloc_workqueue(UBBD_DRV_NAME, WQ_MEM_RECLAIM, 0);
 	if (!ubbd_wq) {
 		rc = -ENOMEM;

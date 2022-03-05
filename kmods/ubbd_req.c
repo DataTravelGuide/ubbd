@@ -478,7 +478,6 @@ void ubbd_queue_workfn(struct work_struct *work)
 	return;
 
 end_request:
-	atomic_dec(&ubbd_inflight);
 	mutex_unlock(&ubbd_dev->req_lock);
 	if (ret == -ENOMEM)
 		blk_mq_requeue_request(ubbd_req->req, true);
@@ -499,7 +498,6 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	INIT_LIST_HEAD(&ubbd_req->inflight_reqs_node);
 
 	blk_mq_start_request(bd->rq);
-	atomic_inc(&ubbd_inflight);
 
 	switch (req_op(bd->rq)) {
 	case REQ_OP_FLUSH:
@@ -518,7 +516,6 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		ubbd_req_init(ubbd_dev, UBBD_OP_READ, req);
 		break;
 	default:
-		atomic_dec(&ubbd_inflight);
 		return BLK_STS_IOERR;
 	}
 
@@ -582,7 +579,6 @@ static struct ubbd_request *find_inflight_req(struct ubbd_device *ubbd_dev, u64 
 
 static void complete_inflight_req(struct ubbd_device *ubbd_dev, struct ubbd_request *req, int ret)
 {
-	atomic_dec(&ubbd_inflight);
 	list_del_init(&req->inflight_reqs_node);
 	ubbd_req_release(req);
 	blk_mq_end_request(req->req, errno_to_blk_status(ret));

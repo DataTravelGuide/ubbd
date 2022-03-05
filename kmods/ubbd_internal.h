@@ -87,7 +87,6 @@ struct ubbd_device {
 
 static LIST_HEAD(ubbd_dev_list);    /* devices */
 static DEFINE_MUTEX(ubbd_dev_list_mutex);
-extern atomic_t ubbd_inflight;
 
 
 static inline int ubbd_dev_id_to_minor(int dev_id)
