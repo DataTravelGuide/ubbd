@@ -10,7 +10,7 @@ insmod kmods/ubbd.ko
 sleep 1
 modprobe brd rd_nr=2 rd_size=2048000 max_part=0
 sleep 1
-sh -x tests/start_ubbdd.sh 30 &
+sh -x tests/start_ubbdd.sh 30 0 &
 sleep 2
 ./ubbdadm/ubbdadm --command map --type file --filepath /dev/ram0 --filesize $((1*1024*1024*1024))
 sleep 1
