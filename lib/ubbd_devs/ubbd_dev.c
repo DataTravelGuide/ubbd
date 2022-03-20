@@ -626,8 +626,6 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ct
 		ubbd_dev_release(ubbd_dev);
 		break;
 	case UBBD_DEV_USTATUS_PREPARED:
-		ret = dev_remove_dev(ubbd_dev, ctx);
-		break;
 	case UBBD_DEV_USTATUS_RUNNING:
 		ret = dev_remove_disk(ubbd_dev, force, ctx);
 		break;
