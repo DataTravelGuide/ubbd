@@ -49,16 +49,22 @@ static struct nl_sock *get_ubbd_socket(int *driver_id)
 
 	if (genl_connect(socket)) {
 		ubbd_err("Couldn't connect to the generic netlink socket\n");
-		return NULL;
+		goto free_sock;
 	}
 
 	*driver_id = genl_ctrl_resolve(socket, "UBBD");
 	if (*driver_id < 0) {
 		ubbd_err("Couldn't resolve the ubbd netlink family, make sure the ubbd module is loaded.\n");
-		return NULL;
+		goto close_sock;
 	}
 
 	return socket;
+
+close_sock:
+	nl_close(socket);
+free_sock:
+	nl_socket_free(socket);
+	return NULL;
 }
 
 static void ubbd_socket_close(struct nl_sock *socket)

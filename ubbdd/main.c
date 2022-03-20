@@ -18,16 +18,15 @@ int main()
 
 	ret = ubd_dev_reopen_devs();
 	if (ret)
-		goto out;
+		goto destroy_log;
 
 	start_netlink_thread(&nl_thread);
 	start_mgmt_thread(&mgmt_thread);
 	ubbd_info("ubbdd started.....\n");
 	ret = pthread_join(mgmt_thread, &join_retval);
 	ret = pthread_join(nl_thread, &join_retval);
-
+destroy_log:
 	ubbd_destroy_log();
-
 out:
 	return ret;
 }

@@ -172,7 +172,7 @@ static int mgmt_map_finish(struct context *ctx, int ret)
 {
 	struct mgmt_ctx_data *rsp_data = (struct mgmt_ctx_data *)ctx->data;
 	int fd = rsp_data->fd;
-	struct ubbd_mgmt_rsp mgmt_rsp;
+	struct ubbd_mgmt_rsp mgmt_rsp = {0};
 
 	ubbd_info("write rsp to fd: %d, ret: %d\n", fd, ret);
 	mgmt_rsp.ret = ret;
@@ -190,7 +190,7 @@ static int mgmt_generic_finish(struct context *ctx, int ret)
 {
 	struct mgmt_ctx_data *rsp_data = (struct mgmt_ctx_data *)ctx->data;
 	int fd = rsp_data->fd;
-	struct ubbd_mgmt_rsp mgmt_rsp;
+	struct ubbd_mgmt_rsp mgmt_rsp = {0};
 
 	ubbd_info("write rsp to fd: %d, ret: %d\n", fd, ret);
 	mgmt_rsp.ret = ret;
@@ -241,8 +241,8 @@ static void *mgmt_thread_fn(void* args)
 		}
 		if (pollfds[0].revents) {
 			int read_fd = accept(fd, NULL, NULL);
-			struct ubbd_mgmt_request mgmt_req;
-			struct ubbd_mgmt_rsp mgmt_rsp;
+			struct ubbd_mgmt_request mgmt_req = {0};
+			struct ubbd_mgmt_rsp mgmt_rsp = {0};
 			struct context *ctx;
 
 			mgmt_ipc_read_data(read_fd, &mgmt_req, sizeof(mgmt_req));

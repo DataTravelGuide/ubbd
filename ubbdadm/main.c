@@ -77,8 +77,8 @@ static void usage(int status)
 
 static int do_file_map(char *filepath, uint64_t filesize)
 {
-	struct ubbd_mgmt_request req;
-	struct ubbd_mgmt_rsp rsp;
+	struct ubbd_mgmt_request req = {0};
+	struct ubbd_mgmt_rsp rsp = {0};
 	int fd;
 	int ret;
 
@@ -105,8 +105,8 @@ static int do_file_map(char *filepath, uint64_t filesize)
 
 static int do_rbd_map(char *pool, char *image)
 {
-	struct ubbd_mgmt_request req;
-	struct ubbd_mgmt_rsp rsp;
+	struct ubbd_mgmt_request req = {0};
+	struct ubbd_mgmt_rsp rsp = {0};
 	int fd;
 	int ret;
 
@@ -130,8 +130,8 @@ static int do_rbd_map(char *pool, char *image)
 
 static int do_unmap(int ubbdid, bool force)
 {
-	struct ubbd_mgmt_request req;
-	struct ubbd_mgmt_rsp rsp;
+	struct ubbd_mgmt_request req = {0};
+	struct ubbd_mgmt_rsp rsp = {0};
 	int fd;
 	int ret;
 
@@ -155,7 +155,7 @@ static int do_unmap(int ubbdid, bool force)
 
 static int do_config(int ubbdid, int data_pages_reserve)
 {
-	struct ubbd_mgmt_request req;
+	struct ubbd_mgmt_request req = {0};
 	int fd;
 
 	req.cmd = UBBD_MGMT_CMD_CONFIG;

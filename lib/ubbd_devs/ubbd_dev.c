@@ -539,8 +539,8 @@ static int dev_remove_finish(struct context *ctx, int ret)
 	}
 	pthread_mutex_lock(&ubbd_dev->req_lock);
 	ubbd_dev_close(ubbd_dev);
-	ubbd_dev_release(ubbd_dev);
 	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	ubbd_dev_release(ubbd_dev);
 
 	return 0;
 }
