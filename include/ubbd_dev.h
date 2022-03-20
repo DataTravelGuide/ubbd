@@ -65,7 +65,7 @@ struct ubbd_device {
 	char dev_name[16];
 
 	enum ubbd_dev_status status;
-	pthread_mutex_t lock;
+	pthread_mutex_t req_lock;
 
 	struct ubbd_dev_features dev_features;
 };

@@ -174,7 +174,7 @@ static int mgmt_map_finish(struct context *ctx, int ret)
 	int fd = rsp_data->fd;
 	struct ubbd_mgmt_rsp mgmt_rsp;
 
-	ubbd_err("write rsp to fd: %d, ret: %d\n", fd, ret);
+	ubbd_info("write rsp to fd: %d, ret: %d\n", fd, ret);
 	mgmt_rsp.ret = ret;
 	if (!ret) {
 		sprintf(mgmt_rsp.u.add.path, "/dev/ubbd%d", 
@@ -192,7 +192,7 @@ static int mgmt_generic_finish(struct context *ctx, int ret)
 	int fd = rsp_data->fd;
 	struct ubbd_mgmt_rsp mgmt_rsp;
 
-	ubbd_err("write rsp to fd: %d, ret: %d\n", fd, ret);
+	ubbd_info("write rsp to fd: %d, ret: %d\n", fd, ret);
 	mgmt_rsp.ret = ret;
 	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
 	close(fd);
@@ -234,10 +234,6 @@ static void *mgmt_thread_fn(void* args)
 		pollfds[0].events = POLLIN;
 		pollfds[0].revents = 0;
 
-		/* Use ppoll instead poll to avoid poll call reschedules during signal
-		 * handling. If we were removing a device, then the uio device's memory
-		 * could be freed, but the poll would be rescheduled and end up accessing
-		 * the released device. */
 		ret = poll(pollfds, 1, 60);
 		if (ret == -1) {
 			ubbd_err("ppoll() returned %d, exiting\n", ret);
@@ -250,10 +246,11 @@ static void *mgmt_thread_fn(void* args)
 			struct context *ctx;
 
 			mgmt_ipc_read_data(read_fd, &mgmt_req, sizeof(mgmt_req));
-			ubbd_info("receive mgmt request: %d, fd: %d\n", mgmt_req.cmd, read_fd);
+			ubbd_info("receive mgmt request: %d.\n", mgmt_req.cmd);
+
 			switch (mgmt_req.cmd) {
 			case UBBD_MGMT_CMD_MAP:
-				ubbd_info("type: %d\n", mgmt_req.u.add.info.type);
+				ubbd_info("map type: %d\n", mgmt_req.u.add.info.type);
 
 				ubbd_dev = ubbd_dev_create(&mgmt_req.u.add.info);
 				if (!ubbd_dev) {

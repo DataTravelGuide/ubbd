@@ -50,7 +50,7 @@ static int file_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	ret = pwritev(file_dev->fd, iov, se->iov_cnt, se->offset);
 	ubbd_dbg("result of pwritev: %lu\n", ret);
 
-	pthread_mutex_lock(&ubbd_dev->lock);
+	pthread_mutex_lock(&ubbd_dev->req_lock);
 	ce = get_available_ce(ubbd_dev);
 	ce->priv_data = se->priv_data;
 	ce->flags = 0;
@@ -59,7 +59,7 @@ static int file_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	ubbd_dbg("finish se id: %p\n", se);
 	ubbd_dbg("append ce: %llu, result: %d\n", ce->priv_data, ce->result);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
-	pthread_mutex_unlock(&ubbd_dev->lock);
+	pthread_mutex_unlock(&ubbd_dev->req_lock);
 	ubbdlib_processing_complete(ubbd_dev);
 
 	return 0;
@@ -84,7 +84,7 @@ static int file_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	ret = preadv(file_dev->fd, iov, se->iov_cnt, se->offset);
 	ubbd_dbg("result of preadv: %lu\n", ret);
 	
-	pthread_mutex_lock(&ubbd_dev->lock);
+	pthread_mutex_lock(&ubbd_dev->req_lock);
 	ce = get_available_ce(ubbd_dev);
 	ce->priv_data = se->priv_data;
 	ce->flags = 0;
@@ -93,7 +93,7 @@ static int file_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	ubbd_dbg("finish se id: %p\n", se);
 	ubbd_dbg("append ce: %llu\n", ce->priv_data);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
-	pthread_mutex_unlock(&ubbd_dev->lock);
+	pthread_mutex_unlock(&ubbd_dev->req_lock);
 	ubbdlib_processing_complete(ubbd_dev);
 
 	return 0;
@@ -107,7 +107,7 @@ static int file_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	int ret;
 
 	ret = fsync(file_dev->fd);
-	pthread_mutex_lock(&ubbd_dev->lock);
+	pthread_mutex_lock(&ubbd_dev->req_lock);
 	ce = get_available_ce(ubbd_dev);
 	ce->priv_data = se->priv_data;
 	ce->flags = 0;
@@ -116,7 +116,7 @@ static int file_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	ubbd_dbg("finish se id: %p\n", se);
 	ubbd_dbg("append ce: %llu\n", ce->priv_data);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
-	pthread_mutex_unlock(&ubbd_dev->lock);
+	pthread_mutex_unlock(&ubbd_dev->req_lock);
 	ubbdlib_processing_complete(ubbd_dev);
 
 	return 0;

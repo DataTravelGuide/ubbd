@@ -36,16 +36,16 @@ static bool compr_space_enough(struct ubbd_device *ubbd_dev, uint32_t required)
 struct ubbd_ce *get_available_ce(struct ubbd_device *ubbd_dev)
 {
 	/*
-	 * dev->lock held
+	 * dev->req_lock held
 	 */
 	struct ubbd_sb *sb = ubbd_dev->map;
 
 	while (!compr_space_enough(ubbd_dev, sizeof(struct ubbd_ce))) {
-		pthread_mutex_unlock(&ubbd_dev->lock);
+		pthread_mutex_unlock(&ubbd_dev->req_lock);
 		ubbd_err(" compr not enough head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
 		ubbdlib_processing_complete(ubbd_dev);
                 usleep(50000);
-		pthread_mutex_lock(&ubbd_dev->lock);
+		pthread_mutex_lock(&ubbd_dev->req_lock);
 	}
 
 	return device_comp_head(ubbd_dev);
@@ -218,7 +218,7 @@ static void ubbd_dev_init(struct ubbd_device *ubbd_dev)
 {
 	ubbd_dev->status = UBBD_DEV_STATUS_INIT;
 	INIT_LIST_HEAD(&ubbd_dev->dev_node);
-	pthread_mutex_init(&ubbd_dev->lock, NULL);
+	pthread_mutex_init(&ubbd_dev->req_lock, NULL);
 }
 
 struct ubbd_rbd_device *create_rbd_dev(void)

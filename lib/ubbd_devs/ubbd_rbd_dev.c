@@ -125,7 +125,7 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 	ret = rbd_aio_get_return_value(completion);
 	ubbd_dev_dbg(ubbd_dev, "ret: %ld\n", ret);
 
-	pthread_mutex_lock(&ubbd_dev->lock);
+	pthread_mutex_lock(&ubbd_dev->req_lock);
 	ce = get_available_ce(ubbd_dev);
 	memset(ce, 0, sizeof(*ce));
 	ce->priv_data = aio_cb->priv_data;
@@ -139,7 +139,7 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 	ubbd_dev_dbg(ubbd_dev, "append ce: %llu\n", ce->priv_data);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
 	//ubbd_uio_advance_cmd_ring(ubbd_dev);
-	pthread_mutex_unlock(&ubbd_dev->lock);
+	pthread_mutex_unlock(&ubbd_dev->req_lock);
 	ubbdlib_processing_complete(ubbd_dev);
 
 	free(aio_cb);
