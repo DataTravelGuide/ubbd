@@ -88,13 +88,13 @@ static int do_file_map(char *filepath, uint64_t filesize)
 	req.u.add.info.file.size = filesize;
 	ret = ubbdd_request(&fd, &req);
 	if (ret) {
-		ubbd_err("failed to send map request to ubbdd.\n");
+		ubbd_err("failed to send map request to ubbdd: %d.\n", ret);
 		return ret;
 	}
 	
 	ret = ubbdd_response(fd, &rsp, -1);
 	if (ret) {
-		ubbd_err("error in waiting response for map request.\n");
+		ubbd_err("error in waiting response for map request: %d.\n", ret);
 		return ret;
 	}
 
