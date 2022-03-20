@@ -264,7 +264,11 @@ static void *mgmt_thread_fn(void* args)
 					ret = -ENOMEM;
 					break;
 				}
-				ubbd_dev_add(ubbd_dev, ctx);
+				ret = ubbd_dev_add(ubbd_dev, ctx);
+				if (ret) {
+					context_free(ctx);
+					break;
+				}
 				continue;
 			case UBBD_MGMT_CMD_UNMAP:
 				ubbd_dev = find_ubbd_dev(mgmt_req.u.remove.dev_id);
@@ -279,7 +283,11 @@ static void *mgmt_thread_fn(void* args)
 					ret = -ENOMEM;
 					break;
 				}
-				ubbd_dev_remove(ubbd_dev, mgmt_req.u.remove.force, ctx);
+				ret = ubbd_dev_remove(ubbd_dev, mgmt_req.u.remove.force, ctx);
+				if (ret) {
+					context_free(ctx);
+					break;
+				}
 				continue;
 			case UBBD_MGMT_CMD_CONFIG:
 				ubbd_dev = find_ubbd_dev(mgmt_req.u.remove.dev_id);
@@ -293,7 +301,11 @@ static void *mgmt_thread_fn(void* args)
 					ret = -ENOMEM;
 					break;
 				}
-				ubbd_dev_config(ubbd_dev, mgmt_req.u.config.data_pages_reserve, ctx);
+				ret = ubbd_dev_config(ubbd_dev, mgmt_req.u.config.data_pages_reserve, ctx);
+				if (ret) {
+					context_free(ctx);
+					break;
+				}
 				continue;
 			default:
 				ubbd_err("unrecognized command: %d", mgmt_req.cmd);

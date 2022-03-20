@@ -18,11 +18,11 @@ enum ubbd_dev_type {
 };
 
 enum ubbd_dev_status {
-	UBBD_DEV_STATUS_INIT,
-	UBBD_DEV_STATUS_OPENED,
-	UBBD_DEV_STATUS_DISK_PREPARED,
-	UBBD_DEV_STATUS_RUNNING,
-	UBBD_DEV_STATUS_REMOVING,
+	UBBD_DEV_INIT,
+	UBBD_DEV_OPENED,
+	UBBD_DEV_DISK_PREPARED,
+	UBBD_DEV_RUNNING,
+	UBBD_DEV_REMOVING,
 };
 
 struct ubbd_dev_info {
@@ -66,6 +66,7 @@ struct ubbd_device {
 
 	enum ubbd_dev_status status;
 	pthread_mutex_t req_lock;
+	pthread_mutex_t lock;
 
 	struct ubbd_dev_features dev_features;
 };
