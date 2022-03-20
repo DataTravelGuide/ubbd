@@ -118,10 +118,10 @@ static inline void ubbd_se_hdr_flags_set(struct ubbd_se *se, __u32 bit)
 #define UBBD_OP_ALIGN_SIZE sizeof(__u64)
 
 enum ubbd_genl_cmd {
-	UBBD_CMD_ADD_PREPARE,
-	UBBD_CMD_ADD,
-	UBBD_CMD_REMOVE_PREPARE,
-	UBBD_CMD_REMOVE,
+	UBBD_CMD_ADD_DEV,
+	UBBD_CMD_ADD_DISK,
+	UBBD_CMD_REMOVE_DEV,
+	UBBD_CMD_REMOVE_DISK,
 	UBBD_CMD_STATUS,
 	UBBD_CMD_CONFIG,
 	__UBBD_CMD_MAX,
@@ -186,6 +186,12 @@ enum {
 };
 #define UBBD_STATUS_ATTR_MAX (__UBBD_STATUS_MAX - 1)
 
+enum ubbd_dev_status {
+	UBBD_DEV_STATUS_INIT = 0,
+	UBBD_DEV_STATUS_PREPARED,
+	UBBD_DEV_STATUS_RUNNING,
+	UBBD_DEV_STATUS_REMOVING,
+};
 
 /*
  * Format of nested UBBD_ATTR_DEV_CONFIG

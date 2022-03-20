@@ -109,7 +109,7 @@ poll:
 			exit(EXIT_FAILURE);
 		}
 
-		if (ubbd_dev->status == UBBD_DEV_REMOVING) {
+		if (ubbd_dev->status == UBBD_DEV_USTATUS_REMOVING) {
 			ubbd_err("exit cmd_process\n");
 			break;
 		}
@@ -212,7 +212,7 @@ struct ubbd_device *find_ubbd_dev(int dev_id)
 
 static void ubbd_dev_init(struct ubbd_device *ubbd_dev)
 {
-	ubbd_dev->status = UBBD_DEV_INIT;
+	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
 	INIT_LIST_HEAD(&ubbd_dev->dev_node);
 	pthread_mutex_init(&ubbd_dev->req_lock, NULL);
 	pthread_mutex_init(&ubbd_dev->lock, NULL);
@@ -293,7 +293,7 @@ int ubbd_dev_open(struct ubbd_device *ubbd_dev)
 
 	ubbd_dbg("add ubbd_dev: %p dev_id: %dinto list\n", ubbd_dev, ubbd_dev->dev_id);
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
-	ubbd_dev->status = UBBD_DEV_OPENED;
+	ubbd_dev->status = UBBD_DEV_USTATUS_OPENED;
 
 out:
 	return ret;
@@ -303,7 +303,7 @@ void ubbd_dev_close(struct ubbd_device *ubbd_dev)
 {
 	list_del_init(&ubbd_dev->dev_node);
 	ubbd_dev->dev_ops->close(ubbd_dev);
-	ubbd_dev->status = UBBD_DEV_INIT;
+	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
 }
 
 void ubbd_dev_release(struct ubbd_device *ubbd_dev)
@@ -342,7 +342,7 @@ int dev_stop(struct ubbd_device *ubbd_dev)
 	void *join_retval;
 	int ret;
 
-	ubbd_dev->status = UBBD_DEV_REMOVING;
+	ubbd_dev->status = UBBD_DEV_USTATUS_REMOVING;
 
 	ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
 	if (ret)
@@ -376,14 +376,14 @@ struct context *dev_ctx_alloc(struct ubbd_device *ubbd_dev,
 	return dev_ctx;
 }
 
-struct dev_add_data {
+struct dev_add_disk_data {
 	struct ubbd_device *ubbd_dev;
 };
 
-int dev_add_finish(struct context *ctx, int ret)
+int dev_add_disk_finish(struct context *ctx, int ret)
 {
-	struct dev_add_data *add_data = (struct dev_add_data *)ctx->data;
-	struct ubbd_device *ubbd_dev = add_data->ubbd_dev;
+	struct dev_add_disk_data *add_disk_data = (struct dev_add_disk_data *)ctx->data;
+	struct ubbd_device *ubbd_dev = add_disk_data->ubbd_dev;
 
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "error in add: %d.\n", ret);
@@ -391,7 +391,7 @@ int dev_add_finish(struct context *ctx, int ret)
 	}
 
 	pthread_mutex_lock(&ubbd_dev->req_lock);
-	ubbd_dev->status = UBBD_DEV_RUNNING;
+	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
 	pthread_mutex_unlock(&ubbd_dev->req_lock);
 
 	return ret;
@@ -403,28 +403,28 @@ clean_dev:
 	return ret;
 }
 
-int dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
+int dev_add_disk(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
-	struct context *add_ctx;
-	struct dev_add_data *add_data;
+	struct context *add_disk_ctx;
+	struct dev_add_disk_data *add_disk_data;
 	int ret;
 
-	add_ctx = context_alloc(sizeof(struct dev_add_data));
-	if (!add_ctx) {
+	add_disk_ctx = context_alloc(sizeof(struct dev_add_disk_data));
+	if (!add_disk_ctx) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	add_data = (struct dev_add_data *)add_ctx->data;
-	add_data->ubbd_dev = ubbd_dev;
+	add_disk_data = (struct dev_add_disk_data *)add_disk_ctx->data;
+	add_disk_data->ubbd_dev = ubbd_dev;
 
-	add_ctx->finish = dev_add_finish;
-	add_ctx->parent = ctx;
+	add_disk_ctx->finish = dev_add_disk_finish;
+	add_disk_ctx->parent = ctx;
 
-	ret = ubbd_nl_req_add(ubbd_dev, add_ctx);
+	ret = ubbd_nl_req_add_disk(ubbd_dev, add_disk_ctx);
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "failed to start add: %d\n", ret);
-		context_free(add_ctx);
+		context_free(add_disk_ctx);
 		goto out;
 	}
 
@@ -432,23 +432,23 @@ out:
 	return ret;
 }
 
-struct dev_add_prepare_data {
+struct dev_add_dev_data {
 	struct ubbd_device *ubbd_dev;
 };
 
-int dev_add_prepare_finish(struct context *ctx, int ret)
+int dev_add_dev_finish(struct context *ctx, int ret)
 {
-	struct dev_add_prepare_data *add_prepare_data = (struct dev_add_prepare_data *)ctx->data;
-	struct ubbd_device *ubbd_dev = add_prepare_data->ubbd_dev;
+	struct dev_add_dev_data *add_dev_data = (struct dev_add_dev_data *)ctx->data;
+	struct ubbd_device *ubbd_dev = add_dev_data->ubbd_dev;
 
 	if (ret) {
-		ubbd_dev_err(ubbd_dev, "error in add_prepare: %d.\n", ret);
+		ubbd_dev_err(ubbd_dev, "error in add_dev: %d.\n", ret);
 		goto clean_dev;
 	}
 
 	pthread_mutex_lock(&ubbd_dev->req_lock);
-	/* advance dev status into ADD_PREPARED */
-	ubbd_dev->status = UBBD_DEV_DISK_PREPARED;
+	/* advance dev status into ADD_DEVD */
+	ubbd_dev->status = UBBD_DEV_USTATUS_PREPARED;
 
 	ret = dev_setup(ubbd_dev);
 	if (ret) {
@@ -459,7 +459,7 @@ int dev_add_prepare_finish(struct context *ctx, int ret)
 	 * prepare is almost done, let's start add,
 	 * and pass the parent_ctx to add req.
 	 */
-	ret = dev_add(ubbd_dev, ctx->parent);
+	ret = dev_add_disk(ubbd_dev, ctx->parent);
 	if (ret) {
 		goto clean_dev;
 	}
@@ -477,26 +477,26 @@ clean_dev:
 	return ret;
 }
 
-int dev_add_prepare(struct ubbd_device *ubbd_dev, struct context *ctx)
+int dev_add_dev(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
-	struct context *add_prepare_ctx;
-	struct dev_add_prepare_data *add_prepare_data;
+	struct context *add_dev_ctx;
+	struct dev_add_dev_data *add_dev_data;
 	int ret;
 
-	add_prepare_ctx = context_alloc(sizeof(struct dev_add_prepare_data));
-	if (!add_prepare_ctx) {
+	add_dev_ctx = context_alloc(sizeof(struct dev_add_dev_data));
+	if (!add_dev_ctx) {
 		return -ENOMEM;
 	}
 
-	add_prepare_data = (struct dev_add_prepare_data *)add_prepare_ctx->data;
-	add_prepare_data->ubbd_dev = ubbd_dev;
+	add_dev_data = (struct dev_add_dev_data *)add_dev_ctx->data;
+	add_dev_data->ubbd_dev = ubbd_dev;
 
-	add_prepare_ctx->finish = dev_add_prepare_finish;
-	add_prepare_ctx->parent = ctx;
+	add_dev_ctx->finish = dev_add_dev_finish;
+	add_dev_ctx->parent = ctx;
 
-	ret = ubbd_nl_req_add_prepare(ubbd_dev, add_prepare_ctx);
+	ret = ubbd_nl_req_add_dev(ubbd_dev, add_dev_ctx);
 	if (ret)
-		context_free(add_prepare_ctx);
+		context_free(add_dev_ctx);
 	return ret;
 }
 
@@ -510,7 +510,7 @@ int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 		goto release_dev;
 	}
 
-	ret = dev_add_prepare(ubbd_dev, ctx);
+	ret = dev_add_dev(ubbd_dev, ctx);
 	if (ret)
 		goto close_dev;
 	pthread_mutex_unlock(&ubbd_dev->req_lock);
@@ -528,7 +528,7 @@ release_dev:
 /*
  * ubbd device remove
  */
-static int dev_remove_finish(struct context *ctx, int ret)
+static int dev_remove_dev_finish(struct context *ctx, int ret)
 {
 	struct dev_ctx_data *ctx_data = (struct dev_ctx_data *)ctx->data;
 	struct ubbd_device *ubbd_dev = ctx_data->ubbd_dev;
@@ -546,23 +546,23 @@ static int dev_remove_finish(struct context *ctx, int ret)
 }
 
 
-static int dev_remove(struct ubbd_device *ubbd_dev, struct context *ctx)
+static int dev_remove_dev(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
 	struct context *remove_ctx;
 	int ret;
 
-	remove_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_remove_finish);
+	remove_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_remove_dev_finish);
 	if (!remove_ctx)
 		return -ENOMEM;
 
-	ret = ubbd_nl_req_remove(ubbd_dev, remove_ctx);
+	ret = ubbd_nl_req_remove_dev(ubbd_dev, remove_ctx);
 	if (ret)
 		context_free(remove_ctx);
 
 	return ret;
 }
 
-static int dev_remove_prepare_finish(struct context *ctx, int ret)
+static int dev_remove_disk_finish(struct context *ctx, int ret)
 {
 	struct dev_ctx_data *ctx_data = (struct dev_ctx_data *)ctx->data;
 	struct ubbd_device *ubbd_dev = ctx_data->ubbd_dev;
@@ -580,25 +580,25 @@ static int dev_remove_prepare_finish(struct context *ctx, int ret)
 		return ret;
 	}
 
-	dev_remove(ubbd_dev, ctx->parent);
+	dev_remove_dev(ubbd_dev, ctx->parent);
 	ctx->parent = NULL;
 	pthread_mutex_unlock(&ubbd_dev->req_lock);
 
 	return 0;
 }
 
-static int dev_remove_prepare(struct ubbd_device *ubbd_dev, bool force, struct context *ctx)
+static int dev_remove_disk(struct ubbd_device *ubbd_dev, bool force, struct context *ctx)
 {
-	struct context *remove_prepare_ctx;
+	struct context *remove_disk_ctx;
 	int ret;
 
-	remove_prepare_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_remove_prepare_finish);
-	if (!remove_prepare_ctx)
+	remove_disk_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_remove_disk_finish);
+	if (!remove_disk_ctx)
 		return -ENOMEM;
 
-	ret = ubbd_nl_req_remove_prepare(ubbd_dev, force, remove_prepare_ctx);
+	ret = ubbd_nl_req_remove_disk(ubbd_dev, force, remove_disk_ctx);
 	if (ret)
-		context_free(remove_prepare_ctx);
+		context_free(remove_disk_ctx);
 
 	return ret;
 }
@@ -611,19 +611,19 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ct
 
 	pthread_mutex_lock(&ubbd_dev->req_lock);
 	switch (ubbd_dev->status) {
-	case UBBD_DEV_INIT:
+	case UBBD_DEV_USTATUS_INIT:
 		ubbd_dev_release(ubbd_dev);
 		break;
-	case UBBD_DEV_OPENED:
+	case UBBD_DEV_USTATUS_OPENED:
 		ubbd_err("opend\n");
 		ubbd_dev_close(ubbd_dev);
 		ubbd_dev_release(ubbd_dev);
 		break;
-	case UBBD_DEV_DISK_PREPARED:
-		ret = dev_remove(ubbd_dev, ctx);
+	case UBBD_DEV_USTATUS_PREPARED:
+		ret = dev_remove_dev(ubbd_dev, ctx);
 		break;
-	case UBBD_DEV_RUNNING:
-		ret = dev_remove_prepare(ubbd_dev, force, ctx);
+	case UBBD_DEV_USTATUS_RUNNING:
+		ret = dev_remove_disk(ubbd_dev, force, ctx);
 		break;
 	default:
 		ubbd_dev_err(ubbd_dev, "Unknown status: %d\n", ubbd_dev->status);
@@ -711,7 +711,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status)
 
 	ubbd_err("version: %d\n", ubbd_dev->map->version);
 
-	ubbd_dev->status = UBBD_DEV_RUNNING;
+	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
 
 	return 0;
 
@@ -738,9 +738,7 @@ int ubd_dev_reopen_devs(void)
 	ret = ubbd_nl_dev_list(&tmp_list);
 	list_for_each_entry_safe(tmp_status, next_status, &tmp_list, node) {
 		list_del(&tmp_status->node);
-		ubbd_dbg("tmp_status: dev_id: %d, uio_id: %d, status: %d\n", tmp_status->dev_id, tmp_status->uio_id, tmp_status->status);
-		//if (tmp_status->status == UBBD_DEV_RUNNING)
-		if (1)
+		if (tmp_status->status == UBBD_DEV_STATUS_RUNNING)
 			reopen_dev(tmp_status);
 		else
 			cleanup_dev(tmp_status);

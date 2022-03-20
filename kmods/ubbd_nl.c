@@ -3,7 +3,7 @@
 #include "ubbd_internal.h"
 static int ubbd_total_devs = 0;
 
-static int ubbd_nl_reply_add_prepare_done(struct ubbd_device *ubbd_dev,
+static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 					  u64 priv_data,
 					  struct genl_info *info)
 {
@@ -22,7 +22,7 @@ static int ubbd_nl_reply_add_prepare_done(struct ubbd_device *ubbd_dev,
 		goto err;
 
 	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
-				     UBBD_CMD_ADD_PREPARE);
+				     UBBD_CMD_ADD_DEV);
 	if (!msg_head)
 		goto err_free;
 
@@ -82,7 +82,7 @@ err:
 	return -EMSGSIZE;
 }
 
-static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
+static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev = NULL;
 	u64 dev_features;
@@ -136,11 +136,11 @@ static int handle_cmd_add_prepare(struct sk_buff *skb, struct genl_info *info)
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
 	mutex_unlock(&ubbd_dev_list_mutex);
 
-	ubbd_dev->status = UBBD_DEV_STATUS_ADD_PREPARED;
-
-	rc = ubbd_nl_reply_add_prepare_done(ubbd_dev, priv_data, info);
+	rc = ubbd_nl_reply_add_dev_done(ubbd_dev, priv_data, info);
 	if (rc)
 		goto err_free_disk;
+
+	ubbd_dev->status = UBBD_DEV_STATUS_PREPARED;
 
 	return rc;
 
@@ -149,7 +149,7 @@ err_free_disk:
 err_dev_put:
 	ubbd_dev_put(ubbd_dev);
 reply:
-	ubbd_nl_reply(info, UBBD_CMD_ADD_PREPARE, rc);
+	ubbd_nl_reply(info, UBBD_CMD_ADD_DEV, rc);
 	return rc;
 }
 
@@ -170,7 +170,7 @@ static struct ubbd_device *find_ubbd_dev(int dev_id)
 	return ubbd_dev;
 }
 
-static int handle_cmd_add(struct sk_buff *skb, struct genl_info *info)
+static int handle_cmd_add_disk(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev;
 	int dev_id;
@@ -189,12 +189,12 @@ static int handle_cmd_add(struct sk_buff *skb, struct genl_info *info)
 	ubbd_dev->status = UBBD_DEV_STATUS_RUNNING;
 
 out:
-	ubbd_nl_reply(info, UBBD_CMD_ADD, rc);
+	ubbd_nl_reply(info, UBBD_CMD_ADD_DISK, rc);
 	return rc;
 }
 
 
-static int handle_cmd_remove_prepare(struct sk_buff *skb, struct genl_info *info)
+static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev;
 	int dev_id;
@@ -233,11 +233,11 @@ static int handle_cmd_remove_prepare(struct sk_buff *skb, struct genl_info *info
 	del_gendisk(ubbd_dev->disk);
 
 out:
-	ubbd_nl_reply(info, UBBD_CMD_REMOVE_PREPARE, rc);
+	ubbd_nl_reply(info, UBBD_CMD_REMOVE_DISK, rc);
 	return rc;
 }
 
-static int handle_cmd_remove(struct sk_buff *skb, struct genl_info *info)
+static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev;
 	int dev_id;
@@ -255,7 +255,7 @@ static int handle_cmd_remove(struct sk_buff *skb, struct genl_info *info)
 	ubbd_free_disk(ubbd_dev);
 	ubbd_dev_put(ubbd_dev);
 out:
-	ubbd_nl_reply(info, UBBD_CMD_REMOVE, rc);
+	ubbd_nl_reply(info, UBBD_CMD_REMOVE_DEV, rc);
 	return rc;
 }
 
@@ -423,28 +423,28 @@ out:
 #ifdef HAVE_GENL_SMALL_OPS
 static const struct genl_small_ops ubbd_genl_ops[] = {
 	{
-		.cmd	= UBBD_CMD_ADD_PREPARE,
+		.cmd	= UBBD_CMD_ADD_DEV,
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags	= GENL_ADMIN_PERM,
-		.doit	= handle_cmd_add_prepare,
+		.doit	= handle_cmd_add_dev,
 	},
 	{
-		.cmd	= UBBD_CMD_ADD,
+		.cmd	= UBBD_CMD_ADD_DISK,
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags	= GENL_ADMIN_PERM,
-		.doit	= handle_cmd_add,
+		.doit	= handle_cmd_add_disk,
 	},
 	{
-		.cmd	= UBBD_CMD_REMOVE_PREPARE,
+		.cmd	= UBBD_CMD_REMOVE_DISK,
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags	= GENL_ADMIN_PERM,
-		.doit	= handle_cmd_remove_prepare,
+		.doit	= handle_cmd_remove_disk,
 	},
 	{
-		.cmd	= UBBD_CMD_REMOVE,
+		.cmd	= UBBD_CMD_REMOVE_DEV,
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags	= GENL_ADMIN_PERM,
-		.doit	= handle_cmd_remove,
+		.doit	= handle_cmd_remove_dev,
 	},
 	{
 		.cmd	= UBBD_CMD_STATUS,
@@ -462,24 +462,24 @@ static const struct genl_small_ops ubbd_genl_ops[] = {
 #else
 static const struct genl_ops ubbd_genl_ops[] = {
 	{
-		.cmd	= UBBD_CMD_ADD_PREPARE,
+		.cmd	= UBBD_CMD_ADD_DEV,
 		.flags	= GENL_ADMIN_PERM,
-		.doit	= handle_cmd_add_prepare,
+		.doit	= handle_cmd_add_dev,
 	},
 	{
-		.cmd	= UBBD_CMD_ADD,
+		.cmd	= UBBD_CMD_ADD_DISK,
 		.flags	= GENL_ADMIN_PERM,
-		.doit	= handle_cmd_add,
+		.doit	= handle_cmd_add_disk,
 	},
 	{
-		.cmd	= UBBD_CMD_REMOVE_PREPARE,
+		.cmd	= UBBD_CMD_REMOVE_DISK,
 		.flags	= GENL_ADMIN_PERM,
-		.doit	= handle_cmd_remove_prepare,
+		.doit	= handle_cmd_remove_disk,
 	},
 	{
-		.cmd	= UBBD_CMD_REMOVE,
+		.cmd	= UBBD_CMD_REMOVE_DEV,
 		.flags	= GENL_ADMIN_PERM,
-		.doit	= handle_cmd_remove,
+		.doit	= handle_cmd_remove_dev,
 	},
 	{
 		.cmd	= UBBD_CMD_STATUS,

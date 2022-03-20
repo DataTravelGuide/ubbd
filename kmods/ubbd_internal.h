@@ -33,13 +33,6 @@
 
 extern struct workqueue_struct *ubbd_wq;
 
-enum ubbd_dev_status {
-	UBBD_DEV_STATUS_INIT = 0,
-	UBBD_DEV_STATUS_ADD_PREPARED,
-	UBBD_DEV_STATUS_RUNNING,
-	UBBD_DEV_STATUS_REMOVING,
-};
-
 struct ubbd_device {
 	int			dev_id;		/* blkdev unique id */
 

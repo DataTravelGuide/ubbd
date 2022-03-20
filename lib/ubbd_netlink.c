@@ -93,7 +93,7 @@ out:
 	return ret;
 }
 
-static int send_netlink_remove(struct ubbd_nl_req *req)
+static int send_netlink_remove_dev(struct ubbd_nl_req *req)
 {
 	struct ubbd_device *ubbd_dev = req->ubbd_dev;
 	struct nl_msg *msg;
@@ -113,7 +113,7 @@ static int send_netlink_remove(struct ubbd_nl_req *req)
 		goto close_sock;
 
 	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
-			  0, 0, UBBD_CMD_REMOVE, UBBD_NL_VERSION);
+			  0, 0, UBBD_CMD_REMOVE_DEV, UBBD_NL_VERSION);
 	if (!hdr)
 		goto free_msg;
 
@@ -192,7 +192,7 @@ close_sock:
 	return ret;
 }
 
-int send_netlink_remove_prepare(struct ubbd_nl_req *req)
+int send_netlink_remove_disk(struct ubbd_nl_req *req)
 {
 	struct ubbd_device *ubbd_dev = req->ubbd_dev;
 	struct nl_msg *msg;
@@ -213,7 +213,7 @@ int send_netlink_remove_prepare(struct ubbd_nl_req *req)
 		goto close_sock;
 
 	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
-			  0, 0, UBBD_CMD_REMOVE_PREPARE, UBBD_NL_VERSION);
+			  0, 0, UBBD_CMD_REMOVE_DISK, UBBD_NL_VERSION);
 	if (!hdr)
 		goto free_msg;
 
@@ -245,7 +245,7 @@ close_sock:
 
 }
 
-static int send_netlink_add(struct ubbd_nl_req *req)
+static int send_netlink_add_disk(struct ubbd_nl_req *req)
 {
 	struct ubbd_device *ubbd_dev = req->ubbd_dev;
 	struct nl_msg *msg;
@@ -265,7 +265,7 @@ static int send_netlink_add(struct ubbd_nl_req *req)
 		goto close_sock;
 
 	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
-			  0, 0, UBBD_CMD_ADD, UBBD_NL_VERSION);
+			  0, 0, UBBD_CMD_ADD_DISK, UBBD_NL_VERSION);
 	if (!hdr)
 		goto free_msg;
 
@@ -294,7 +294,7 @@ close_sock:
 	return ret;
 }
 
-static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
+static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 {
 	struct ubbd_device *ubbd_dev;
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
@@ -316,7 +316,7 @@ static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 	return NL_OK;
 }
 
-int send_netlink_add_prepare(struct ubbd_nl_req *req)
+int send_netlink_add_dev(struct ubbd_nl_req *req)
 {
 	struct ubbd_device *ubbd_dev = req->ubbd_dev;
 	struct nl_msg *msg;
@@ -330,14 +330,14 @@ int send_netlink_add_prepare(struct ubbd_nl_req *req)
 	if (!socket)
 		return -1;
 
-	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, add_prepare_done_callback, NULL);
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, add_dev_done_callback, NULL);
 
 	msg = nlmsg_alloc();
 	if (!msg)
 		goto close_sock;
 
 	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
-			  0, 0, UBBD_CMD_ADD_PREPARE, UBBD_NL_VERSION);
+			  0, 0, UBBD_CMD_ADD_DEV, UBBD_NL_VERSION);
 	if (!hdr)
 		goto free_msg;
 
@@ -368,7 +368,7 @@ int send_netlink_add_prepare(struct ubbd_nl_req *req)
 	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
 	if (ret < 0)
-		ubbd_err("Could not send netlink cmd %d\n", UBBD_CMD_ADD_PREPARE);
+		ubbd_err("Could not send netlink cmd %d\n", UBBD_CMD_ADD_DEV);
 	return ret;
 
 free_msg:
@@ -489,36 +489,36 @@ int ubbd_nl_queue_req(struct ubbd_device *ubbd_dev, struct ubbd_nl_req *req)
 	return 0;
 }
 
-int ubbd_nl_req_add_prepare(struct ubbd_device *ubbd_dev, struct context *ctx)
+int ubbd_nl_req_add_dev(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
 	INIT_LIST_HEAD(&req->node);
-	req->type = UBBD_NL_REQ_ADD_PREPARE;
+	req->type = UBBD_NL_REQ_ADD_DEV;
 	req->ubbd_dev = ubbd_dev;
 	req->ctx = ctx;
 
 	return ubbd_nl_queue_req(ubbd_dev, req);
 }
 
-int ubbd_nl_req_add(struct ubbd_device *ubbd_dev, struct context *ctx)
+int ubbd_nl_req_add_disk(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
 	INIT_LIST_HEAD(&req->node);
-	req->type = UBBD_NL_REQ_ADD;
+	req->type = UBBD_NL_REQ_ADD_DISK;
 	req->ubbd_dev = ubbd_dev;
 	req->ctx = ctx;
 
 	return ubbd_nl_queue_req(ubbd_dev, req);
 }
 
-int ubbd_nl_req_remove_prepare(struct ubbd_device *ubbd_dev, bool force, struct context *ctx)
+int ubbd_nl_req_remove_disk(struct ubbd_device *ubbd_dev, bool force, struct context *ctx)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
 	INIT_LIST_HEAD(&req->node);
-	req->type = UBBD_NL_REQ_REMOVE_PREPARE;
+	req->type = UBBD_NL_REQ_REMOVE_DISK;
 	req->ubbd_dev = ubbd_dev;
 	req->req_opts.remove_opts.force = force;
 	req->ctx = ctx;
@@ -526,12 +526,12 @@ int ubbd_nl_req_remove_prepare(struct ubbd_device *ubbd_dev, bool force, struct 
 	return ubbd_nl_queue_req(ubbd_dev, req);
 }
 
-int ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, struct context *ctx)
+int ubbd_nl_req_remove_dev(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
 	INIT_LIST_HEAD(&req->node);
-	req->type = UBBD_NL_REQ_REMOVE;
+	req->type = UBBD_NL_REQ_REMOVE_DEV;
 	req->ubbd_dev = ubbd_dev;
 	req->ctx = ctx;
 
@@ -556,17 +556,17 @@ static int handle_nl_req(struct ubbd_nl_req *req)
 	int ret = 0;
 
 	switch (req->type) {
-	case UBBD_NL_REQ_ADD_PREPARE:
-		ret = send_netlink_add_prepare(req);
+	case UBBD_NL_REQ_ADD_DEV:
+		ret = send_netlink_add_dev(req);
 		break;
-	case UBBD_NL_REQ_ADD:
-		ret = send_netlink_add(req);
+	case UBBD_NL_REQ_ADD_DISK:
+		ret = send_netlink_add_disk(req);
 		break;
-	case UBBD_NL_REQ_REMOVE_PREPARE:
-		ret = send_netlink_remove_prepare(req);
+	case UBBD_NL_REQ_REMOVE_DISK:
+		ret = send_netlink_remove_disk(req);
 		break;
-	case UBBD_NL_REQ_REMOVE:
-		ret = send_netlink_remove(req);
+	case UBBD_NL_REQ_REMOVE_DEV:
+		ret = send_netlink_remove_dev(req);
 		break;
 	case UBBD_NL_REQ_CONFIG:
 		ret = send_netlink_config(req);
