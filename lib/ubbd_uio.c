@@ -58,6 +58,7 @@ int device_open_shm(struct ubbd_device *ubbd_dev)
 	}
 
 	ubbd_info("version: %d\n", ubbd_dev->map->version);
+	free(mmap_name);
 
 	return 0;
 

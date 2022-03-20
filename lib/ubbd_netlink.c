@@ -580,6 +580,7 @@ static int handle_nl_req(struct ubbd_nl_req *req)
 	return ret;
 }
 
+static bool stop_nl_thread = false;
 static void *nl_thread_fn(void* args)
 {
 	LIST_HEAD(tmp_list);
@@ -589,6 +590,10 @@ static void *nl_thread_fn(void* args)
 	while (1) {
 		pthread_mutex_lock(&ubbd_nl_req_list_lock);
 		if (list_empty(&ubbd_nl_req_list)) {
+			if (stop_nl_thread) {
+				pthread_mutex_unlock(&ubbd_nl_req_list_lock);
+				return NULL;
+			}
 			pthread_cond_wait(&ubbd_nl_thread_cond, &ubbd_nl_req_list_lock);
 		}
 		list_for_each_entry_safe(req, tmp_req, &ubbd_nl_req_list, node)
@@ -609,11 +614,16 @@ static void *nl_thread_fn(void* args)
 	return NULL;
 }
 
-int start_netlink_thread(pthread_t *t)
+int ubbd_nl_start_thread(pthread_t *t)
 {
 	INIT_LIST_HEAD(&ubbd_nl_req_list);
 	pthread_mutex_init(&ubbd_nl_req_list_lock, NULL);
 	pthread_cond_init(&ubbd_nl_thread_cond, NULL);
 
 	return pthread_create(t, NULL, nl_thread_fn, NULL);
+}
+
+void ubbd_nl_stop_thread(void)
+{
+	stop_nl_thread = true;
 }

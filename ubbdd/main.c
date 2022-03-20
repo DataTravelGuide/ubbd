@@ -1,9 +1,36 @@
 #include <pthread.h>
+#include <signal.h>
 
 #include "ubbd_mgmt.h"
 #include "ubbd_netlink.h"
 #include "utils.h"
 #include "ubbd_log.h"
+
+static void catch_signal(int signo)
+{
+	ubbd_info("%d caught signal -%d...", signo, getpid());
+	switch (signo) {
+	case SIGTERM:
+	case SIGINT:
+		ubbd_mgmt_stop_thread();
+		ubbd_dev_stop_devs();
+		ubbd_nl_stop_thread();
+		break;
+	default:
+		break;
+	}
+}
+
+static void setup_signal_handler(void)
+{
+	struct sigaction sa_old;
+	struct sigaction sa_new;
+
+	sa_new.sa_handler = catch_signal;
+	sigemptyset(&sa_new.sa_mask);
+	sa_new.sa_flags = 0;
+	sigaction(SIGTERM, &sa_new, &sa_old );
+}
 
 int main()
 {
@@ -16,13 +43,15 @@ int main()
 	if (ret)
 		goto out;
 
-	ret = ubd_dev_reopen_devs();
+	setup_signal_handler();
+	ret = ubbd_dev_reopen_devs();
 	if (ret)
 		goto destroy_log;
 
-	start_netlink_thread(&nl_thread);
-	start_mgmt_thread(&mgmt_thread);
+	ubbd_nl_start_thread(&nl_thread);
+	ubbd_mgmt_start_thread(&mgmt_thread);
 	ubbd_info("ubbdd started.....\n");
+
 	ret = pthread_join(mgmt_thread, &join_retval);
 	ret = pthread_join(nl_thread, &join_retval);
 destroy_log:

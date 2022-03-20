@@ -220,6 +220,8 @@ static struct context *mgmt_ctx_alloc(struct ubbd_device *ubbd_dev,
 	return ctx;
 }
 
+static bool mgmt_stop = false;
+
 static void *mgmt_thread_fn(void* args)
 {
 	int fd;
@@ -237,8 +239,12 @@ static void *mgmt_thread_fn(void* args)
 		ret = poll(pollfds, 1, 60);
 		if (ret == -1) {
 			ubbd_err("ppoll() returned %d, exiting\n", ret);
-			exit(EXIT_FAILURE);
+			return NULL;
 		}
+
+		if (mgmt_stop)
+			return NULL;
+
 		if (pollfds[0].revents) {
 			int read_fd = accept(fd, NULL, NULL);
 			struct ubbd_mgmt_request mgmt_req = {0};
@@ -319,7 +325,12 @@ static void *mgmt_thread_fn(void* args)
 	}
 }
 
-int start_mgmt_thread(pthread_t *t)
+int ubbd_mgmt_start_thread(pthread_t *t)
 {
 	return pthread_create(t, NULL, mgmt_thread_fn, NULL);
+}
+
+void ubbd_mgmt_stop_thread(void)
+{
+	mgmt_stop = true;
 }

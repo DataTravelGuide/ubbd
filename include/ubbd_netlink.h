@@ -42,6 +42,7 @@ int ubbd_nl_req_add_disk(struct ubbd_device *ubbd_dev, struct context *ctx);
 int ubbd_nl_req_remove_disk(struct ubbd_device *ubbd_dev, bool force, struct context *ctx);
 int ubbd_nl_req_remove_dev(struct ubbd_device *ubbd_dev, struct context *ctx);
 int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct context *ctx);
-int start_netlink_thread(pthread_t *t);
+int ubbd_nl_start_thread(pthread_t *t);
+void ubbd_nl_stop_thread(void);
 int ubbd_nl_dev_list(struct list_head *dev_list);
 #endif	/* UBBD_NETLINK_H */

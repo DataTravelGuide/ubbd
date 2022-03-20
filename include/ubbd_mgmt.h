@@ -41,6 +41,7 @@ struct ubbd_mgmt_rsp {
 int ubbdd_request(int *fd, struct ubbd_mgmt_request *req);
 int ubbdd_response(int fd, struct ubbd_mgmt_rsp *rsp,
 		    int timeout);
-int start_mgmt_thread(pthread_t *t);
+int ubbd_mgmt_start_thread(pthread_t *t);
+void ubbd_mgmt_stop_thread(void);
 
 #endif	/* UBBD_MGMT_H */

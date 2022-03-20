@@ -22,7 +22,7 @@ enum ubbd_dev_ustatus {
 	UBBD_DEV_USTATUS_OPENED,
 	UBBD_DEV_USTATUS_PREPARED,
 	UBBD_DEV_USTATUS_RUNNING,
-	UBBD_DEV_USTATUS_REMOVING,
+	UBBD_DEV_USTATUS_STOPPING,
 };
 
 struct ubbd_dev_info {
@@ -140,7 +140,8 @@ int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx);
 int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ctx);
 int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct context *ctx);
 
-int ubd_dev_reopen_devs(void);
+int ubbd_dev_reopen_devs(void);
+void ubbd_dev_stop_devs(void);
 
 int device_open_shm(struct ubbd_device *ubbd_dev);
 int device_close_shm(struct ubbd_device *ubbd_dev);

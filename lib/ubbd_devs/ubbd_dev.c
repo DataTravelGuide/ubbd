@@ -109,7 +109,7 @@ poll:
 			exit(EXIT_FAILURE);
 		}
 
-		if (ubbd_dev->status == UBBD_DEV_USTATUS_REMOVING) {
+		if (ubbd_dev->status == UBBD_DEV_USTATUS_STOPPING) {
 			ubbd_err("exit cmd_process\n");
 			break;
 		}
@@ -194,18 +194,21 @@ out:
 }
 
 static LIST_HEAD(ubbd_dev_list);
+pthread_mutex_t ubbd_dev_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct ubbd_device *find_ubbd_dev(int dev_id)
 {
         struct ubbd_device *ubbd_dev = NULL;
         struct ubbd_device *ubbd_dev_tmp;
 
+	pthread_mutex_lock(&ubbd_dev_list_mutex);
         list_for_each_entry(ubbd_dev_tmp, &ubbd_dev_list, dev_node) {
                 if (ubbd_dev_tmp->dev_id == dev_id) {
                         ubbd_dev = ubbd_dev_tmp;
                         break;
                 }
         }
+	pthread_mutex_unlock(&ubbd_dev_list_mutex);
 
         return ubbd_dev;
 }
@@ -292,7 +295,9 @@ int ubbd_dev_open(struct ubbd_device *ubbd_dev)
 		goto out;
 
 	ubbd_dbg("add ubbd_dev: %p dev_id: %dinto list\n", ubbd_dev, ubbd_dev->dev_id);
+	pthread_mutex_lock(&ubbd_dev_list_mutex);
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
+	pthread_mutex_unlock(&ubbd_dev_list_mutex);
 	ubbd_dev->status = UBBD_DEV_USTATUS_OPENED;
 
 out:
@@ -301,7 +306,10 @@ out:
 
 void ubbd_dev_close(struct ubbd_device *ubbd_dev)
 {
+	pthread_mutex_lock(&ubbd_dev_list_mutex);
 	list_del_init(&ubbd_dev->dev_node);
+	pthread_mutex_unlock(&ubbd_dev_list_mutex);
+
 	ubbd_dev->dev_ops->close(ubbd_dev);
 	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
 }
@@ -342,8 +350,7 @@ int dev_stop(struct ubbd_device *ubbd_dev)
 	void *join_retval;
 	int ret;
 
-	ubbd_dev->status = UBBD_DEV_USTATUS_REMOVING;
-
+	ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
 	ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
 	if (ret)
 		return ret;
@@ -573,6 +580,7 @@ static int dev_remove_disk_finish(struct context *ctx, int ret)
 	}
 
 	pthread_mutex_lock(&ubbd_dev->req_lock);
+
 	ret = dev_stop(ubbd_dev);
 	if (ret) {
 		pthread_mutex_unlock(&ubbd_dev->req_lock);
@@ -729,7 +737,7 @@ static int cleanup_dev(struct ubbd_nl_dev_status *dev_status)
 	return 0;
 }
 
-int ubd_dev_reopen_devs(void)
+int ubbd_dev_reopen_devs(void)
 {
 	struct ubbd_nl_dev_status *tmp_status, *next_status;
 	LIST_HEAD(tmp_list);
@@ -746,4 +754,16 @@ int ubd_dev_reopen_devs(void)
 	}
 
 	return ret;
+}
+
+void ubbd_dev_stop_devs(void)
+{
+        struct ubbd_device *ubbd_dev_tmp, *next;
+
+	pthread_mutex_lock(&ubbd_dev_list_mutex);
+        list_for_each_entry_safe(ubbd_dev_tmp, next, &ubbd_dev_list, dev_node) {
+		list_del_init(&ubbd_dev_tmp->dev_node);
+		dev_stop(ubbd_dev_tmp);
+        }
+	pthread_mutex_unlock(&ubbd_dev_list_mutex);
 }
