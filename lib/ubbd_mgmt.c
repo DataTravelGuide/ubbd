@@ -180,7 +180,6 @@ static int mgmt_response_map(struct context *ctx, int ret)
 	sprintf(mgmt_rsp.u.add.path, "/dev/ubbd%d", dev_id);
 	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
 	close(fd);
-	context_free(ctx);
 
 	return 0;
 }

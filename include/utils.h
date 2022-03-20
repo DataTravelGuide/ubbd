@@ -18,12 +18,19 @@
 
 struct context {
 	void *data;
+	struct context *parent;
 	int (*finish)(struct context *ctx, int ret);
 };
 
 static inline struct context *context_alloc()
 {
-	return calloc(1, sizeof(struct context));
+	struct context *ctx;
+
+	ctx = calloc(1, sizeof(struct context));
+	if (!ctx)
+		return NULL;
+
+	return ctx;
 }
 
 static inline void context_free(struct context *ctx)
@@ -34,6 +41,19 @@ static inline void context_free(struct context *ctx)
 	if (ctx->data)
 		free(ctx->data);
 	free(ctx);
+}
+
+static inline int context_finish(struct context *ctx, int ret)
+{
+	if (ctx->finish)
+		ret = ctx->finish(ctx, ret);
+
+	if (ctx->parent)
+		context_finish(ctx->parent, ret);
+
+	context_free(ctx);
+
+	return ret;
 }
 
 #endif

@@ -607,7 +607,7 @@ static void *nl_thread_fn(void* args)
 			ret = handle_nl_req(req);
 			if (req->ctx) {
 				ubbd_dbg("call finish of ctx: %d\n", ret);
-				ret = req->ctx->finish(req->ctx, ret);
+				ret = context_finish(req->ctx, ret);
 			}
 			nl_req_free(req);
 		}
