@@ -301,11 +301,19 @@ out:
 	return ret;
 }
 
+struct dev_add_data {
+};
+
 int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
-	int ret = 0;
+	int ret;
+	struct context *add_ctx;
 
-	ubbd_nl_req_add(ubbd_dev, ctx);
+	add_ctx = context_alloc();
+	if (!add_ctx)
+		return -ENOMEM;
+
+	ret = ubbd_nl_req_add(ubbd_dev, ctx);
 
 	return ret;
 }

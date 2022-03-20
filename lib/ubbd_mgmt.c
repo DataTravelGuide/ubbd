@@ -163,14 +163,14 @@ static int mgmt_ipc_read_data(int fd, void *ptr, size_t len)
 	return 0;
 }
 
-struct mgmt_response_data {
+struct mgmt_map_data {
 	int fd;
 	struct ubbd_device *ubbd_dev;
 };
 
-static int mgmt_response_map(struct context *ctx, int ret)
+static int mgmt_map_finish(struct context *ctx, int ret)
 {
-	struct mgmt_response_data *rsp_data = ctx->data;
+	struct mgmt_map_data *rsp_data = ctx->data;
 	int fd = rsp_data->fd;
 	int32_t dev_id = rsp_data->ubbd_dev->dev_id;
 	struct ubbd_mgmt_rsp mgmt_rsp;
@@ -216,7 +216,7 @@ static void *mgmt_thread_fn(void* args)
 			mgmt_ipc_read_data(read_fd, mgmt_req, sizeof(*mgmt_req));
 			ubbd_info("receive mgmt request: %d, fd: %d\n", mgmt_req->cmd, read_fd);
 			if (mgmt_req->cmd == UBBD_MGMT_CMD_MAP) {
-				struct mgmt_response_data *add_data = malloc(sizeof(struct mgmt_response_data));
+				struct mgmt_map_data *map_data = malloc(sizeof(struct mgmt_map_data));
 
 				ubbd_info("type: %d\n", mgmt_req->u.add.info.type);
 				ubbd_dev = ubbd_dev_create(&mgmt_req->u.add.info);
@@ -229,11 +229,11 @@ static void *mgmt_thread_fn(void* args)
 					goto write_rsp;
 				}
 
-				add_data->fd = read_fd;
-				add_data->ubbd_dev = ubbd_dev;
+				map_data->fd = read_fd;
+				map_data->ubbd_dev = ubbd_dev;
 
-				ctx->data = add_data;
-				ctx->finish = mgmt_response_map;
+				ctx->data = map_data;
+				ctx->finish = mgmt_map_finish;
 
 				ret = ubbd_dev_add(ubbd_dev, ctx);
 				if (ret)

@@ -522,7 +522,7 @@ int ubbd_nl_queue_req(struct ubbd_device *ubbd_dev, struct ubbd_nl_req *req)
 	return 0;
 }
 
-void ubbd_nl_req_add(struct ubbd_device *ubbd_dev, struct context *ctx)
+int ubbd_nl_req_prepare(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
@@ -531,10 +531,22 @@ void ubbd_nl_req_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 	req->ubbd_dev = ubbd_dev;
 	req->ctx = ctx;
 
-	ubbd_nl_queue_req(ubbd_dev, req);
+	return ubbd_nl_queue_req(ubbd_dev, req);
 }
 
-void ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force)
+int ubbd_nl_req_add(struct ubbd_device *ubbd_dev, struct context *ctx)
+{
+	struct ubbd_nl_req *req = nl_req_alloc();
+
+	INIT_LIST_HEAD(&req->node);
+	req->type = UBBD_NL_REQ_ADD;
+	req->ubbd_dev = ubbd_dev;
+	req->ctx = ctx;
+
+	return ubbd_nl_queue_req(ubbd_dev, req);
+}
+
+int ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
@@ -543,10 +555,10 @@ void ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force)
 	req->ubbd_dev = ubbd_dev;
 	req->req_opts.remove_opts.force = force;
 
-	ubbd_nl_queue_req(ubbd_dev, req);
+	return ubbd_nl_queue_req(ubbd_dev, req);
 }
 
-void ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve)
+int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
@@ -555,7 +567,7 @@ void ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve)
 	req->ubbd_dev = ubbd_dev;
 	req->req_opts.config_opts.data_pages_reserve = data_pages_reserve;
 
-	ubbd_nl_queue_req(ubbd_dev, req);
+	return ubbd_nl_queue_req(ubbd_dev, req);
 }
 
 static int handle_nl_req(struct ubbd_nl_req *req)
