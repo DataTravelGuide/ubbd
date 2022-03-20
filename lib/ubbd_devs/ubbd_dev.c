@@ -105,13 +105,13 @@ poll:
 
 		ret = poll(pollfds, 1, 60);
 		if (ret == -1) {
-			ubbd_err("ppoll() returned %d, exiting\n", ret);
-			exit(EXIT_FAILURE);
+			ubbd_err("poll() returned %d, exiting\n", ret);
+			return NULL;
 		}
 
 		if (ubbd_dev->status == UBBD_DEV_USTATUS_STOPPING) {
 			ubbd_err("exit cmd_process\n");
-			break;
+			return NULL;
 		}
 
 		ubbd_dbg("poll cmd: %d\n", ret);
