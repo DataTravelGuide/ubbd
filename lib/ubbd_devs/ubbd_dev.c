@@ -300,6 +300,30 @@ int ubbd_dev_open(struct ubbd_device *ubbd_dev)
 out:
 	return ret;
 }
+
+int dev_setup(struct ubbd_device *ubbd_dev)
+{
+	int ret;
+
+	ret = device_open_shm(ubbd_dev);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "failed to open shm: %d\n", ret);
+		goto out;
+	}
+
+	memcpy(ubbd_uio_get_dev_info(ubbd_dev->map),
+			&ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
+
+	ret = pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "failed to create cmdproc_thread: %d\n", ret);
+		goto out;
+	}
+
+out:
+	return ret;
+}
+
 struct dev_add_data {
 	struct ubbd_device *ubbd_dev;
 };
@@ -323,6 +347,34 @@ clean_dev:
 	return ret;
 }
 
+int dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
+{
+	struct context *add_ctx;
+	struct dev_add_data *add_data;
+	int ret;
+
+	add_ctx = context_alloc(sizeof(struct dev_add_data));
+	if (!add_ctx) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	add_data = (struct dev_add_data *)add_ctx->data;
+	add_data->ubbd_dev = ubbd_dev;
+
+	add_ctx->finish = dev_add_finish;
+	add_ctx->parent = ctx;
+
+	ret = ubbd_nl_req_add(ubbd_dev, add_ctx);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "failed to start add: %d\n", ret);
+		goto out;
+	}
+
+out:
+	return ret;
+}
+
 struct dev_add_prepare_data {
 	struct ubbd_device *ubbd_dev;
 };
@@ -331,45 +383,20 @@ int dev_add_prepare_finish(struct context *ctx, int ret)
 {
 	struct dev_add_prepare_data *add_prepare_data = (struct dev_add_prepare_data *)ctx->data;
 	struct ubbd_device *ubbd_dev = add_prepare_data->ubbd_dev;
-	struct context *add_ctx;
-	struct dev_add_data *add_data;
 
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "error in add_prepare: %d.\n", ret);
 		goto clean_dev;
 	}
-
-	ret = device_open_shm(ubbd_dev);
+	
+	ret = dev_setup(ubbd_dev);
 	if (ret) {
-		ubbd_dev_err(ubbd_dev, "failed to open shm: %d\n", ret);
-		goto clean_dev;
-	}
-
-	memcpy(ubbd_uio_get_dev_info(ubbd_dev->map),
-			&ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
-
-	ret = pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev);
-	if (ret) {
-		ubbd_dev_err(ubbd_dev, "failed to create cmdproc_thread: %d\n", ret);
 		goto clean_dev;
 	}
 
 	/* prepare is almost done, let's start add, and pass the parent_ctx to add req. */
-	add_ctx = context_alloc(sizeof(struct dev_add_data));
-	if (!add_ctx) {
-		ret = -ENOMEM;
-		goto clean_dev;
-	}
-
-	add_data = (struct dev_add_data *)add_ctx->data;
-	add_data->ubbd_dev = ubbd_dev;
-
-	add_ctx->finish = dev_add_finish;
-	add_ctx->parent = ctx->parent;
-
-	ret = ubbd_nl_req_add(ubbd_dev, add_ctx);
+	ret = dev_add(ubbd_dev, ctx->parent);
 	if (ret) {
-		ubbd_dev_err(ubbd_dev, "failed to start add: %d\n", ret);
 		goto clean_dev;
 	}
 
@@ -384,23 +411,38 @@ clean_dev:
 	return ret;
 }
 
-int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
+int dev_add_prepare(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
-	int ret;
 	struct context *add_prepare_ctx;
 	struct dev_add_prepare_data *add_prepare_data;
 
 	add_prepare_ctx = context_alloc(sizeof(struct dev_add_prepare_data));
-	if (!add_prepare_ctx)
+	if (!add_prepare_ctx) {
 		return -ENOMEM;
+	}
 
 	add_prepare_data = (struct dev_add_prepare_data *)add_prepare_ctx->data;
 	add_prepare_data->ubbd_dev = ubbd_dev;
 
 	add_prepare_ctx->finish = dev_add_prepare_finish;
 	add_prepare_ctx->parent = ctx;
-	ret = ubbd_nl_req_add_prepare(ubbd_dev, add_prepare_ctx);
 
+	return ubbd_nl_req_add_prepare(ubbd_dev, add_prepare_ctx);
+}
+
+int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
+{
+	int ret;
+
+	ret = dev_add_prepare(ubbd_dev, ctx);
+	if (ret)
+		goto clean_dev;
+	return 0;
+
+clean_dev:
+	ubbd_dev_err(ubbd_dev, "clean dev up.\n");
+	if (ubbd_dev_remove(ubbd_dev, false))
+		ubbd_err("failed to cleanup dev.\n");
 	return ret;
 }
 
