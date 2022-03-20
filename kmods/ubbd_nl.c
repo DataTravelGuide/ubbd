@@ -218,6 +218,7 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 	u64 remove_flags;
 	bool force = false;
 	int rc = 0;
+	bool disk_is_running = false;
 
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 	remove_flags = nla_get_u64(info->attrs[UBBD_ATTR_FLAGS]);
@@ -239,6 +240,7 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
+	disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
 	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
 
 	if (force) {
@@ -247,9 +249,8 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 
 	mutex_unlock(&ubbd_dev->req_lock);
 
-	if (ubbd_dev->disk) {
+	if (disk_is_running) {
 		del_gendisk(ubbd_dev->disk);
-		ubbd_dev->disk = NULL;
 	}
 
 out:
