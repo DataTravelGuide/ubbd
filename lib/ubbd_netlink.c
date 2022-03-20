@@ -312,11 +312,9 @@ close_sock:
 
 static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 {
-	struct ubbd_nl_req *prep_req = arg;
 	struct ubbd_device *ubbd_dev;
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
-	struct ubbd_nl_req *req = nl_req_alloc();
 	int ret;
 
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
@@ -331,20 +329,6 @@ static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 	ubbd_dev->dev_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_DEV_ID]));
 	ubbd_dev->uio_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_UIO_ID]));
 	ubbd_dev->uio_map_size = (uint64_t)(nla_get_u64(msg_attr[UBBD_ATTR_UIO_MAP_SIZE]));
-	if (!device_open_shm(ubbd_dev))
-		exit(-1);
-
-	memcpy(ubbd_uio_get_dev_info(ubbd_dev->map), &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
-	// TODO get ubbddevice from global list
-	pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev);
-
-	INIT_LIST_HEAD(&req->node);
-	req->type = UBBD_NL_REQ_ADD;
-	req->ubbd_dev = ubbd_dev;
-	req->ctx = prep_req->ctx;
-	prep_req->ctx = NULL;
-
-	ubbd_nl_queue_req(ubbd_dev, req);
 
 	return NL_OK;
 }
@@ -363,7 +347,7 @@ int send_netlink_add_prepare(struct ubbd_nl_req *req)
 	if (!socket)
 		return -1;
 
-	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, add_prepare_done_callback, req);
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, add_prepare_done_callback, NULL);
 
 	msg = nlmsg_alloc();
 	if (!msg)
@@ -522,7 +506,7 @@ int ubbd_nl_queue_req(struct ubbd_device *ubbd_dev, struct ubbd_nl_req *req)
 	return 0;
 }
 
-int ubbd_nl_req_prepare(struct ubbd_device *ubbd_dev, struct context *ctx)
+int ubbd_nl_req_add_prepare(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 

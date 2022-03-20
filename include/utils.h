@@ -17,16 +17,16 @@
 })
 
 struct context {
-	void *data;
 	struct context *parent;
 	int (*finish)(struct context *ctx, int ret);
+	char data[];
 };
 
-static inline struct context *context_alloc()
+static inline struct context *context_alloc(size_t data_size)
 {
 	struct context *ctx;
 
-	ctx = calloc(1, sizeof(struct context));
+	ctx = calloc(1, sizeof(struct context) + data_size);
 	if (!ctx)
 		return NULL;
 
@@ -38,8 +38,6 @@ static inline void context_free(struct context *ctx)
 	if (!ctx)
 		return;
 
-	if (ctx->data)
-		free(ctx->data);
 	free(ctx);
 }
 

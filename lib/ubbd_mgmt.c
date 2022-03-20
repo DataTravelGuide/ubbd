@@ -170,14 +170,16 @@ struct mgmt_map_data {
 
 static int mgmt_map_finish(struct context *ctx, int ret)
 {
-	struct mgmt_map_data *rsp_data = ctx->data;
+	struct mgmt_map_data *rsp_data = (struct mgmt_map_data *)ctx->data;
 	int fd = rsp_data->fd;
-	int32_t dev_id = rsp_data->ubbd_dev->dev_id;
 	struct ubbd_mgmt_rsp mgmt_rsp;
 
 	ubbd_err("write rsp to fd: %d\n", fd);
 	mgmt_rsp.ret = ret;
-	sprintf(mgmt_rsp.u.add.path, "/dev/ubbd%d", dev_id);
+	if (!ret) {
+		sprintf(mgmt_rsp.u.add.path, "/dev/ubbd%d", 
+				rsp_data->ubbd_dev->dev_id);
+	}
 	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
 	close(fd);
 
@@ -211,17 +213,19 @@ static void *mgmt_thread_fn(void* args)
 			int read_fd = accept(fd, NULL, NULL);
 			struct ubbd_mgmt_request *mgmt_req = malloc(sizeof(struct ubbd_mgmt_request));
 			struct ubbd_mgmt_rsp mgmt_rsp;
-			struct context *ctx = context_alloc();
+			struct context *ctx;
 
 			mgmt_ipc_read_data(read_fd, mgmt_req, sizeof(*mgmt_req));
 			ubbd_info("receive mgmt request: %d, fd: %d\n", mgmt_req->cmd, read_fd);
 			if (mgmt_req->cmd == UBBD_MGMT_CMD_MAP) {
-				struct mgmt_map_data *map_data = malloc(sizeof(struct mgmt_map_data));
+				struct mgmt_map_data *map_data;
 
 				ubbd_info("type: %d\n", mgmt_req->u.add.info.type);
 				ubbd_dev = ubbd_dev_create(&mgmt_req->u.add.info);
 				if (!ubbd_dev) {
+					ret = -ENOMEM;
 					ubbd_err("error to create ubbd_dev\n");
+					goto write_rsp;
 				}
 
 				ret = ubbd_dev_open(ubbd_dev);
@@ -229,10 +233,16 @@ static void *mgmt_thread_fn(void* args)
 					goto write_rsp;
 				}
 
+				ctx = context_alloc(sizeof(struct mgmt_map_data));
+				if (!ctx) {
+					ret = -ENOMEM;
+					goto write_rsp;
+				}
+
+				map_data = (struct mgmt_map_data *)ctx->data;
 				map_data->fd = read_fd;
 				map_data->ubbd_dev = ubbd_dev;
 
-				ctx->data = map_data;
 				ctx->finish = mgmt_map_finish;
 
 				ret = ubbd_dev_add(ubbd_dev, ctx);
