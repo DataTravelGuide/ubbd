@@ -113,7 +113,7 @@ poll:
 			exit(EXIT_FAILURE);
 		}
 
-		if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVE_PREPARED) {
+		if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
 			ubbd_err("exit cmd_process\n");
 			break;
 		}
@@ -126,11 +126,6 @@ poll:
 	}
 
 	return NULL;
-}
-
-void ubbd_dev_release(struct ubbd_device *ubbd_dev)
-{
-	ubbd_dev->dev_ops->release(ubbd_dev);
 }
 
 
@@ -221,7 +216,7 @@ struct ubbd_device *find_ubbd_dev(int dev_id)
 
 static void ubbd_dev_init(struct ubbd_device *ubbd_dev)
 {
-	ubbd_dev->status = UBBD_DEV_STATUS_CREATED;
+	ubbd_dev->status = UBBD_DEV_STATUS_INIT;
 	INIT_LIST_HEAD(&ubbd_dev->dev_node);
 	pthread_mutex_init(&ubbd_dev->lock, NULL);
 }
@@ -232,12 +227,12 @@ struct ubbd_rbd_device *create_rbd_dev(void)
 	struct ubbd_rbd_device *dev;
 
 	dev = calloc(1, sizeof(*dev));
+	if (!dev)
+		return NULL;
 
 	ubbd_dev = &dev->ubbd_dev;
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_RBD;
 	ubbd_dev->dev_ops = &rbd_dev_ops;
-
-	ubbd_dev_init(ubbd_dev);
 
 	return dev;
 }
@@ -248,12 +243,12 @@ struct ubbd_file_device *create_file_dev(void)
 	struct ubbd_file_device *dev;
 
 	dev = calloc(1, sizeof(*dev));
+	if (!dev)
+		return NULL;
 
 	ubbd_dev = &dev->ubbd_dev;
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_FILE;
 	ubbd_dev->dev_ops = &file_dev_ops;
-
-	ubbd_dev_init(ubbd_dev);
 
 	return dev;
 }
@@ -266,6 +261,8 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 		struct ubbd_file_device *file_dev;
 
 		file_dev = create_file_dev();
+		if (!file_dev)
+			return NULL;
 		ubbd_dev = &file_dev->ubbd_dev;
 		strcpy(file_dev->filepath, info->file.path);
 		ubbd_dev->dev_size = info->file.size;
@@ -273,6 +270,8 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 		struct ubbd_rbd_device *rbd_dev;
 
 		rbd_dev = create_rbd_dev();
+		if (!rbd_dev)
+			return NULL;
 		ubbd_dev = &rbd_dev->ubbd_dev;
 		strcpy(rbd_dev->pool, info->rbd.pool);
 		strcpy(rbd_dev->imagename, info->rbd.image);
@@ -281,6 +280,7 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 		return NULL;
 	}
 
+	ubbd_dev_init(ubbd_dev);
 	memcpy(&ubbd_dev->dev_info, info, sizeof(*info));
 
 	return ubbd_dev;
@@ -296,11 +296,27 @@ int ubbd_dev_open(struct ubbd_device *ubbd_dev)
 
 	ubbd_dbg("add ubbd_dev: %p dev_id: %dinto list\n", ubbd_dev, ubbd_dev->dev_id);
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
+	ubbd_dev->status = UBBD_DEV_STATUS_OPENED;
 
 out:
 	return ret;
 }
 
+void ubbd_dev_close(struct ubbd_device *ubbd_dev)
+{
+	list_del_init(&ubbd_dev->dev_node);
+	ubbd_dev->dev_ops->close(ubbd_dev);
+	ubbd_dev->status = UBBD_DEV_STATUS_INIT;
+}
+
+void ubbd_dev_release(struct ubbd_device *ubbd_dev)
+{
+	ubbd_dev->dev_ops->release(ubbd_dev);
+}
+
+/*
+ * ubbd device add
+ */
 int dev_setup(struct ubbd_device *ubbd_dev)
 {
 	int ret;
@@ -324,6 +340,45 @@ out:
 	return ret;
 }
 
+int dev_stop(struct ubbd_device *ubbd_dev)
+{
+	void *join_retval;
+	int ret;
+
+	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
+
+	ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
+	if (ret)
+		return ret;
+	device_close_shm(ubbd_dev);
+
+	return 0;
+}
+
+struct dev_ctx_data {
+	struct ubbd_device *ubbd_dev;
+};
+
+struct context *dev_ctx_alloc(struct ubbd_device *ubbd_dev,
+		struct context *ctx, int (*finish)(struct context *, int))
+{
+	struct context *dev_ctx;
+	struct dev_ctx_data *ctx_data;
+
+	dev_ctx = context_alloc(sizeof(struct dev_ctx_data));
+	if (!dev_ctx) {
+		return NULL;
+	}
+
+	ctx_data = (struct dev_ctx_data *)dev_ctx->data;
+	ctx_data->ubbd_dev = ubbd_dev;
+
+	dev_ctx->finish = finish;
+	dev_ctx->parent = ctx;
+
+	return dev_ctx;
+}
+
 struct dev_add_data {
 	struct ubbd_device *ubbd_dev;
 };
@@ -338,11 +393,13 @@ int dev_add_finish(struct context *ctx, int ret)
 		goto clean_dev;
 	}
 
+	ubbd_dev->status = UBBD_DEV_STATUS_RUNNING;
+
 	return ret;
 
 clean_dev:
 	ubbd_dev_err(ubbd_dev, "clean dev up.\n");
-	if (ubbd_dev_remove(ubbd_dev, false))
+	if (ubbd_dev_remove(ubbd_dev, false, NULL))
 		ubbd_err("failed to cleanup dev.\n");
 	return ret;
 }
@@ -388,13 +445,19 @@ int dev_add_prepare_finish(struct context *ctx, int ret)
 		ubbd_dev_err(ubbd_dev, "error in add_prepare: %d.\n", ret);
 		goto clean_dev;
 	}
-	
+
+	/* advance dev status into ADD_PREPARED */
+	ubbd_dev->status = UBBD_DEV_STATUS_DISK_PREPARED;
+
 	ret = dev_setup(ubbd_dev);
 	if (ret) {
 		goto clean_dev;
 	}
 
-	/* prepare is almost done, let's start add, and pass the parent_ctx to add req. */
+	/*
+	 * prepare is almost done, let's start add,
+	 * and pass the parent_ctx to add req.
+	 */
 	ret = dev_add(ubbd_dev, ctx->parent);
 	if (ret) {
 		goto clean_dev;
@@ -406,7 +469,7 @@ int dev_add_prepare_finish(struct context *ctx, int ret)
 	return 0;
 clean_dev:
 	ubbd_dev_err(ubbd_dev, "clean dev up.\n");
-	if (ubbd_dev_remove(ubbd_dev, false))
+	if (ubbd_dev_remove(ubbd_dev, false, NULL))
 		ubbd_err("failed to cleanup dev.\n");
 	return ret;
 }
@@ -430,39 +493,157 @@ int dev_add_prepare(struct ubbd_device *ubbd_dev, struct context *ctx)
 	return ubbd_nl_req_add_prepare(ubbd_dev, add_prepare_ctx);
 }
 
-int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
+int ubbd_dev_add(struct ubbd_dev_info *info, struct context *ctx)
 {
 	int ret;
+	struct ubbd_device *ubbd_dev;
+
+	ubbd_dev = ubbd_dev_create(info);
+	if (!ubbd_dev) {
+		ubbd_err("error to create ubbd_dev\n");
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	ret = ubbd_dev_open(ubbd_dev);
+	if (ret) {
+		goto release_dev;
+	}
 
 	ret = dev_add_prepare(ubbd_dev, ctx);
 	if (ret)
-		goto clean_dev;
+		goto close_dev;
 	return 0;
 
-clean_dev:
-	ubbd_dev_err(ubbd_dev, "clean dev up.\n");
-	if (ubbd_dev_remove(ubbd_dev, false))
-		ubbd_err("failed to cleanup dev.\n");
+close_dev:
+	ubbd_dev_close(ubbd_dev);
+release_dev:
+	ubbd_dev_release(ubbd_dev);
+err:
+	context_finish(ctx, ret);
 	return ret;
 }
 
-int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force)
+/*
+ * ubbd device remove
+ */
+static int dev_remove_finish(struct context *ctx, int ret)
+{
+	struct dev_ctx_data *ctx_data = (struct dev_ctx_data *)ctx->data;
+	struct ubbd_device *ubbd_dev = ctx_data->ubbd_dev;
+
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "error in dev remove: %d.\n", ret);
+		return ret;
+	}
+	ubbd_dev_close(ubbd_dev);
+	ubbd_dev_release(ubbd_dev);
+
+	return 0;
+}
+
+
+static int dev_remove(struct ubbd_device *ubbd_dev, struct context *ctx)
+{
+	struct context *remove_ctx;
+
+	remove_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_remove_finish);
+	if (!remove_ctx)
+		return -ENOMEM;
+
+	return ubbd_nl_req_remove(ubbd_dev, remove_ctx);
+}
+
+static int dev_remove_prepare_finish(struct context *ctx, int ret)
+{
+	struct dev_ctx_data *ctx_data = (struct dev_ctx_data *)ctx->data;
+	struct ubbd_device *ubbd_dev = ctx_data->ubbd_dev;
+
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "error in dev remove: %d.\n", ret);
+		return ret;
+	}
+
+	ret = dev_stop(ubbd_dev);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "error in dev stop: %d,\n", ret);
+		return ret;
+	}
+
+	dev_remove(ubbd_dev, ctx->parent);
+	ctx->parent = NULL;
+	return 0;
+}
+
+static int dev_remove_prepare(struct ubbd_device *ubbd_dev, bool force, struct context *ctx)
+{
+	struct context *remove_prepare_ctx;
+
+	remove_prepare_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_remove_prepare_finish);
+	if (!remove_prepare_ctx)
+		return -ENOMEM;
+
+	return ubbd_nl_req_remove_prepare(ubbd_dev, force, remove_prepare_ctx);
+}
+
+int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ctx)
 {
 	int ret = 0;
 
-	/* TODO remove different status of dev */
-	ubbd_nl_req_remove(ubbd_dev, force);
+	ubbd_dev_err(ubbd_dev, "status : %d.\n", ubbd_dev->status);
 
+	switch (ubbd_dev->status) {
+	case UBBD_DEV_STATUS_INIT:
+		ubbd_dev_release(ubbd_dev);
+		context_finish(ctx, 0);
+		break;
+	case UBBD_DEV_STATUS_OPENED:
+		ubbd_err("opend\n");
+		ubbd_dev_close(ubbd_dev);
+		ubbd_dev_release(ubbd_dev);
+		context_finish(ctx, 0);
+		break;
+	case UBBD_DEV_STATUS_DISK_PREPARED:
+		ret = dev_remove(ubbd_dev, ctx);
+		break;
+	case UBBD_DEV_STATUS_RUNNING:
+		ret = dev_remove_prepare(ubbd_dev, force, ctx);
+		break;
+	default:
+		ubbd_dev_err(ubbd_dev, "Unknown status: %d\n", ubbd_dev->status);
+		ret = -EINVAL;
+	}
+
+	if (ret)
+		context_finish(ctx, ret);
 	return ret;
 }
 
-int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve)
+/*
+ * dev configure
+ */
+static int dev_config_finish(struct context *ctx, int ret)
 {
-	int ret = 0;
+	struct dev_ctx_data *ctx_data = (struct dev_ctx_data *)ctx->data;
+	struct ubbd_device *ubbd_dev = ctx_data->ubbd_dev;
 
-	ubbd_nl_req_config(ubbd_dev, data_pages_reserve);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "error in dev config: %d.\n", ret);
+		return ret;
+	}
 
-	return ret;
+	return 0;
+}
+
+int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct context *ctx)
+{
+	struct context *config_ctx;
+
+	config_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_config_finish);
+	if (!config_ctx)
+		return -ENOMEM;
+
+	return ubbd_nl_req_config(ubbd_dev, data_pages_reserve, config_ctx);
 }
 
 static int reopen_dev(struct ubbd_nl_dev_status *dev_status)
@@ -507,6 +688,8 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status)
 	pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev); 
 
 	ubbd_err("version: %d\n", ubbd_dev->map->version);
+
+	ubbd_dev->status = UBBD_DEV_STATUS_RUNNING;
 
 	return 0;
 

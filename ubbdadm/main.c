@@ -106,26 +106,50 @@ static int do_file_map(char *filepath, uint64_t filesize)
 static int do_rbd_map(char *pool, char *image)
 {
 	struct ubbd_mgmt_request req;
+	struct ubbd_mgmt_rsp rsp;
 	int fd;
+	int ret;
 
 	req.cmd = UBBD_MGMT_CMD_MAP;
 	req.u.add.info.type = UBBD_DEV_TYPE_RBD;
 	strcpy(req.u.add.info.rbd.pool, pool);
 	strcpy(req.u.add.info.rbd.image, image);
-	ubbdd_request(&fd, &req);
+	ret = ubbdd_request(&fd, &req);
+	if (ret) {
+		ubbd_err("failed to send map request to ubbdd: %d.\n", ret);
+		return ret;
+	}
+	
+	ret = ubbdd_response(fd, &rsp, -1);
+	if (ret) {
+		ubbd_err("error in waiting response for map request: %d.\n", ret);
+		return ret;
+	}
 	return 0;
 }
 
 static int do_unmap(int ubbdid, bool force)
 {
 	struct ubbd_mgmt_request req;
+	struct ubbd_mgmt_rsp rsp;
 	int fd;
+	int ret;
 
 	req.cmd = UBBD_MGMT_CMD_UNMAP;
 	req.u.remove.dev_id = ubbdid;
 	req.u.remove.force = force;
-	ubbdd_request(&fd, &req);
 
+	ret = ubbdd_request(&fd, &req);
+	if (ret) {
+		ubbd_err("failed to send map request to ubbdd: %d.\n", ret);
+		return ret;
+	}
+	
+	ret = ubbdd_response(fd, &rsp, -1);
+	if (ret) {
+		ubbd_err("error in waiting response for map request: %d.\n", ret);
+		return ret;
+	}
 	return 0;
 }
 

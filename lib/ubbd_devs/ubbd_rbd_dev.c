@@ -12,57 +12,54 @@ static int rbd_dev_open(struct ubbd_device *ubbd_dev)
         int err;
 
         err = rados_create2(&rbd_dev->cluster, "ceph", "client.admin", rbd_dev->flags);
-
         if (err < 0) {
-                fprintf(stderr, "Couldn't create the cluster handle! %s\n", strerror(-err));
-                exit(EXIT_FAILURE);
+                ubbd_dev_err(ubbd_dev, "Couldn't create the cluster handle! %s\n", strerror(-err));
+                return err;
         } else {
-                printf("\nCreated a cluster handle.\n");
+                ubbd_dev_info(ubbd_dev, "\nCreated a cluster handle.\n");
         }
-
 
         /* Read a Ceph configuration file to configure the cluster handle. */
         err = rados_conf_read_file(rbd_dev->cluster, "/etc/ceph/ceph.conf");
         if (err < 0) {
-                fprintf(stderr, "cannot read config file: %s\n", strerror(-err));
-                exit(EXIT_FAILURE);
+                ubbd_dev_err(ubbd_dev, "cannot read config file: %s\n", strerror(-err));
+		goto shutdown_cluster;
         } else {
-                printf("\nRead the config file.\n");
+                ubbd_dev_info(ubbd_dev, "\nRead the config file.\n");
         }
 
 	rados_conf_set(rbd_dev->cluster, "rbd_cache", "false");
-
         /* Connect to the cluster */
         err = rados_connect(rbd_dev->cluster);
         if (err < 0) {
-                fprintf(stderr, "cannot connect to cluster: %s\n",  strerror(-err));
-                exit(EXIT_FAILURE);
+                ubbd_dev_err(ubbd_dev, "cannot connect to cluster: %s\n",  strerror(-err));
+		goto shutdown_cluster;
         } else {
-                printf("\nConnected to the cluster.\n");
+                ubbd_dev_info(ubbd_dev, "\nConnected to the cluster.\n");
         }
 
-	err = rados_ioctx_create(rbd_dev->cluster, "rbd", &rbd_dev->io_ctx);
+	err = rados_ioctx_create(rbd_dev->cluster, rbd_dev->pool, &rbd_dev->io_ctx);
         if (err < 0) {
-                fprintf(stderr, "cannot create ioctx to rbd pool: %s\n",  strerror(-err));
-                exit(EXIT_FAILURE);
+                ubbd_dev_err(ubbd_dev, "cannot create ioctx to %s pool: %s\n", rbd_dev->pool, strerror(-err));
+		goto shutdown_cluster;
         } else {
-                printf("\nioctx created.\n");
+                ubbd_dev_info(ubbd_dev, "\nioctx created.\n");
         }
 
 	err = rbd_open(rbd_dev->io_ctx, rbd_dev->imagename, &rbd_dev->image, NULL);
         if (err < 0) {
-                fprintf(stderr, "cannot open image: %s\n",  strerror(-err));
-                exit(EXIT_FAILURE);
+                ubbd_dev_err(ubbd_dev, "cannot open image(%s): %s\n", rbd_dev->imagename, strerror(-err));
+		goto destroy_ioctx;
         } else {
-                printf("\nimage opened.\n");
+                ubbd_dev_info(ubbd_dev, "\nimage opened.\n");
         }
 
 	err = rbd_get_size(rbd_dev->image, &ubbd_dev->dev_size);
         if (err < 0) {
-                fprintf(stderr, "cannot get image size: %s\n",  strerror(-err));
-                exit(EXIT_FAILURE);
+                ubbd_dev_err(ubbd_dev, "cannot get image size: %s\n",  strerror(-err));
+		goto close_rbd;
         } else {
-                printf("\nimage get size: %lu.\n", ubbd_dev->dev_size);
+                ubbd_dev_info(ubbd_dev, "\nimage get size: %lu.\n", ubbd_dev->dev_size);
         }
 
 	ubbd_dev->dev_features.write_cache = false;
@@ -73,8 +70,31 @@ static int rbd_dev_open(struct ubbd_device *ubbd_dev)
 #else
 	ubbd_dev->dev_features.write_zeros = false;
 #endif
-
 	return 0;
+
+close_rbd:
+	rbd_close(rbd_dev->image);
+destroy_ioctx:
+	rados_ioctx_destroy(rbd_dev->io_ctx);
+shutdown_cluster:
+	rados_shutdown(rbd_dev->cluster);
+	return err;
+}
+
+static void rbd_dev_close(struct ubbd_device *ubbd_dev)
+{
+	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
+
+	rbd_close(rbd_dev->image);
+	rados_ioctx_destroy(rbd_dev->io_ctx);
+	rados_shutdown(rbd_dev->cluster);
+}
+
+static void rbd_dev_release(struct ubbd_device *ubbd_dev)
+{
+	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
+
+	free(rbd_dev);
 }
 
 enum rbd_aio_type {
@@ -204,13 +224,6 @@ static int rbd_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	return ret;
 }
 
-static void rbd_dev_release(struct ubbd_device *ubbd_dev)
-{
-	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
-
-	free(rbd_dev);
-}
-
 static int rbd_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 {
 	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
@@ -312,9 +325,10 @@ static int rbd_dev_write_zeros(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 
 struct ubbd_dev_ops rbd_dev_ops = {
 	.open = rbd_dev_open,
+	.close = rbd_dev_close,
+	.release = rbd_dev_release,
 	.writev = rbd_dev_writev,
 	.readv = rbd_dev_readv,
-	.release = rbd_dev_release,
 	.flush = rbd_dev_flush,
 	.discard = rbd_dev_discard,
 	.write_zeros = rbd_dev_write_zeros,

@@ -18,11 +18,11 @@ enum ubbd_dev_type {
 };
 
 enum ubbd_dev_status {
-	UBBD_DEV_STATUS_CREATED,
-	UBBD_DEV_STATUS_ADD_PREPARED,
-	UBBD_DEV_STATUS_ADDED,
-	UBBD_DEV_STATUS_REMOVE_PREPARED,
-	UBBD_DEV_STATUS_REMOVED
+	UBBD_DEV_STATUS_INIT,
+	UBBD_DEV_STATUS_OPENED,
+	UBBD_DEV_STATUS_DISK_PREPARED,
+	UBBD_DEV_STATUS_RUNNING,
+	UBBD_DEV_STATUS_REMOVING,
 };
 
 struct ubbd_dev_info {
@@ -90,8 +90,9 @@ struct ubbd_rbd_device {
 
 
 struct ubbd_dev_ops {
-	void (*release) (struct ubbd_device *ubbd_dev);
 	int (*open) (struct ubbd_device *ubbd_dev);
+	void (*close) (struct ubbd_device *ubbd_dev);
+	void (*release) (struct ubbd_device *ubbd_dev);
 	int (*writev) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
 	int (*readv) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
 	int (*flush) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
@@ -134,9 +135,9 @@ struct ubbd_rbd_device *create_rbd_dev(void);
 struct ubbd_file_device *create_file_dev(void);
 struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info);
 int ubbd_dev_open(struct ubbd_device *ubbd_dev);
-int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx);
-int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force);
-int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve);
+int ubbd_dev_add(struct ubbd_dev_info *inf, struct context *ctx);
+int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ctx);
+int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct context *ctx);
 
 int ubd_dev_reopen_devs(void);
 

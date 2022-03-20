@@ -119,12 +119,6 @@ static int send_netlink_remove(struct ubbd_nl_req *req)
 
 	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
-	if (ret) {
-		ubbd_err("send_netlink_remove ret of send: %d\n", ret);
-	} else {
-	        list_del(&ubbd_dev->dev_node);
-	        ubbd_dev_release(ubbd_dev);
-	}
 	return ret;
 
 free_msg:
@@ -232,24 +226,6 @@ int send_netlink_remove_prepare(struct ubbd_nl_req *req)
 
 	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
-	if (ret) {
-		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_REMOVE_PREPARE, ret);
-	} else {
-		void *join_retval;
-		struct ubbd_nl_req *req = nl_req_alloc();
-
-		ubbd_dev->status = UBBD_DEV_STATUS_REMOVE_PREPARED;
-		// TODO get ubbddevice from global list
-		ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
-		device_close_shm(ubbd_dev);
-
-		INIT_LIST_HEAD(&req->node);
-		req->type = UBBD_NL_REQ_REMOVE;
-		req->ubbd_dev = ubbd_dev;
-
-		ubbd_nl_queue_req(ubbd_dev, req);
-	}
-
 	return ret;
 
 free_msg:
@@ -325,7 +301,6 @@ static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 	}
 
 	ubbd_dev = (struct ubbd_device *)(nla_get_u64(msg_attr[UBBD_ATTR_PRIV_DATA]));
-	ubbd_dev->status = UBBD_DEV_STATUS_ADD_PREPARED;
 	ubbd_dev->dev_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_DEV_ID]));
 	ubbd_dev->uio_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_UIO_ID]));
 	ubbd_dev->uio_map_size = (uint64_t)(nla_get_u64(msg_attr[UBBD_ATTR_UIO_MAP_SIZE]));
@@ -530,7 +505,7 @@ int ubbd_nl_req_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 	return ubbd_nl_queue_req(ubbd_dev, req);
 }
 
-int ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force)
+int ubbd_nl_req_remove_prepare(struct ubbd_device *ubbd_dev, bool force, struct context *ctx)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
@@ -538,11 +513,24 @@ int ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force)
 	req->type = UBBD_NL_REQ_REMOVE_PREPARE;
 	req->ubbd_dev = ubbd_dev;
 	req->req_opts.remove_opts.force = force;
+	req->ctx = ctx;
 
 	return ubbd_nl_queue_req(ubbd_dev, req);
 }
 
-int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve)
+int ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, struct context *ctx)
+{
+	struct ubbd_nl_req *req = nl_req_alloc();
+
+	INIT_LIST_HEAD(&req->node);
+	req->type = UBBD_NL_REQ_REMOVE;
+	req->ubbd_dev = ubbd_dev;
+	req->ctx = ctx;
+
+	return ubbd_nl_queue_req(ubbd_dev, req);
+}
+
+int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct context *ctx)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
@@ -550,6 +538,7 @@ int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve)
 	req->type = UBBD_NL_REQ_CONFIG;
 	req->ubbd_dev = ubbd_dev;
 	req->req_opts.config_opts.data_pages_reserve = data_pages_reserve;
+	req->ctx = ctx;
 
 	return ubbd_nl_queue_req(ubbd_dev, req);
 }

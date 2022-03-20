@@ -17,6 +17,19 @@ static int file_dev_open(struct ubbd_device *ubbd_dev)
 	return 0;
 }
 
+static void file_dev_close(struct ubbd_device *ubbd_dev)
+{
+	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
+
+	close(file_dev->fd);
+}
+
+static void file_dev_release(struct ubbd_device *ubbd_dev)
+{
+	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
+
+	free(file_dev);
+}
 
 static int file_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 {
@@ -86,13 +99,6 @@ static int file_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	return 0;
 }
 
-static void file_dev_release(struct ubbd_device *ubbd_dev)
-{
-	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
-
-	free(file_dev);
-}
-
 static int file_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 {
 	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
@@ -118,8 +124,9 @@ static int file_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 
 struct ubbd_dev_ops file_dev_ops = {
 	.open = file_dev_open,
+	.close = file_dev_close,
+	.release = file_dev_release,
 	.writev = file_dev_writev,
 	.readv = file_dev_readv,
-	.release = file_dev_release,
 	.flush = file_dev_flush,
 };
