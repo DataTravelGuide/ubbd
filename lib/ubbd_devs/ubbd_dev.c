@@ -493,17 +493,9 @@ int dev_add_prepare(struct ubbd_device *ubbd_dev, struct context *ctx)
 	return ubbd_nl_req_add_prepare(ubbd_dev, add_prepare_ctx);
 }
 
-int ubbd_dev_add(struct ubbd_dev_info *info, struct context *ctx)
+int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
 	int ret;
-	struct ubbd_device *ubbd_dev;
-
-	ubbd_dev = ubbd_dev_create(info);
-	if (!ubbd_dev) {
-		ubbd_err("error to create ubbd_dev\n");
-		ret = -ENOMEM;
-		goto err;
-	}
 
 	ret = ubbd_dev_open(ubbd_dev);
 	if (ret) {
@@ -519,7 +511,7 @@ close_dev:
 	ubbd_dev_close(ubbd_dev);
 release_dev:
 	ubbd_dev_release(ubbd_dev);
-err:
+
 	context_finish(ctx, ret);
 	return ret;
 }

@@ -255,12 +255,19 @@ static void *mgmt_thread_fn(void* args)
 			case UBBD_MGMT_CMD_MAP:
 				ubbd_info("type: %d\n", mgmt_req.u.add.info.type);
 
+				ubbd_dev = ubbd_dev_create(&mgmt_req.u.add.info);
+				if (!ubbd_dev) {
+					ubbd_err("error to create ubbd_dev\n");
+					ret = -ENOMEM;
+					break;
+				}
+
 				ctx = mgmt_ctx_alloc(ubbd_dev, read_fd, mgmt_map_finish);
 				if (!ctx) {
 					ret = -ENOMEM;
 					break;
 				}
-				ubbd_dev_add(&mgmt_req.u.add.info, ctx);
+				ubbd_dev_add(ubbd_dev, ctx);
 				continue;
 			case UBBD_MGMT_CMD_UNMAP:
 				ubbd_dev = find_ubbd_dev(mgmt_req.u.remove.dev_id);
