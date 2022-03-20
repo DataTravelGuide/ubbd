@@ -16,54 +16,53 @@ struct ubbd_dev_info *ubbd_uio_get_dev_info(void *map)
 }
 
 
-int device_close_shm(struct ubbd_device *ubbd_dev)
+int device_close_shm(struct ubbd_uio_info *uio_info)
 {
 	int ret;
 
-	ret = munmap(ubbd_dev->map, ubbd_dev->uio_map_size);
+	ret = munmap(uio_info->map, uio_info->uio_map_size);
 	if (ret != 0) {
-		ubbd_err("could not unmap device %s: %d\n", ubbd_dev->dev_name, errno);
+		ubbd_err("could not unmap device: %d\n", errno);
 	}
 
-	ret = close(ubbd_dev->fd);
+	ret = close(uio_info->fd);
 	if (ret != 0) {
-		ubbd_err("could not close device fd for %s: %d\n", ubbd_dev->dev_name, errno);
+		ubbd_err("could not close device fd for: %d\n", errno);
 	}
 
 	return ret;
 }
 
 
-int device_open_shm(struct ubbd_device *ubbd_dev)
+int device_open_shm(struct ubbd_uio_info *uio_info)
 {
 	char *mmap_name;
 
-	if (asprintf(&mmap_name, "/dev/uio%d", ubbd_dev->uio_id) == -1) {
+	if (asprintf(&mmap_name, "/dev/uio%d", uio_info->uio_id) == -1) {
 		ubbd_err("cont init mmap name\n");
 		goto err_fail;
 	}
 
-	ubbd_dev->fd = open(mmap_name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
-	if (ubbd_dev->fd == -1) {
+	uio_info->fd = open(mmap_name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
+	if (uio_info->fd == -1) {
 		ubbd_err("could not open %s\n", mmap_name);
 		goto err_mmap_name;
 	}
-	ubbd_info("fd: %d\n", ubbd_dev->fd);
+	ubbd_info("fd: %d\n", uio_info->fd);
 
-	/* bring the map into memory */
-	ubbd_dev->map = mmap(NULL, ubbd_dev->uio_map_size, PROT_READ|PROT_WRITE, MAP_SHARED, ubbd_dev->fd, 0);
-	if (ubbd_dev->map == MAP_FAILED) {
+	uio_info->map = mmap(NULL, uio_info->uio_map_size, PROT_READ|PROT_WRITE, MAP_SHARED, uio_info->fd, 0);
+	if (uio_info->map == MAP_FAILED) {
 		ubbd_err("could not mmap %s\n", mmap_name);
 		goto err_fd_close;
 	}
 
-	ubbd_info("version: %d\n", ubbd_dev->map->version);
+	ubbd_info("version: %d\n", uio_info->map->version);
 	free(mmap_name);
 
 	return 0;
 
 err_fd_close:
-	close(ubbd_dev->fd);
+	close(uio_info->fd);
 err_mmap_name:
 	free(mmap_name);
 err_fail:
@@ -71,14 +70,14 @@ err_fail:
 }
 
 
-void ubbdlib_processing_start(struct ubbd_device *dev)
+void ubbdlib_processing_start(struct ubbd_device *ubbd_dev)
 {
 	int r;
 	uint32_t buf;
 
 	/* Clear the event on the fd */
 	do {
-		r = read(dev->fd, &buf, 4);
+		r = read(ubbd_dev->uio_info.fd, &buf, 4);
 	} while (r == -1 && errno == EINTR);
 	if (r == -1 && errno != EAGAIN) {
 		ubbd_err("failed to read device /dev/%s, %d\n",
@@ -87,18 +86,18 @@ void ubbdlib_processing_start(struct ubbd_device *dev)
 	}
 }
 
-void ubbdlib_processing_complete(struct ubbd_device *dev)
+void ubbdlib_processing_complete(struct ubbd_device *ubbd_dev)
 {
 	int r;
 	uint32_t buf = 0;
 
 	/* Tell the kernel there are completed commands */
 	do {
-		r = write(dev->fd, &buf, 4);
+		r = write(ubbd_dev->uio_info.fd, &buf, 4);
 	} while (r == -1 && errno == EINTR);
 	if (r == -1 && errno != EAGAIN) {
 		ubbd_err("failed to write device /dev/%s, %d\n",
-			 dev->dev_name, errno);
+			 ubbd_dev->dev_name, errno);
 		exit(-errno);
 	}
 }
@@ -106,7 +105,7 @@ void ubbdlib_processing_complete(struct ubbd_device *dev)
 
 struct ubbd_se *device_cmd_head(struct ubbd_device *dev)
 {
-        struct ubbd_sb *sb = dev->map;
+        struct ubbd_sb *sb = dev->uio_info.map;
 
 	ubbd_dbg("cmd: head: %u tail: %u\n", sb->cmd_head, sb->cmd_tail);
 
@@ -115,7 +114,7 @@ struct ubbd_se *device_cmd_head(struct ubbd_device *dev)
 
 struct ubbd_se *device_cmd_tail(struct ubbd_device *dev)
 {
-	struct ubbd_sb *sb = dev->map;
+	struct ubbd_sb *sb = dev->uio_info.map;
 
 	ubbd_dbg("cmd: tail: %u\n", sb->cmd_tail);
 
@@ -124,7 +123,7 @@ struct ubbd_se *device_cmd_tail(struct ubbd_device *dev)
 
 struct ubbd_se *device_cmd_to_handle(struct ubbd_device *dev)
 {
-	struct ubbd_sb *sb = dev->map;
+	struct ubbd_sb *sb = dev->uio_info.map;
 
 	ubbd_dbg("cmd: handled: %u\n", dev->se_to_handle);
 
@@ -133,7 +132,7 @@ struct ubbd_se *device_cmd_to_handle(struct ubbd_device *dev)
 
 struct ubbd_se *get_oldest_se(struct ubbd_device *ubbd_dev)
 {
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 
 	if (sb->cmd_tail == sb->cmd_head)
 		return NULL;
@@ -144,7 +143,7 @@ struct ubbd_se *get_oldest_se(struct ubbd_device *ubbd_dev)
 void ubbd_uio_advance_cmd_ring(struct ubbd_device *ubbd_dev)
 {
 	struct ubbd_se *se;
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 
 again:
 	se = get_oldest_se(ubbd_dev);

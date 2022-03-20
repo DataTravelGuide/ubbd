@@ -36,14 +36,14 @@ static int file_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
 	ssize_t ret;
 	struct ubbd_ce *ce;
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 	struct iovec *iov;
 	int i;
 
 	iov = malloc(sizeof(struct iovec) * se->iov_cnt);
 	for (i = 0; i < se->iov_cnt; i++) {
 		ubbd_dbg("iov_base: %lu", (size_t)se->iov[i].iov_base);
-		iov[i].iov_base = (void*)ubbd_dev->map + (size_t)se->iov[i].iov_base;
+		iov[i].iov_base = (void*)ubbd_dev->uio_info.map + (size_t)se->iov[i].iov_base;
 		iov[i].iov_len = se->iov[i].iov_len;
 	}
 
@@ -71,14 +71,14 @@ static int file_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
 	ssize_t ret;
 	struct ubbd_ce *ce;
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 	struct iovec *iov;
 	int i;
 
 	iov = malloc(sizeof(struct iovec) * se->iov_cnt);
 	for (i = 0; i < se->iov_cnt; i++) {
 		ubbd_dbg("iov_base: %lu", (size_t)se->iov[i].iov_base);
-		iov[i].iov_base = (void*)ubbd_dev->map + (size_t)se->iov[i].iov_base;
+		iov[i].iov_base = (void*)ubbd_dev->uio_info.map + (size_t)se->iov[i].iov_base;
 		iov[i].iov_len = se->iov[i].iov_len;
 	}
 
@@ -105,7 +105,7 @@ static int file_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 {
 	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
 	struct ubbd_ce *ce;
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 	int ret;
 
 	ret = fsync(file_dev->fd);

@@ -2,8 +2,8 @@
 #define UBBD_UIO_H
 #include "ubbd_dev.h"
 
-int device_close_shm(struct ubbd_device *ubbd_dev);
-int device_open_shm(struct ubbd_device *ubbd_dev);
+int device_close_shm(struct ubbd_uio_info *info);
+int device_open_shm(struct ubbd_uio_info *info);
 void ubbdlib_processing_start(struct ubbd_device *dev);
 void ubbdlib_processing_complete(struct ubbd_device *dev);
 struct ubbd_se *device_cmd_head(struct ubbd_device *dev);

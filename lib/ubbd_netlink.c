@@ -283,7 +283,7 @@ static int send_netlink_add_disk(struct ubbd_nl_req *req)
 		ubbd_info("ret of send auto netlink add: %d\n", ret);
 	} else {
 		ubbd_info("adde done\n");
-		ubbd_info("ubbd_dev: %p, dev_id: %u, uio_id: %d", ubbd_dev, ubbd_dev->dev_id, ubbd_dev->uio_id);
+		ubbd_info("ubbd_dev: %p, dev_id: %u, uio_id: %d", ubbd_dev, ubbd_dev->dev_id, ubbd_dev->uio_info.uio_id);
 	}
 	return ret;
 
@@ -310,8 +310,8 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 
 	ubbd_dev = (struct ubbd_device *)(nla_get_u64(msg_attr[UBBD_ATTR_PRIV_DATA]));
 	ubbd_dev->dev_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_DEV_ID]));
-	ubbd_dev->uio_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_UIO_ID]));
-	ubbd_dev->uio_map_size = (uint64_t)(nla_get_u64(msg_attr[UBBD_ATTR_UIO_MAP_SIZE]));
+	ubbd_dev->uio_info.uio_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_UIO_ID]));
+	ubbd_dev->uio_info.uio_map_size = (uint64_t)(nla_get_u64(msg_attr[UBBD_ATTR_UIO_MAP_SIZE]));
 
 	return NL_OK;
 }

@@ -117,7 +117,7 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 				   struct rbd_aio_cb *aio_cb)
 {
 	struct ubbd_device *ubbd_dev = aio_cb->ubbd_dev;
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 	int64_t ret;
 	struct ubbd_ce *ce;
 
@@ -165,7 +165,7 @@ static int rbd_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	iov = aio_cb->iovec;
 	for (i = 0; i < se->iov_cnt; i++) {
 		ubbd_dev_dbg(ubbd_dev, "iov_base: %lu", (size_t)se->iov[i].iov_base);
-		iov[i].iov_base = (void*)ubbd_dev->map + (size_t)se->iov[i].iov_base;
+		iov[i].iov_base = (void*)ubbd_dev->uio_info.map + (size_t)se->iov[i].iov_base;
 		iov[i].iov_len = se->iov[i].iov_len;
 	}
 
@@ -208,7 +208,7 @@ static int rbd_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 	iov = aio_cb->iovec;
 	for (i = 0; i < se->iov_cnt; i++) {
 		ubbd_dev_dbg(ubbd_dev, "iov_base: %lu", (size_t)se->iov[i].iov_base);
-		iov[i].iov_base = (void*)ubbd_dev->map + (size_t)se->iov[i].iov_base;
+		iov[i].iov_base = (void*)ubbd_dev->uio_info.map + (size_t)se->iov[i].iov_base;
 		iov[i].iov_len = se->iov[i].iov_len;
 	}
 

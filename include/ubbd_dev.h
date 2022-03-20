@@ -46,12 +46,15 @@ struct ubbd_dev_features {
 	bool	write_zeros;
 };
 
-struct ubbd_device {
+struct ubbd_uio_info {
 	int fd;
-
-	int32_t dev_id;
 	uint32_t uio_id;
 	uint64_t uio_map_size;
+	struct ubbd_sb *map;
+};
+
+struct ubbd_device {
+	int32_t dev_id;
 	struct list_head dev_node;
 	uint64_t dev_size;
 	enum ubbd_dev_type dev_type;
@@ -59,7 +62,7 @@ struct ubbd_device {
 	struct ubbd_dev_info dev_info;
 	uint32_t se_to_handle;
 
-	struct ubbd_sb *map;
+	struct ubbd_uio_info uio_info;
 	pthread_t cmdproc_thread;
 
 	char dev_name[16];
@@ -105,7 +108,7 @@ struct ubbd_dev_ops {
 static inline struct ubbd_ce *
 device_comp_head(struct ubbd_device *dev)
 {
-	struct ubbd_sb *sb = dev->map;
+	struct ubbd_sb *sb = dev->uio_info.map;
 
 	ubbd_dbg("comp: head: %u\n", sb->compr_head);
 
@@ -143,8 +146,6 @@ int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct
 int ubbd_dev_reopen_devs(void);
 void ubbd_dev_stop_devs(void);
 
-int device_open_shm(struct ubbd_device *ubbd_dev);
-int device_close_shm(struct ubbd_device *ubbd_dev);
 void ubbd_dev_release(struct ubbd_device *ubbd_dev);
 
 void *cmd_process(void *arg);

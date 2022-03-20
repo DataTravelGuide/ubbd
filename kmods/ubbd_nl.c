@@ -247,7 +247,10 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 
 	mutex_unlock(&ubbd_dev->req_lock);
 
-	del_gendisk(ubbd_dev->disk);
+	if (ubbd_dev->disk) {
+		del_gendisk(ubbd_dev->disk);
+		ubbd_dev->disk = NULL;
+	}
 
 out:
 	ubbd_nl_reply(info, UBBD_CMD_REMOVE_DISK, rc);

@@ -45,11 +45,11 @@ int main()
 		goto out;
 
 	setup_signal_handler();
+	ubbd_nl_start_thread(&nl_thread);
 	ret = ubbd_dev_reopen_devs();
 	if (ret)
 		goto destroy_log;
 
-	ubbd_nl_start_thread(&nl_thread);
 	ubbd_mgmt_start_thread(&mgmt_thread);
 	ubbd_info("ubbdd started.....\n");
 

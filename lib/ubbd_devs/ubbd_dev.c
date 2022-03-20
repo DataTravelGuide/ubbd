@@ -12,7 +12,7 @@
 
 static bool compr_space_enough(struct ubbd_device *ubbd_dev, uint32_t required)
 {
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 	uint32_t space_available;
 	uint32_t space_max, space_used;
 
@@ -38,7 +38,7 @@ struct ubbd_ce *get_available_ce(struct ubbd_device *ubbd_dev)
 	/*
 	 * dev->req_lock held
 	 */
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 
 	while (!compr_space_enough(ubbd_dev, sizeof(struct ubbd_ce))) {
 		pthread_mutex_unlock(&ubbd_dev->req_lock);
@@ -53,7 +53,7 @@ struct ubbd_ce *get_available_ce(struct ubbd_device *ubbd_dev)
 
 static void wait_for_compr_empty(struct ubbd_device *ubbd_dev)
 {
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
  
          ubbd_info("waiting for ring to clear\n");
          while (sb->compr_head != sb->compr_tail) {
@@ -68,7 +68,7 @@ void *cmd_process(void *arg)
 {
 	struct ubbd_device *ubbd_dev = arg;
 	struct ubbd_se *se;
-	struct ubbd_sb *sb = ubbd_dev->map;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 	uint32_t op_len = 0;
 
 	struct pollfd pollfds[128];
@@ -99,7 +99,7 @@ void *cmd_process(void *arg)
 		}
 
 poll:
-		pollfds[0].fd = ubbd_dev->fd;
+		pollfds[0].fd = ubbd_dev->uio_info.fd;
 		pollfds[0].events = POLLIN;
 		pollfds[0].revents = 0;
 
@@ -324,13 +324,13 @@ int dev_setup(struct ubbd_device *ubbd_dev)
 {
 	int ret;
 
-	ret = device_open_shm(ubbd_dev);
+	ret = device_open_shm(&ubbd_dev->uio_info);
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "failed to open shm: %d\n", ret);
 		goto out;
 	}
 
-	memcpy(ubbd_uio_get_dev_info(ubbd_dev->map),
+	memcpy(ubbd_uio_get_dev_info(ubbd_dev->uio_info.map),
 			&ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
 
 	ret = pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev);
@@ -352,7 +352,7 @@ int dev_stop(struct ubbd_device *ubbd_dev)
 	ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
 	if (ret)
 		return ret;
-	device_close_shm(ubbd_dev);
+	device_close_shm(&ubbd_dev->uio_info);
 
 	return 0;
 }
@@ -674,81 +674,73 @@ int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct
 	return ret;
 }
 
-static int reopen_dev(struct ubbd_nl_dev_status *dev_status)
+static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
+				struct ubbd_device **ubbd_dev_p)
 {
-	char *mmap_name;
-	int fd;
-	void *map;
 	int ret;
 	struct ubbd_dev_info *dev_info;
 	struct ubbd_device *ubbd_dev;
+	struct ubbd_uio_info uio_info = { .uio_id = dev_status->uio_id,
+				.uio_map_size = dev_status->uio_map_size };
 
-	if (asprintf(&mmap_name, "/dev/uio%d", dev_status->uio_id) == -1) {
-		ubbd_err("cont init mmap name\n");
-		ret = -1;
+	ret = device_open_shm(&uio_info);
+	if (ret)
 		goto err_fail;
-	}
 
-	fd = open(mmap_name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
-	if (fd == -1) {
-		ubbd_err("could not open %s\n", mmap_name);
-		ret = fd;
-		goto err_mmap_name;
-	}
-
-	/* bring the map into memory */
-	map = mmap(NULL, dev_status->uio_map_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-	if (map == MAP_FAILED) {
-		ubbd_err("could not mmap %s\n", mmap_name);
-		ret = -1;
-		goto err_fd_close;
-	}
-
-	dev_info = ubbd_uio_get_dev_info(map);
+	dev_info = ubbd_uio_get_dev_info(uio_info.map);
 	ubbd_dev = ubbd_dev_create(dev_info);
-	ubbd_dev_open(ubbd_dev);
-	ubbd_dev->fd = fd;
+	if (!ubbd_dev) {
+		ret = -ENOMEM;
+		goto err_close;
+	}
+
+	ret = ubbd_dev_open(ubbd_dev);
+	if (ret)
+		goto release_dev;
+
 	ubbd_dev->dev_id = dev_status->dev_id;
-	ubbd_dev->uio_id = dev_status->uio_id;
-	ubbd_dev->uio_map_size = dev_status->uio_map_size;
-	ubbd_dev->map = map;
+	memcpy(&ubbd_dev->uio_info, &uio_info, sizeof(uio_info));
 
-	pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev); 
+	ret = pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev); 
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "failed to create cmdproc thread.\n");
+		goto close_dev;
+	}
 
-	ubbd_err("version: %d\n", ubbd_dev->map->version);
+	ubbd_err("version: %d\n", ubbd_dev->uio_info.map->version);
 
 	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
-	free(mmap_name);
+	*ubbd_dev_p = ubbd_dev;
 
 	return 0;
 
-err_fd_close:
-	close(fd);
-err_mmap_name:
-	free(mmap_name);
+close_dev:
+	ubbd_dev_close(ubbd_dev);
+release_dev:
+	ubbd_dev_release(ubbd_dev);
+err_close:
+	device_close_shm(&uio_info);
 err_fail:
 	return ret;
-}
-
-static int cleanup_dev(struct ubbd_nl_dev_status *dev_status)
-{
-	ubbd_info("cleanup dev\n");
-	return 0;
 }
 
 int ubbd_dev_reopen_devs(void)
 {
 	struct ubbd_nl_dev_status *tmp_status, *next_status;
 	LIST_HEAD(tmp_list);
+	struct ubbd_device *ubbd_dev;
 	int ret;
 
 	ret = ubbd_nl_dev_list(&tmp_list);
 	list_for_each_entry_safe(tmp_status, next_status, &tmp_list, node) {
 		list_del(&tmp_status->node);
-		if (tmp_status->status == UBBD_DEV_STATUS_RUNNING)
-			reopen_dev(tmp_status);
-		else
-			cleanup_dev(tmp_status);
+		ret = reopen_dev(tmp_status, &ubbd_dev);
+		ubbd_err("ubbd_Dev: %p\n", ubbd_dev);
+		if (ret)
+			return ret;
+
+		if (tmp_status->status != UBBD_DEV_STATUS_RUNNING)
+			ubbd_dev_remove(ubbd_dev, false, NULL);
 		free(tmp_status);
 	}
 
