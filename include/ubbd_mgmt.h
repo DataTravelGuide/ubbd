@@ -31,9 +31,16 @@ struct ubbd_mgmt_request {
 
 struct ubbd_mgmt_rsp {
 	int ret;
+	union {
+		struct {
+			char path[PATH_MAX];
+		} add;
+	} u;
 };
 
 int ubbdd_request(int *fd, struct ubbd_mgmt_request *req);
+int ubbdd_response(int fd, struct ubbd_mgmt_rsp *rsp,
+		    int timeout);
 int start_mgmt_thread(pthread_t *t);
 
 #endif	/* UBBD_MGMT_H */

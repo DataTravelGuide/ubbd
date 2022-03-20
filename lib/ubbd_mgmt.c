@@ -90,6 +90,41 @@ static int ubbdd_connect(int *fd)
 }
 
 
+int ubbdd_response(int fd, struct ubbd_mgmt_rsp *rsp,
+		    int timeout)
+{
+	size_t len = sizeof(*rsp);
+	int err;
+
+	while (len) {
+		struct pollfd pfd;
+
+		pfd.fd = fd;
+		pfd.events = POLLIN;
+		err = poll(&pfd, 1, timeout);
+		if (!err) {
+			return -1;
+		} else if (err < 0) {
+			if (errno == EINTR)
+				continue;
+			ubbd_err("got poll error (%d/%d), daemon died?",
+				  err, errno);
+			return -1;
+		} else if (pfd.revents & POLLIN) {
+			err = recv(fd, rsp, sizeof(*rsp), MSG_WAITALL);
+			if (err <= 0) {
+				ubbd_err("read error (%d/%d), daemon died?",
+					  err, errno);
+				break;
+			}
+			len -= err;
+		}
+	}
+	close(fd);
+
+	return rsp->ret;
+}
+
 int ubbdd_request(int *fd, struct ubbd_mgmt_request *req)
 {
 	int err;
@@ -128,6 +163,28 @@ static int mgmt_ipc_read_data(int fd, void *ptr, size_t len)
 	return 0;
 }
 
+struct mgmt_response_data {
+	int fd;
+	struct ubbd_device *ubbd_dev;
+};
+
+static int mgmt_response_map(struct context *ctx, int ret)
+{
+	struct mgmt_response_data *rsp_data = ctx->data;
+	int fd = rsp_data->fd;
+	int32_t dev_id = rsp_data->ubbd_dev->dev_id;
+	struct ubbd_mgmt_rsp mgmt_rsp;
+
+	ubbd_err("write rsp to fd: %d\n", fd);
+	mgmt_rsp.ret = ret;
+	sprintf(mgmt_rsp.u.add.path, "/dev/ubbd%d", dev_id);
+	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
+	close(fd);
+	context_free(ctx);
+
+	return 0;
+}
+
 static void *mgmt_thread_fn(void* args)
 {
 	int fd;
@@ -154,10 +211,14 @@ static void *mgmt_thread_fn(void* args)
 		if (pollfds[0].revents) {
 			int read_fd = accept(fd, NULL, NULL);
 			struct ubbd_mgmt_request *mgmt_req = malloc(sizeof(struct ubbd_mgmt_request));
+			struct ubbd_mgmt_rsp mgmt_rsp;
+			struct context *ctx = context_alloc();
 
 			mgmt_ipc_read_data(read_fd, mgmt_req, sizeof(*mgmt_req));
-			ubbd_info("receive mgmt request: %d\n", mgmt_req->cmd);
+			ubbd_info("receive mgmt request: %d, fd: %d\n", mgmt_req->cmd, read_fd);
 			if (mgmt_req->cmd == UBBD_MGMT_CMD_MAP) {
+				struct mgmt_response_data *add_data = malloc(sizeof(struct mgmt_response_data));
+
 				ubbd_info("type: %d\n", mgmt_req->u.add.info.type);
 				ubbd_dev = ubbd_dev_create(&mgmt_req->u.add.info);
 				if (!ubbd_dev) {
@@ -165,7 +226,25 @@ static void *mgmt_thread_fn(void* args)
 				}
 
 				ret = ubbd_dev_open(ubbd_dev);
-				ret = ubbd_dev_add(ubbd_dev);
+				if (ret) {
+					goto write_rsp;
+				}
+
+				add_data->fd = read_fd;
+				add_data->ubbd_dev = ubbd_dev;
+
+				ctx->data = add_data;
+				ctx->finish = mgmt_response_map;
+
+				ret = ubbd_dev_add(ubbd_dev, ctx);
+				if (ret)
+					goto write_rsp;
+
+				continue;
+write_rsp:
+				mgmt_rsp.ret = ret;
+				write(read_fd, &mgmt_rsp, sizeof(mgmt_rsp));
+				continue;
 			} else if (mgmt_req->cmd == UBBD_MGMT_CMD_UNMAP) {
 				ubbd_dev = find_ubbd_dev(mgmt_req->u.remove.dev_id);
 				if (!ubbd_dev) {

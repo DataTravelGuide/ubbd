@@ -231,7 +231,7 @@ struct ubbd_rbd_device *create_rbd_dev(void)
 	struct ubbd_device *ubbd_dev;
 	struct ubbd_rbd_device *dev;
 
-	dev = malloc(sizeof(*dev));
+	dev = calloc(1, sizeof(*dev));
 
 	ubbd_dev = &dev->ubbd_dev;
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_RBD;
@@ -247,7 +247,7 @@ struct ubbd_file_device *create_file_dev(void)
 	struct ubbd_device *ubbd_dev;
 	struct ubbd_file_device *dev;
 
-	dev = malloc(sizeof(*dev));
+	dev = calloc(1, sizeof(*dev));
 
 	ubbd_dev = &dev->ubbd_dev;
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_FILE;
@@ -301,11 +301,11 @@ out:
 	return ret;
 }
 
-int ubbd_dev_add(struct ubbd_device *ubbd_dev)
+int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
 	int ret = 0;
 
-	ubbd_nl_req_add(ubbd_dev);
+	ubbd_nl_req_add(ubbd_dev, ctx);
 
 	return ret;
 }

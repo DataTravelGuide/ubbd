@@ -25,6 +25,7 @@ struct ubbd_nl_req {
 		} config_opts;
 	} req_opts;
 	struct ubbd_device *ubbd_dev;
+	struct context *ctx;
 	struct list_head node;
 };
 
@@ -36,7 +37,7 @@ struct ubbd_nl_dev_status {
 	uint8_t	status;
 };
 
-void ubbd_nl_req_add(struct ubbd_device *ubbd_dev);
+void ubbd_nl_req_add(struct ubbd_device *ubbd_dev, struct context *ctx);
 void ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force);
 void ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve);
 int start_netlink_thread(pthread_t *t);

@@ -24,6 +24,19 @@ static struct nla_policy ubbd_status_policy[UBBD_STATUS_ATTR_MAX + 1] = {
 	[UBBD_STATUS_STATUS] = { .type = NLA_U8 },
 };
 
+static struct ubbd_nl_req *nl_req_alloc()
+{
+	return calloc(1, sizeof(struct ubbd_nl_req));
+}
+
+static void nl_req_free(struct ubbd_nl_req *req)
+{
+	if (!req)
+		return;
+
+	free(req);
+}
+
 static struct nl_sock *get_ubbd_socket(int *driver_id)
 {
 	struct nl_sock *socket;
@@ -223,7 +236,7 @@ int send_netlink_remove_prepare(struct ubbd_nl_req *req)
 		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_REMOVE_PREPARE, ret);
 	} else {
 		void *join_retval;
-		struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
+		struct ubbd_nl_req *req = nl_req_alloc();
 
 		ubbd_dev->status = UBBD_DEV_STATUS_REMOVE_PREPARED;
 		// TODO get ubbddevice from global list
@@ -299,17 +312,18 @@ close_sock:
 
 static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 {
+	struct ubbd_nl_req *prep_req = arg;
 	struct ubbd_device *ubbd_dev;
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
-	struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
+	struct ubbd_nl_req *req = nl_req_alloc();
 	int ret;
 
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
 	if (ret) {
 		ubbd_err("Invalid response from the kernel\n");
-		exit(-1);
+		return ret;
 	}
 
 	ubbd_dev = (struct ubbd_device *)(nla_get_u64(msg_attr[UBBD_ATTR_PRIV_DATA]));
@@ -327,6 +341,8 @@ static int add_prepare_done_callback(struct nl_msg *msg, void *arg)
 	INIT_LIST_HEAD(&req->node);
 	req->type = UBBD_NL_REQ_ADD;
 	req->ubbd_dev = ubbd_dev;
+	req->ctx = prep_req->ctx;
+	prep_req->ctx = NULL;
 
 	ubbd_nl_queue_req(ubbd_dev, req);
 
@@ -347,7 +363,7 @@ int send_netlink_add_prepare(struct ubbd_nl_req *req)
 	if (!socket)
 		return -1;
 
-	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, add_prepare_done_callback, NULL);
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, add_prepare_done_callback, req);
 
 	msg = nlmsg_alloc();
 	if (!msg)
@@ -404,8 +420,10 @@ static int status_callback(struct nl_msg *msg, void *arg)
 
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
-	if (ret)
+	if (ret) {
 		ubbd_err("Invalid response from the kernel\n");
+		return ret;
+	}
 
 	ret = nla_get_s32(msg_attr[UBBD_ATTR_RETVAL]);
 	if (ret)
@@ -504,20 +522,21 @@ int ubbd_nl_queue_req(struct ubbd_device *ubbd_dev, struct ubbd_nl_req *req)
 	return 0;
 }
 
-void ubbd_nl_req_add(struct ubbd_device *ubbd_dev)
+void ubbd_nl_req_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
-	struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
+	struct ubbd_nl_req *req = nl_req_alloc();
 
 	INIT_LIST_HEAD(&req->node);
 	req->type = UBBD_NL_REQ_ADD_PREPARE;
 	req->ubbd_dev = ubbd_dev;
+	req->ctx = ctx;
 
 	ubbd_nl_queue_req(ubbd_dev, req);
 }
 
 void ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force)
 {
-	struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
+	struct ubbd_nl_req *req = nl_req_alloc();
 
 	INIT_LIST_HEAD(&req->node);
 	req->type = UBBD_NL_REQ_REMOVE_PREPARE;
@@ -529,7 +548,7 @@ void ubbd_nl_req_remove(struct ubbd_device *ubbd_dev, bool force)
 
 void ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve)
 {
-	struct ubbd_nl_req *req = calloc(1, sizeof(struct ubbd_nl_req));
+	struct ubbd_nl_req *req = nl_req_alloc();
 
 	INIT_LIST_HEAD(&req->node);
 	req->type = UBBD_NL_REQ_CONFIG;
@@ -564,6 +583,7 @@ static int handle_nl_req(struct ubbd_nl_req *req)
 		exit(-1);
 	}
 
+	ubbd_err("return ret: %d\n", ret);
 	return ret;
 }
 
@@ -571,6 +591,7 @@ static void *nl_thread_fn(void* args)
 {
 	LIST_HEAD(tmp_list);
 	struct ubbd_nl_req *req, *tmp_req;
+	int ret;
 
 	while (1) {
 		pthread_mutex_lock(&ubbd_nl_req_list_lock);
@@ -583,7 +604,12 @@ static void *nl_thread_fn(void* args)
 
 		list_for_each_entry_safe(req, tmp_req, &tmp_list, node) {
 			list_del(&req->node);
-			handle_nl_req(req);
+			ret = handle_nl_req(req);
+			if (req->ctx) {
+				ubbd_dbg("call finish of ctx: %d\n", ret);
+				ret = req->ctx->finish(req->ctx, ret);
+			}
+			nl_req_free(req);
 		}
 	}
 

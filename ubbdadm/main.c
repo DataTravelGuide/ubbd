@@ -78,14 +78,27 @@ static void usage(int status)
 static int do_file_map(char *filepath, uint64_t filesize)
 {
 	struct ubbd_mgmt_request req;
+	struct ubbd_mgmt_rsp rsp;
 	int fd;
+	int ret;
 
 	req.cmd = UBBD_MGMT_CMD_MAP;
 	req.u.add.info.type = UBBD_DEV_TYPE_FILE;
 	strcpy(req.u.add.info.file.path, filepath);
 	req.u.add.info.file.size = filesize;
-	ubbd_err("size: %lu\n", filesize);
-	ubbdd_request(&fd, &req);
+	ret = ubbdd_request(&fd, &req);
+	if (ret) {
+		ubbd_err("failed to send map request to ubbdd.\n");
+		return ret;
+	}
+	
+	ret = ubbdd_response(fd, &rsp, -1);
+	if (ret) {
+		ubbd_err("error in waiting response for map request.\n");
+		return ret;
+	}
+
+	ubbd_info("%s\n", rsp.u.add.path);
 
 	return 0;
 }
@@ -139,6 +152,7 @@ int main(int argc, char **argv)
 	int ubbdid;
 	int data_pages_reserve;
 	bool force = false;
+	int ret = 0;
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
@@ -184,7 +198,7 @@ int main(int argc, char **argv)
 	if (command == UBBD_MGMT_CMD_MAP) {
 		switch (type) {
 		case UBBD_DEV_TYPE_FILE:
-			do_file_map(filepath, filesize);
+			ret = do_file_map(filepath, filesize);
 			break;
 		case UBBD_DEV_TYPE_RBD:
 			do_rbd_map(pool, image);
@@ -208,5 +222,5 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	return 0;
+	return ret;
 }
