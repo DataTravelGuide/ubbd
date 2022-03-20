@@ -485,7 +485,6 @@ int dev_add_prepare(struct ubbd_device *ubbd_dev, struct context *ctx)
 
 	add_prepare_ctx = context_alloc(sizeof(struct dev_add_prepare_data));
 	if (!add_prepare_ctx) {
-		context_finish(ctx, -ENOMEM);
 		return -ENOMEM;
 	}
 
