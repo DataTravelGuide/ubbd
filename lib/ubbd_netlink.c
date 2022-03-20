@@ -81,13 +81,15 @@ static int nl_callback(struct nl_msg *msg, void *arg)
 
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
-	if (ret)
+	if (ret) {
 		ubbd_err("Invalid response from the kernel\n");
+		goto out;
+	}
 
 	ret = nla_get_s32(msg_attr[UBBD_ATTR_RETVAL]);
 	if (ret)
 		ubbd_err("error: %d", ret);
-
+out:
 	return ret;
 }
 
@@ -432,7 +434,7 @@ static int status_callback(struct nl_msg *msg, void *arg)
 	}
 
 out:
-	return NL_OK;
+	return ret;
 }
 
 int ubbd_nl_dev_list(struct list_head *dev_list)
