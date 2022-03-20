@@ -15,6 +15,7 @@ static void catch_signal(int signo)
 		ubbd_mgmt_stop_thread();
 		ubbd_dev_stop_devs();
 		ubbd_nl_stop_thread();
+		ubbd_destroy_log();
 		break;
 	default:
 		break;
@@ -45,16 +46,28 @@ int main()
 		goto out;
 
 	setup_signal_handler();
-	ubbd_nl_start_thread(&nl_thread);
-	ret = ubbd_dev_reopen_devs();
+	ret = ubbd_nl_start_thread(&nl_thread);
 	if (ret)
 		goto destroy_log;
 
-	ubbd_mgmt_start_thread(&mgmt_thread);
+	ret = ubbd_dev_reopen_devs();
+	if (ret)
+		goto stop_nl_thread;
+
+	ret = ubbd_mgmt_start_thread(&mgmt_thread);
+	if (ret)
+		goto stop_devs;
 	ubbd_info("ubbdd started.....\n");
 
-	ret = pthread_join(mgmt_thread, &join_retval);
-	ret = pthread_join(nl_thread, &join_retval);
+	pthread_join(mgmt_thread, &join_retval);
+	pthread_join(nl_thread, &join_retval);
+
+	return ret;
+stop_devs:
+	ubbd_dev_stop_devs();
+stop_nl_thread:
+	ubbd_nl_stop_thread();
+	pthread_join(nl_thread, &join_retval);
 destroy_log:
 	ubbd_destroy_log();
 out:
