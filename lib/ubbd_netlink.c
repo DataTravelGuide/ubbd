@@ -625,5 +625,8 @@ int ubbd_nl_start_thread(pthread_t *t)
 
 void ubbd_nl_stop_thread(void)
 {
+	pthread_mutex_lock(&ubbd_nl_req_list_lock);
 	stop_nl_thread = true;
+	pthread_cond_signal(&ubbd_nl_thread_cond);
+	pthread_mutex_unlock(&ubbd_nl_req_list_lock);
 }

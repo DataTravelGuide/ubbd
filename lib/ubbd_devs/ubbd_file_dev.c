@@ -49,6 +49,7 @@ static int file_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 
 	ret = pwritev(file_dev->fd, iov, se->iov_cnt, se->offset);
 	ubbd_dbg("result of pwritev: %lu\n", ret);
+	free(iov);
 
 	pthread_mutex_lock(&ubbd_dev->req_lock);
 	ce = get_available_ce(ubbd_dev);
@@ -83,6 +84,7 @@ static int file_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 
 	ret = preadv(file_dev->fd, iov, se->iov_cnt, se->offset);
 	ubbd_dbg("result of preadv: %lu\n", ret);
+	free(iov);
 	
 	pthread_mutex_lock(&ubbd_dev->req_lock);
 	ce = get_available_ce(ubbd_dev);

@@ -306,9 +306,7 @@ out:
 
 void ubbd_dev_close(struct ubbd_device *ubbd_dev)
 {
-	pthread_mutex_lock(&ubbd_dev_list_mutex);
 	list_del_init(&ubbd_dev->dev_node);
-	pthread_mutex_unlock(&ubbd_dev_list_mutex);
 
 	ubbd_dev->dev_ops->close(ubbd_dev);
 	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
@@ -720,6 +718,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status)
 	ubbd_err("version: %d\n", ubbd_dev->map->version);
 
 	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
+	free(mmap_name);
 
 	return 0;
 
@@ -762,8 +761,11 @@ void ubbd_dev_stop_devs(void)
 
 	pthread_mutex_lock(&ubbd_dev_list_mutex);
         list_for_each_entry_safe(ubbd_dev_tmp, next, &ubbd_dev_list, dev_node) {
-		list_del_init(&ubbd_dev_tmp->dev_node);
+		pthread_mutex_lock(&ubbd_dev_tmp->req_lock);
 		dev_stop(ubbd_dev_tmp);
+		ubbd_dev_close(ubbd_dev_tmp);
+		pthread_mutex_unlock(&ubbd_dev_tmp->req_lock);
+		ubbd_dev_release(ubbd_dev_tmp);
         }
 	pthread_mutex_unlock(&ubbd_dev_list_mutex);
 }

@@ -30,6 +30,7 @@ static void setup_signal_handler(void)
 	sigemptyset(&sa_new.sa_mask);
 	sa_new.sa_flags = 0;
 	sigaction(SIGTERM, &sa_new, &sa_old );
+	sigaction(SIGINT, &sa_new, &sa_old );
 }
 
 int main()
