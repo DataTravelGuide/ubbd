@@ -395,9 +395,9 @@ int dev_add_disk_finish(struct context *ctx, int ret)
 		goto clean_dev;
 	}
 
-	pthread_mutex_lock(&ubbd_dev->req_lock);
+	pthread_mutex_lock(&ubbd_dev->lock);
 	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	pthread_mutex_unlock(&ubbd_dev->lock);
 
 	return ret;
 
@@ -451,7 +451,7 @@ int dev_add_dev_finish(struct context *ctx, int ret)
 		goto clean_dev;
 	}
 
-	pthread_mutex_lock(&ubbd_dev->req_lock);
+	pthread_mutex_lock(&ubbd_dev->lock);
 	/* advance dev status into ADD_DEVD */
 	ubbd_dev->status = UBBD_DEV_USTATUS_PREPARED;
 
@@ -471,11 +471,11 @@ int dev_add_dev_finish(struct context *ctx, int ret)
 
 	/* parent will be finished by add cmd */
 	ctx->parent = NULL;
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	pthread_mutex_unlock(&ubbd_dev->lock);
 
 	return 0;
 clean_dev:
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	pthread_mutex_unlock(&ubbd_dev->lock);
 	ubbd_dev_err(ubbd_dev, "clean dev up.\n");
 	if (ubbd_dev_remove(ubbd_dev, false, NULL))
 		ubbd_err("failed to cleanup dev.\n");
@@ -509,7 +509,7 @@ int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 {
 	int ret;
 
-	pthread_mutex_lock(&ubbd_dev->req_lock);
+	pthread_mutex_lock(&ubbd_dev->lock);
 	ret = ubbd_dev_open(ubbd_dev);
 	if (ret) {
 		goto release_dev;
@@ -518,14 +518,14 @@ int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 	ret = dev_add_dev(ubbd_dev, ctx);
 	if (ret)
 		goto close_dev;
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	pthread_mutex_unlock(&ubbd_dev->lock);
 	return ret;
 
 close_dev:
 	ubbd_dev_close(ubbd_dev);
 release_dev:
 	ubbd_dev_release(ubbd_dev);
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	pthread_mutex_unlock(&ubbd_dev->lock);
 
 	return ret;
 }
@@ -542,9 +542,9 @@ static int dev_remove_dev_finish(struct context *ctx, int ret)
 		ubbd_dev_err(ubbd_dev, "error in dev remove: %d.\n", ret);
 		return ret;
 	}
-	pthread_mutex_lock(&ubbd_dev->req_lock);
+	pthread_mutex_lock(&ubbd_dev->lock);
 	ubbd_dev_close(ubbd_dev);
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	pthread_mutex_unlock(&ubbd_dev->lock);
 	ubbd_dev_release(ubbd_dev);
 
 	return 0;
@@ -577,18 +577,18 @@ static int dev_remove_disk_finish(struct context *ctx, int ret)
 		return ret;
 	}
 
-	pthread_mutex_lock(&ubbd_dev->req_lock);
+	pthread_mutex_lock(&ubbd_dev->lock);
 
 	ret = dev_stop(ubbd_dev);
 	if (ret) {
-		pthread_mutex_unlock(&ubbd_dev->req_lock);
+		pthread_mutex_unlock(&ubbd_dev->lock);
 		ubbd_dev_err(ubbd_dev, "error in dev stop: %d,\n", ret);
 		return ret;
 	}
 
 	dev_remove_dev(ubbd_dev, ctx->parent);
 	ctx->parent = NULL;
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	pthread_mutex_unlock(&ubbd_dev->lock);
 
 	return 0;
 }
@@ -615,7 +615,7 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ct
 
 	ubbd_dev_err(ubbd_dev, "status : %d.\n", ubbd_dev->status);
 
-	pthread_mutex_lock(&ubbd_dev->req_lock);
+	pthread_mutex_lock(&ubbd_dev->lock);
 	switch (ubbd_dev->status) {
 	case UBBD_DEV_USTATUS_INIT:
 		ubbd_dev_release(ubbd_dev);
@@ -633,7 +633,7 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ct
 		ubbd_dev_err(ubbd_dev, "Unknown status: %d\n", ubbd_dev->status);
 		ret = -EINVAL;
 	}
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	pthread_mutex_unlock(&ubbd_dev->lock);
 
 	return ret;
 }
@@ -659,13 +659,13 @@ int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct
 	struct context *config_ctx;
 	int ret;
 
-	pthread_mutex_lock(&ubbd_dev->req_lock);
+	pthread_mutex_lock(&ubbd_dev->lock);
 	config_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_config_finish);
 	if (!config_ctx)
 		return -ENOMEM;
 
 	ret = ubbd_nl_req_config(ubbd_dev, data_pages_reserve, config_ctx);
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	pthread_mutex_unlock(&ubbd_dev->lock);
 	if (ret)
 		context_free(config_ctx);
 
@@ -751,10 +751,10 @@ void ubbd_dev_stop_devs(void)
 
 	pthread_mutex_lock(&ubbd_dev_list_mutex);
         list_for_each_entry_safe(ubbd_dev_tmp, next, &ubbd_dev_list, dev_node) {
-		pthread_mutex_lock(&ubbd_dev_tmp->req_lock);
+		pthread_mutex_lock(&ubbd_dev_tmp->lock);
 		dev_stop(ubbd_dev_tmp);
 		ubbd_dev_close(ubbd_dev_tmp);
-		pthread_mutex_unlock(&ubbd_dev_tmp->req_lock);
+		pthread_mutex_unlock(&ubbd_dev_tmp->lock);
 		ubbd_dev_release(ubbd_dev_tmp);
         }
 	pthread_mutex_unlock(&ubbd_dev_list_mutex);
