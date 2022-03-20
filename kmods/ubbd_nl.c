@@ -145,6 +145,11 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	return rc;
 
 err_free_disk:
+	mutex_lock(&ubbd_dev_list_mutex);
+	ubbd_total_devs--;
+	list_del_init(&ubbd_dev->dev_node);
+	mutex_unlock(&ubbd_dev_list_mutex);
+
 	ubbd_free_disk(ubbd_dev);
 err_dev_put:
 	ubbd_dev_put(ubbd_dev);
@@ -153,18 +158,30 @@ reply:
 	return rc;
 }
 
-static struct ubbd_device *find_ubbd_dev(int dev_id)
+/*
+ * ubbd_dev_list_mutex is held
+ */
+static struct ubbd_device *__find_ubbd_dev(int dev_id)
 {
 	struct ubbd_device *ubbd_dev = NULL;
 	struct ubbd_device *ubbd_dev_tmp;
 
-	mutex_lock(&ubbd_dev_list_mutex);
 	list_for_each_entry(ubbd_dev_tmp, &ubbd_dev_list, dev_node) {
 		if (ubbd_dev_tmp->dev_id == dev_id) {
 			ubbd_dev = ubbd_dev_tmp;
 			break;
 		}
 	}
+
+	return ubbd_dev;
+}
+
+static struct ubbd_device *find_ubbd_dev(int dev_id)
+{
+	struct ubbd_device *ubbd_dev = NULL;
+
+	mutex_lock(&ubbd_dev_list_mutex);
+	ubbd_dev = __find_ubbd_dev(dev_id);
 	mutex_unlock(&ubbd_dev_list_mutex);
 
 	return ubbd_dev;
@@ -244,13 +261,16 @@ static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 	int rc = 0;
 
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
-	ubbd_dev = find_ubbd_dev(dev_id);
+	mutex_lock(&ubbd_dev_list_mutex);
+	ubbd_dev = __find_ubbd_dev(dev_id);
 	if (!ubbd_dev) {
+		mutex_unlock(&ubbd_dev_list_mutex);
 		rc = -ENOENT;
 		goto out;
 	}
 
 	list_del_init(&ubbd_dev->dev_node);
+	mutex_unlock(&ubbd_dev_list_mutex);
 
 	ubbd_free_disk(ubbd_dev);
 	ubbd_dev_put(ubbd_dev);
