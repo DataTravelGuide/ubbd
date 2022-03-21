@@ -1,5 +1,12 @@
 #!/bin/sh
 
+VALGRIND=$1
+CMD_PREFIX=""
+
+if [ $VALGRIND -eq 1 ]; then
+	CMD_PREFIX="valgrind "
+fi
+
 UBBD_DIR=`pwd`
 
 # enable UBBD_FAULT_INJECT
@@ -12,7 +19,7 @@ insmod kmods/ubbd.ko
 sleep 1
 modprobe brd rd_nr=2 rd_size=2048000 max_part=0
 sleep 1
-sh -x tests/start_ubbdd.sh 30 1 &
+sh -x tests/start_ubbdd.sh 30 $VALGRIND &
 sleep 2
 
 
@@ -37,22 +44,22 @@ get_random_id()
 do_ubbdadm_map()
 {
 	get_random_id
-	dev=`valgrind ./ubbdadm/ubbdadm --command map --type file --filepath /dev/ram0 --filesize $((1*1024*1024*1024))`
+	dev=`$CMD_PREFIX ./ubbdadm/ubbdadm --command map --type file --filepath /dev/ram0 --filesize $((1*1024*1024*1024))`
 	start_fio $dev
 }
 
 do_ubbdadm_unmap()
 {
 	get_random_id
-	valgrind ./ubbdadm/ubbdadm --command unmap --ubbdid $id
+	$CMD_PREFIX ./ubbdadm/ubbdadm --command unmap --ubbdid $id
 	get_random_id
-	valgrind ./ubbdadm/ubbdadm --command unmap --ubbdid $id --force
+	$CMD_PREFIX ./ubbdadm/ubbdadm --command unmap --ubbdid $id --force
 }
 
 do_ubbdadm_config()
 {
 	get_random_id
-	valgrind ./ubbdadm/ubbdadm --command config --ubbdid $id --data-pages-reserve 0
+	$CMD_PREFIX ./ubbdadm/ubbdadm --command config --ubbdid $id --data-pages-reserve 0
 }
 
 do_ubbdadm_action()
@@ -72,6 +79,9 @@ do_ubbdadm_action()
 while true; do
 	get_random_op
 	do_ubbdadm_action
+	if [ $VALGRIND -ne 1 ]; then
+		sleep 1
+	fi
 done
 
 # cleanup
