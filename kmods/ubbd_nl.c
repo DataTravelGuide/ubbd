@@ -450,18 +450,15 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
-	mutex_lock(&ubbd_dev->req_lock);
 	if (config[UBBD_DEV_CONFIG_DP_RESERVE]) {
 		config_dp_reserve = nla_get_u32(config[UBBD_DEV_CONFIG_DP_RESERVE]);
 		if (config_dp_reserve > 100) {
 			ret = -EINVAL;
 			pr_err("dp_reserve is not valide: %u", config_dp_reserve);
-			mutex_unlock(&ubbd_dev->req_lock);
 			goto out;
 		}
 		ubbd_dev->data_pages_reserve = config_dp_reserve * ubbd_dev->data_pages / 100;
 	}
-	mutex_unlock(&ubbd_dev->req_lock);
 
 out:
 	ubbd_nl_reply(info, UBBD_CMD_CONFIG, ret);
