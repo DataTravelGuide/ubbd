@@ -564,7 +564,7 @@ struct genl_family ubbd_genl_family __ro_after_init = {
 	.module = THIS_MODULE,
 	.hdrsize = 0,
 	.name = "UBBD",
-	.version = 2,
+	.version = 1,
 	.maxattr = UBBD_ATTR_MAX,
 #ifdef	HAVE_GENL_POLICY
 	.policy = ubbd_attr_policy,
