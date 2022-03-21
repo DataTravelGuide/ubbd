@@ -592,11 +592,6 @@ void complete_work_fn(struct work_struct *work)
 
 again:
 	mutex_lock(&ubbd_dev->req_lock);
-	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
-		mutex_unlock(&ubbd_dev->req_lock);
-		return;
-	}
-
 	ce = get_complete_entry(ubbd_dev);
 	if (!ce) {
 		mutex_unlock(&ubbd_dev->req_lock);
