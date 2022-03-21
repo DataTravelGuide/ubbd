@@ -18,25 +18,34 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 {
 	struct ubbd_device *ubbd_dev;
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault())
+		goto err;
+#endif
 	ubbd_dev = kzalloc(sizeof(*ubbd_dev), GFP_KERNEL);
 	if (!ubbd_dev)
-		return NULL;
+		goto err;
 
 	ubbd_dev->data_pages = data_pages;
 	ubbd_dev->data_pages_reserve = \
 		ubbd_dev->data_pages * UBBD_UIO_DATA_RESERVE_PERCENT / 100;
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault())
+		goto err_free_dev;
+#endif
 	ubbd_dev->data_bitmap = bitmap_zalloc(ubbd_dev->data_pages, GFP_KERNEL);
 	if (!ubbd_dev->data_bitmap) {
-		kfree(ubbd_dev);
-		return NULL;
+		goto err_free_dev;
 	}
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault())
+		goto err_bitmap_free;
+#endif
 	ubbd_dev->task_wq = alloc_workqueue("ubbd-tasks", WQ_MEM_RECLAIM, 0);
 	if (!ubbd_dev->task_wq) {
-		bitmap_free(ubbd_dev->data_bitmap);
-		kfree(ubbd_dev);
-		return NULL;
+		goto err_bitmap_free;
 	}
 
 	INIT_WORK(&ubbd_dev->complete_work, complete_work_fn);
@@ -53,6 +62,13 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 	kref_init(&ubbd_dev->kref);
 
 	return ubbd_dev;
+
+err_bitmap_free:
+	bitmap_free(ubbd_dev->data_bitmap);
+err_free_dev:
+	kfree(ubbd_dev);
+err:
+	return NULL;
 }
 
 static void __ubbd_dev_free(struct ubbd_device *ubbd_dev)
@@ -83,6 +99,10 @@ struct ubbd_device *ubbd_dev_create(u32 data_pages)
 	if (!ubbd_dev)
 		return NULL;
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault())
+		goto fail_ubbd_dev;
+#endif
 	ubbd_dev->dev_id = ida_simple_get(&ubbd_dev_id_ida, 0,
 					 minor_to_ubbd_dev_id(1 << MINORBITS),
 					 GFP_KERNEL);
@@ -117,6 +137,11 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	int err;
 
         /* create gendisk info */
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		return -ENOMEM;
+	}
+#endif
         disk = alloc_disk(1 << UBBD_SINGLE_MAJOR_PART_SHIFT);
         if (!disk)
                 return -ENOMEM;
@@ -138,10 +163,22 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	ubbd_dev->tag_set.nr_hw_queues = num_present_cpus();
 	ubbd_dev->tag_set.cmd_size = sizeof(struct ubbd_request);
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		err = -ENOMEM;
+		goto err_disk;
+	}
+#endif
 	err = blk_mq_alloc_tag_set(&ubbd_dev->tag_set);
 	if (err)
 		goto err_disk;
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		err = -ENOMEM;
+		goto out_tag_set;
+	}
+#endif
         q = blk_mq_init_queue(&ubbd_dev->tag_set);
         if (IS_ERR(q)) {
                 err = PTR_ERR(q);
@@ -195,7 +232,7 @@ int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
 
 	ret = ubbd_init_disk(ubbd_dev);
 	if (ret)
-		goto err_out_blkdev;
+		return ret;
 
 	set_capacity(ubbd_dev->disk, device_size / SECTOR_SIZE);
 	set_disk_ro(ubbd_dev->disk, 0);
@@ -220,9 +257,6 @@ int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
 	}
 
 	return 0;
-
-err_out_blkdev:
-	return ret;
 }
 
 
@@ -230,6 +264,11 @@ int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev)
 {
 	struct ubbd_sb *sb;
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		return -ENOMEM;
+	}
+#endif
 	sb = vzalloc(RING_SIZE);
 	if (!sb) {
 		return -ENOMEM;
