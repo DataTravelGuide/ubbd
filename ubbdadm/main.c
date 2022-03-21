@@ -98,7 +98,7 @@ static int do_file_map(char *filepath, uint64_t filesize)
 		return ret;
 	}
 
-	ubbd_info("%s\n", rsp.u.add.path);
+	fprintf(stdout, "%s\n", rsp.u.add.path);
 
 	return 0;
 }
