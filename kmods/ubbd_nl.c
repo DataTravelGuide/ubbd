@@ -373,18 +373,21 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
+		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOMEM;
 		goto err;
 	}
 #endif
 	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
 	if (!reply_skb) {
+		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOMEM;
 		goto err;
 	}
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
+		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOMEM;
 		goto err;
 	}
@@ -392,13 +395,16 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
 				     UBBD_CMD_STATUS);
 	if (!msg_head) {
+		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOMEM;
 		goto err_free;
 	}
 
 	ret = fill_ubbd_status(ubbd_dev, reply_skb, dev_id);
-	if (ret)
+	if (ret) {
+		mutex_unlock(&ubbd_dev_list_mutex);
 		goto err_cancel;
+	}
 
 	mutex_unlock(&ubbd_dev_list_mutex);
 	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0)) {
@@ -420,7 +426,6 @@ err_cancel:
 err_free:
 	nlmsg_free(reply_skb);
 err:
-	mutex_unlock(&ubbd_dev_list_mutex);
 	return ret;
 }
 
