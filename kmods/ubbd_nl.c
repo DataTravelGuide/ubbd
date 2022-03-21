@@ -89,12 +89,12 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	u64 priv_data;
 	u64 device_size;
 	u32 data_pages;
-	int rc;
+	int ret;
 
 	if (!info->attrs[UBBD_ATTR_PRIV_DATA] ||
 			!info->attrs[UBBD_ATTR_DEV_SIZE] ||
 			!info->attrs[UBBD_ATTR_FLAGS]) {
-		rc = -EINVAL;
+		ret = -EINVAL;
 		goto reply;
 	}
 
@@ -109,25 +109,25 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 
 	ubbd_dev = ubbd_dev_create(data_pages);
 	if (!ubbd_dev) {
-		rc = -ENOMEM;
+		ret = -ENOMEM;
 		goto reply;
 	}
 
-	rc = ubbd_dev_sb_init(ubbd_dev);
-	if (rc) {
-		pr_err("failed to init dev sb: %d.", rc);
+	ret = ubbd_dev_sb_init(ubbd_dev);
+	if (ret) {
+		pr_err("failed to init dev sb: %d.", ret);
 		goto err_dev_put;
 	}
 
-	rc = ubbd_dev_uio_init(ubbd_dev);
-	if (rc) {
-		pr_debug("failed to init uio: %d.", rc);
+	ret = ubbd_dev_uio_init(ubbd_dev);
+	if (ret) {
+		pr_debug("failed to init uio: %d.", ret);
 		goto err_dev_put;
 	}
 
-	rc = ubbd_dev_device_setup(ubbd_dev, device_size, dev_features);
-	if (rc) {
-		rc = -EINVAL;
+	ret = ubbd_dev_device_setup(ubbd_dev, device_size, dev_features);
+	if (ret) {
+		ret = -EINVAL;
 		goto err_dev_put;
 	}
 
@@ -136,13 +136,13 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
 	mutex_unlock(&ubbd_dev_list_mutex);
 
-	rc = ubbd_nl_reply_add_dev_done(ubbd_dev, priv_data, info);
-	if (rc)
+	ret = ubbd_nl_reply_add_dev_done(ubbd_dev, priv_data, info);
+	if (ret)
 		goto err_free_disk;
 
 	ubbd_dev->status = UBBD_DEV_STATUS_PREPARED;
 
-	return rc;
+	return ret;
 
 err_free_disk:
 	mutex_lock(&ubbd_dev_list_mutex);
@@ -154,8 +154,8 @@ err_free_disk:
 err_dev_put:
 	ubbd_dev_put(ubbd_dev);
 reply:
-	ubbd_nl_reply(info, UBBD_CMD_ADD_DEV, rc);
-	return rc;
+	ubbd_nl_reply(info, UBBD_CMD_ADD_DEV, ret);
+	return ret;
 }
 
 /*
@@ -191,23 +191,29 @@ static int handle_cmd_add_disk(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev;
 	int dev_id;
-	int rc = 0;
+	int ret = 0;
 
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 	ubbd_dev = find_ubbd_dev(dev_id);
 	if (!ubbd_dev) {
 		pr_err("cant find dev: %d", dev_id);
-		rc = -ENOENT;
+		ret = -ENOENT;
 		goto out;
 	}
+	if (ubbd_dev->status != UBBD_DEV_STATUS_PREPARED) {
+		ret = -EINVAL;
+		pr_err("add_disk expected status is UBBD_DEV_STATUS_PREPARED, \
+				but current status is: %d.", ubbd_dev->status);
+		goto out;
+	}
+	ubbd_dev->status = UBBD_DEV_STATUS_RUNNING;
 
 	add_disk(ubbd_dev->disk);
 	blk_put_queue(ubbd_dev->disk->queue);
-	ubbd_dev->status = UBBD_DEV_STATUS_RUNNING;
 
 out:
-	ubbd_nl_reply(info, UBBD_CMD_ADD_DISK, rc);
-	return rc;
+	ubbd_nl_reply(info, UBBD_CMD_ADD_DISK, ret);
+	return ret;
 }
 
 
@@ -217,14 +223,14 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 	int dev_id;
 	u64 remove_flags;
 	bool force = false;
-	int rc = 0;
+	int ret = 0;
 	bool disk_is_running = false;
 
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 	remove_flags = nla_get_u64(info->attrs[UBBD_ATTR_FLAGS]);
 	ubbd_dev = find_ubbd_dev(dev_id);
 	if (!ubbd_dev) {
-		rc = -ENOENT;
+		ret = -ENOENT;
 		goto out;
 	}
 
@@ -233,43 +239,54 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 		pr_debug("force remove ubbd%d", dev_id);
 	}
 
-	mutex_lock(&ubbd_dev->req_lock);
+	spin_lock(&ubbd_dev->lock);
 	if (!force && ubbd_dev->open_count) {
-		rc = -EBUSY;
-		mutex_unlock(&ubbd_dev->req_lock);
+		ret = -EBUSY;
+		spin_unlock(&ubbd_dev->lock);
 		goto out;
 	}
+	spin_unlock(&ubbd_dev->lock);
 
 	disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
 	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
 
 	if (force) {
+		mutex_lock(&ubbd_dev->req_lock);
 		ubbd_end_inflight_reqs(ubbd_dev, -EIO);
+		mutex_unlock(&ubbd_dev->req_lock);
 	}
 
-	mutex_unlock(&ubbd_dev->req_lock);
 
 	if (disk_is_running) {
 		del_gendisk(ubbd_dev->disk);
 	}
 
 out:
-	ubbd_nl_reply(info, UBBD_CMD_REMOVE_DISK, rc);
-	return rc;
+	ubbd_nl_reply(info, UBBD_CMD_REMOVE_DISK, ret);
+	return ret;
 }
 
 static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev;
 	int dev_id;
-	int rc = 0;
+	int ret = 0;
 
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 	mutex_lock(&ubbd_dev_list_mutex);
 	ubbd_dev = __find_ubbd_dev(dev_id);
 	if (!ubbd_dev) {
 		mutex_unlock(&ubbd_dev_list_mutex);
-		rc = -ENOENT;
+		ret = -ENOENT;
+		goto out;
+	}
+
+	if (ubbd_dev->status != UBBD_DEV_STATUS_REMOVING &&
+			ubbd_dev->status != UBBD_DEV_STATUS_PREPARED) {
+		pr_err("remove dev is not allowed in current status: %d.",
+				ubbd_dev->status);
+		mutex_unlock(&ubbd_dev_list_mutex);
+		ret = -EINVAL;
 		goto out;
 	}
 
@@ -279,8 +296,8 @@ static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 	ubbd_free_disk(ubbd_dev);
 	ubbd_dev_put(ubbd_dev);
 out:
-	ubbd_nl_reply(info, UBBD_CMD_REMOVE_DEV, rc);
-	return rc;
+	ubbd_nl_reply(info, UBBD_CMD_REMOVE_DEV, ret);
+	return ret;
 }
 
 static int fill_ubbd_status_item(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb)
@@ -414,6 +431,13 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 	if (!ubbd_dev) {
 		pr_err("cant find dev: %d", dev_id);
 		ret = -ENOENT;
+		goto out;
+	}
+
+	if (ubbd_dev->status != UBBD_DEV_STATUS_RUNNING) {
+		pr_err("config cmd expected ubbd dev status is running, \
+				but current status is: %d.", ubbd_dev->status);
+		ret = -EINVAL;
 		goto out;
 	}
 
