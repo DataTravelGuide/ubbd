@@ -389,7 +389,7 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 	if (ubbd_mgmt_need_fault()) {
 		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOMEM;
-		goto err;
+		goto err_free;
 	}
 #endif
 	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
