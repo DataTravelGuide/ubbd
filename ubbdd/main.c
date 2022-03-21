@@ -12,9 +12,6 @@ static void catch_signal(int signo)
 	switch (signo) {
 	case SIGTERM:
 		ubbd_mgmt_stop_thread();
-		ubbd_dev_stop_devs();
-		ubbd_nl_stop_thread();
-		ubbd_destroy_log();
 		break;
 	default:
 		break;
@@ -57,10 +54,8 @@ int main()
 		goto stop_devs;
 	ubbd_info("ubbdd started.....\n");
 
-	pthread_join(mgmt_thread, &join_retval);
-	pthread_join(nl_thread, &join_retval);
+	ret = pthread_join(mgmt_thread, &join_retval);
 
-	return ret;
 stop_devs:
 	ubbd_dev_stop_devs();
 stop_nl_thread:
