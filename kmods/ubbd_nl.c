@@ -17,10 +17,18 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 				  nla_attr_size(sizeof(s32)) +
 				  nla_attr_size(sizeof(u64)));
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault())
+		goto err;
+#endif
 	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
 	if (!reply_skb)
 		goto err;
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault())
+		goto err_free;
+#endif
 	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
 				     UBBD_CMD_ADD_DEV);
 	if (!msg_head)
@@ -39,38 +47,10 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0))
 		goto err_cancel;
 
-	genlmsg_end(reply_skb, msg_head);
-	return genlmsg_reply(reply_skb, info);
-
-err_cancel:
-	genlmsg_cancel(reply_skb, msg_head);
-err_free:
-	nlmsg_free(reply_skb);
-err:
-	return -EMSGSIZE;
-}
-
-static int ubbd_nl_reply(struct genl_info *info, u8 cmd, int retval)
-{
-	struct sk_buff *reply_skb;
-	void *msg_head;
-	size_t msg_size;
-
-	msg_size = nla_total_size(nla_attr_size(sizeof(s32)));
-
-	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
-	if (!reply_skb)
-		goto err;
-
-	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
-				     cmd);
-	if (!msg_head)
-		goto err_free;
-
-	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL,
-		    	retval))
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault())
 		goto err_cancel;
-
+#endif
 	genlmsg_end(reply_skb, msg_head);
 	return genlmsg_reply(reply_skb, info);
 
@@ -95,7 +75,7 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 			!info->attrs[UBBD_ATTR_DEV_SIZE] ||
 			!info->attrs[UBBD_ATTR_FLAGS]) {
 		ret = -EINVAL;
-		goto reply;
+		goto out;
 	}
 
 	priv_data = nla_get_u64(info->attrs[UBBD_ATTR_PRIV_DATA]);
@@ -107,12 +87,24 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	else
 		data_pages = UBBD_UIO_DATA_PAGES;
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		ret = -ENOMEM;
+		goto out;
+	}
+#endif
 	ubbd_dev = ubbd_dev_create(data_pages);
 	if (!ubbd_dev) {
 		ret = -ENOMEM;
-		goto reply;
+		goto out;
 	}
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		ret = -ENOMEM;
+		goto err_dev_put;
+	}
+#endif
 	ret = ubbd_dev_sb_init(ubbd_dev);
 	if (ret) {
 		pr_err("failed to init dev sb: %d.", ret);
@@ -136,13 +128,19 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
 	mutex_unlock(&ubbd_dev_list_mutex);
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		ret = -ENOMEM;
+		goto err_free_disk;
+	}
+#endif
 	ret = ubbd_nl_reply_add_dev_done(ubbd_dev, priv_data, info);
 	if (ret)
 		goto err_free_disk;
 
 	ubbd_dev->status = UBBD_DEV_STATUS_PREPARED;
 
-	return ret;
+	return 0;
 
 err_free_disk:
 	mutex_lock(&ubbd_dev_list_mutex);
@@ -153,8 +151,7 @@ err_free_disk:
 	ubbd_free_disk(ubbd_dev);
 err_dev_put:
 	ubbd_dev_put(ubbd_dev);
-reply:
-	ubbd_nl_reply(info, UBBD_CMD_ADD_DEV, ret);
+out:
 	return ret;
 }
 
@@ -212,7 +209,6 @@ static int handle_cmd_add_disk(struct sk_buff *skb, struct genl_info *info)
 	blk_put_queue(ubbd_dev->disk->queue);
 
 out:
-	ubbd_nl_reply(info, UBBD_CMD_ADD_DISK, ret);
 	return ret;
 }
 
@@ -262,7 +258,6 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 	}
 
 out:
-	ubbd_nl_reply(info, UBBD_CMD_REMOVE_DISK, ret);
 	return ret;
 }
 
@@ -296,7 +291,6 @@ static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 	ubbd_free_disk(ubbd_dev);
 	ubbd_dev_put(ubbd_dev);
 out:
-	ubbd_nl_reply(info, UBBD_CMD_REMOVE_DEV, ret);
 	return ret;
 }
 
@@ -304,6 +298,10 @@ static int fill_ubbd_status_item(struct ubbd_device *ubbd_dev, struct sk_buff *r
 {
 	struct nlattr *dev_nest;
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault())
+		return -EMSGSIZE;
+#endif
 	dev_nest = nla_nest_start(reply_skb, UBBD_STATUS_ITEM);
 	if (!dev_nest)
 		return -EMSGSIZE;
@@ -373,16 +371,27 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 	/* add size for retval */
 	msg_size += nla_attr_size(sizeof(s32));
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		ret = -ENOMEM;
+		goto err;
+	}
+#endif
 	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
 	if (!reply_skb) {
 		ret = -ENOMEM;
 		goto err;
 	}
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		ret = -ENOMEM;
+		goto err;
+	}
+#endif
 	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
 				     UBBD_CMD_STATUS);
 	if (!msg_head) {
-		nlmsg_free(reply_skb);
 		ret = -ENOMEM;
 		goto err_free;
 	}
@@ -392,9 +401,17 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 		goto err_cancel;
 
 	mutex_unlock(&ubbd_dev_list_mutex);
-	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0))
+	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0)) {
+		ret = -EMSGSIZE;
 		goto err_cancel;
+	}
 
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		ret = -EMSGSIZE;
+		goto err_cancel;
+	}
+#endif
 	genlmsg_end(reply_skb, msg_head);
 	return genlmsg_reply(reply_skb, info);
 
@@ -404,7 +421,6 @@ err_free:
 	nlmsg_free(reply_skb);
 err:
 	mutex_unlock(&ubbd_dev_list_mutex);
-	ubbd_nl_reply(info, UBBD_CMD_STATUS, ret);
 	return ret;
 }
 
@@ -461,7 +477,6 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 	}
 
 out:
-	ubbd_nl_reply(info, UBBD_CMD_CONFIG, ret);
 	return ret;
 }
 
