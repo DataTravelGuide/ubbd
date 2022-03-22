@@ -243,15 +243,14 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 	}
 	spin_unlock(&ubbd_dev->lock);
 
+	mutex_lock(&ubbd_dev->req_lock);
 	disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
 	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
 
 	if (force) {
-		mutex_lock(&ubbd_dev->req_lock);
 		ubbd_end_inflight_reqs(ubbd_dev, -EIO);
-		mutex_unlock(&ubbd_dev->req_lock);
 	}
-
+	mutex_unlock(&ubbd_dev->req_lock);
 
 	if (disk_is_running) {
 		del_gendisk(ubbd_dev->disk);
