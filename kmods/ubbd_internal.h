@@ -161,6 +161,7 @@ void complete_work_fn(struct work_struct *work);
 blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		const struct blk_mq_queue_data *bd);
 void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret);
+enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved);
 struct ubbd_device *ubbd_dev_create(u32 data_pages);
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev);
 void ubbd_free_disk(struct ubbd_device *ubbd_dev);

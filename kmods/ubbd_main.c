@@ -11,6 +11,7 @@ struct device *ubbd_uio_root_device;
 
 static const struct blk_mq_ops ubbd_mq_ops = {
 	.queue_rq	= ubbd_queue_rq,
+	.timeout	= ubbd_timeout,
 };
 
 /* ubbd_dev lifecycle */
@@ -163,6 +164,7 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	ubbd_dev->tag_set.flags = BLK_MQ_F_SHOULD_MERGE;
 	ubbd_dev->tag_set.nr_hw_queues = num_present_cpus();
 	ubbd_dev->tag_set.cmd_size = sizeof(struct ubbd_request);
+	ubbd_dev->tag_set.timeout = UINT_MAX;
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
@@ -243,6 +245,7 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	ubbd_dev->tag_set.flags = BLK_MQ_F_SHOULD_MERGE;
 	ubbd_dev->tag_set.nr_hw_queues = num_present_cpus();
 	ubbd_dev->tag_set.cmd_size = sizeof(struct ubbd_request);
+	ubbd_dev->tag_set.timeout = UINT_MAX;
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {

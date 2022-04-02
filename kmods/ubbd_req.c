@@ -579,9 +579,11 @@ static struct ubbd_request *find_inflight_req(struct ubbd_device *ubbd_dev, u64 
 
 static void complete_inflight_req(struct ubbd_device *ubbd_dev, struct ubbd_request *req, int ret)
 {
+	ubbd_se_hdr_flags_set(req->se, UBBD_SE_HDR_DONE);
 	list_del_init(&req->inflight_reqs_node);
 	ubbd_req_release(req);
 	blk_mq_end_request(req->req, errno_to_blk_status(ret));
+	advance_cmd_ring(ubbd_dev);
 }
 
 void complete_work_fn(struct work_struct *work)
@@ -613,9 +615,7 @@ again:
 	if (req_op(req->req) == REQ_OP_READ)
 		copy_data_from_ubbdreq(req);
 
-	ubbd_se_hdr_flags_set(req->se, UBBD_SE_HDR_DONE);
 	complete_inflight_req(ubbd_dev, req, ce->result);
-	advance_cmd_ring(ubbd_dev);
 
 advance_compr:
 	UPDATE_COMPR_TAIL(ubbd_dev->sb_addr->compr_tail, sizeof(struct ubbd_ce), ubbd_dev->sb_addr->compr_size);
@@ -634,4 +634,21 @@ void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret)
 				struct ubbd_request, inflight_reqs_node);
 		complete_inflight_req(ubbd_dev, req, ret);
 	}
+}
+
+enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved)
+{
+	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(req);
+	struct ubbd_device *ubbd_dev = ubbd_req->ubbd_dev;
+
+	if (req->timeout == UINT_MAX)
+		return BLK_EH_RESET_TIMER;
+
+	mutex_lock(&ubbd_dev->req_lock);
+	if (!list_empty(&ubbd_req->inflight_reqs_node)) {
+		complete_inflight_req(ubbd_dev, ubbd_req, -ETIMEDOUT);
+	}
+	mutex_unlock(&ubbd_dev->req_lock);
+
+	return BLK_EH_DONE;
 }
