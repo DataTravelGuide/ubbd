@@ -14,6 +14,7 @@ $(UBBDCONF_HEADER):
 	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_blk_mq_alloc_disk.c > /dev/null 2>&1; then echo "#define HAVE_BLK_MQ_ALLOC_DISK 1"; else echo "/*#undefined HAVE_BLK_MQ_ALLOC_DISK*/"; fi >> $@
 	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_genl_small_ops.c > /dev/null 2>&1; then echo "#define HAVE_GENL_SMALL_OPS 1"; else echo "/*#undefined HAVE_GENL_SMALL_OPS*/"; fi >> $@
 	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_genl_policy.c > /dev/null 2>&1; then echo "#define HAVE_GENL_POLICY 1"; else echo "/*#undefined HAVE_GENL_POLICY*/"; fi >> $@
+	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_alloc_disk.c > /dev/null 2>&1; then echo "#define HAVE_ALLOC_DISK 1"; else echo "/*#undefined HAVE_ALLOC_DISK*/"; fi >> $@
 	@>> $@
 
 EXTRA_CFLAGS += -include $(UBBDCONF_HEADER)

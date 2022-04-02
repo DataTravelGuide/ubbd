@@ -205,8 +205,7 @@ static int handle_cmd_add_disk(struct sk_buff *skb, struct genl_info *info)
 	}
 	ubbd_dev->status = UBBD_DEV_STATUS_RUNNING;
 
-	add_disk(ubbd_dev->disk);
-	blk_put_queue(ubbd_dev->disk->queue);
+	ret = ubbd_add_disk(ubbd_dev);
 
 out:
 	return ret;
