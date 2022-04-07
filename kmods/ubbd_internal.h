@@ -92,11 +92,14 @@ static inline int minor_to_ubbd_dev_id(int minor)
 	return minor >> UBBD_SINGLE_MAJOR_PART_SHIFT;
 }
 
+void ubbd_dev_get(struct ubbd_device *ubbd_dev);
+void ubbd_dev_put(struct ubbd_device *ubbd_dev);
 extern struct device *ubbd_uio_root_device;
 static int ubbd_open(struct block_device *bdev, fmode_t mode)
 {
 	struct ubbd_device *ubbd_dev = bdev->bd_disk->private_data;
 
+	ubbd_dev_get(ubbd_dev);
 	spin_lock_irq(&ubbd_dev->lock);
 	ubbd_dev->open_count++;
 	spin_unlock_irq(&ubbd_dev->lock);
@@ -111,6 +114,7 @@ static void ubbd_release(struct gendisk *disk, fmode_t mode)
 	spin_lock_irq(&ubbd_dev->lock);
 	ubbd_dev->open_count--;
 	spin_unlock_irq(&ubbd_dev->lock);
+	ubbd_dev_put(ubbd_dev);
 }
 
 static const struct block_device_operations ubbd_bd_ops = {
@@ -172,8 +176,6 @@ int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev);
 void ubbd_dev_sb_destroy(struct ubbd_device *ubbd_dev);
 int ubbd_dev_uio_init(struct ubbd_device *ubbd_dev);
 void ubbd_dev_uio_destroy(struct ubbd_device *ubbd_dev);
-void ubbd_dev_get(struct ubbd_device *ubbd_dev);
-void ubbd_dev_put(struct ubbd_device *ubbd_dev);
 
 #undef UBBD_FAULT_INJECT
 
