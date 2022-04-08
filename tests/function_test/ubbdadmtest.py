@@ -19,6 +19,7 @@ class Ubbdadmtest(Test):
         self.ubbd_page_reserve = self.params.get("ubbd_page_reserve")
         self.fio_block_size = self.params.get("block_size")
         self.fio_iops_limit = self.params.get("iops_limit")
+        self.fio_direct = self.params.get("fio_direct")
         self.ubbd_dir = self.params.get("UBBD_DIR")
 
         os.chdir(self.ubbd_dir)
@@ -36,9 +37,13 @@ class Ubbdadmtest(Test):
         self.log.info("ubbdd stopped")
 
     def start_fio(self, ubbd_dev):
-        cmd = str("fio --name test --rw randrw --bs %s --ioengine libaio --filename %s  --direct 1 --numjobs 1 --iodepth 128 --eta-newline 1 " % (self.fio_block_size, ubbd_dev))
+        cmd = str("fio --name test --rw randrw --bs %s --ioengine libaio --filename %s --numjobs 1 --iodepth 128 --eta-newline 1 " % (self.fio_block_size, ubbd_dev))
         if (self.fio_iops_limit != 0):
             cmd = str("%s --rate_iops %s" % (cmd, self.fio_iops_limit))
+        if (self.fio_direct):
+            cmd = str("%s --direct 1" % (cmd))
+        else:
+            cmd = str("%s --direct 0" % (cmd))
 
         proc = process.get_sub_process_klass(cmd)(cmd)
         proc.start()
