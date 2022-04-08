@@ -53,6 +53,9 @@ class Ubbdadmtest(Test):
         cmd = str("echo %s > /sys/block/%s/queue/io_timeout" % (self.ubbd_dev_timeout, ubbd_dev.replace("/dev/", "")))
         process.run(cmd)
 
+    def get_dev_id(self, ubbd_dev):
+        return str(ubbd_dev.replace("/dev/ubbd", "")).strip()
+
     def do_map(self):
         result = process.run("./ubbdadm/ubbdadm --command map --type file --filepath %s --filesize %s" % (self.ubbd_backend_file, self.ubbd_backend_file_size), ignore_status=True)
         if result.exit_status:
@@ -67,7 +70,7 @@ class Ubbdadmtest(Test):
         return True
 
     def do_unmap(self, dev, force):
-        cmd = str("./ubbdadm/ubbdadm --command unmap --ubbdid %s" % (str(dev.replace("/dev/ubbd", "")).strip()))
+        cmd = str("./ubbdadm/ubbdadm --command unmap --ubbdid %s" % self.get_dev_id(dev))
         if force:
             cmd = str("%s --force" % cmd)
         result = process.run(cmd, ignore_status=True)
@@ -85,6 +88,12 @@ class Ubbdadmtest(Test):
         while (len(self.ubbd_dev_list) != 0):
             self.stop_dev(self.ubbd_dev_list[0])
 
+    def do_config(self, dev):
+        cmd = str("./ubbdadm/ubbdadm --command config --ubbdid %s --data-pages-reserve %s" % (self.get_dev_id(dev), self.ubbd_page_reserve))
+        result = process.run(cmd, ignore_status=True)
+        self.log.info("config result: %s" % (result))
+        return (result.exit_status == 0)
+
     def do_ubbd_action(self):
         action = random.randint(1, 2)
         if action == 1:
@@ -94,6 +103,10 @@ class Ubbdadmtest(Test):
             self.log.info("unmap")
             if (len(self.ubbd_dev_list) > 0):
                 self.stop_dev(self.ubbd_dev_list[0])
+        elif action == 3:
+            self.log.info("config")
+            if (len(self.ubbd_dev_list) > 0):
+                self.do_config(self.ubbd_dev_list[0])
 
     def test(self):
         for i in range(0, self.ubbdadm_action_num):
