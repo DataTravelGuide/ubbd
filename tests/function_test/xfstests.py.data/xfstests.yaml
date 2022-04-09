@@ -11,6 +11,12 @@ fs_type: !mux
         exclude: "null"
         gen_exclude: "null"
         share_exclude: "null"
+    fs_f2fs:
+        fs: 'f2fs'
+        # Exclude only if test_range not provided
+        exclude: "null"
+        gen_exclude: "null"
+        share_exclude: "null"
     fs_xfs:
         fs: 'xfs'
         # Exclude only if test_range not provided
