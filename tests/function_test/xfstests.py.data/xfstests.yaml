@@ -1,0 +1,22 @@
+xfstests_dir: '/data/xfstests_ram'
+skip_dangerous: True
+scratch_mnt: '/mnt/scratch'
+test_mnt: '/mnt/test'
+# Uncomment and edit test_range for running specific tests
+test_range: 'null'
+fs_type: !mux
+    fs_ext4:
+        fs: 'ext4'
+        # Exclude only if test_range not provided
+        exclude: "null"
+        gen_exclude: "null"
+        share_exclude: "null"
+    fs_xfs:
+        fs: 'xfs'
+        # Exclude only if test_range not provided
+        exclude: "null"
+        gen_exclude: "null"
+        share_exclude: "null"
+disk_type: !mux
+    disk_test: /dev/ubbd0
+    disk_scratch: /dev/ubbd1

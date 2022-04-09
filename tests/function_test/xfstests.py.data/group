@@ -1,0 +1,407 @@
+# QA groups control file
+# Defines test groups and nominal group owners
+# - do not start group names with a digit
+# - comment line before each group is "new" description
+#
+
+# catch-all
+other           fsg@melbourne.sgi.com
+
+# read/write integrity
+rw              dxm@sgi.com
+
+# directory operations, e.g. create/unlink
+dir             dxm@sgi.com
+
+# metadata and inodes in particular
+metadata        dxm@sgi.com
+
+# xfs_db
+db              nathans@sgi.com dxm@sgi.com
+
+# extended attributes
+attr            nathans@sgi.com dxm@sgi.com
+
+# xfs_logprint
+logprint        tes@sgi.com dxm@sgi.com
+
+# XFS log related testing
+log             tes@sgi.com
+
+# XFS log related testing
+v2log           tes@sgi.com
+
+# xfsdump, xfsrestore, xfsinvutil
+dump            tes@sgi.com ivanr@sgi.com
+
+# xfsdump, xfsrestore to tapes
+tape            tes@sgi.com ivanr@sgi.com
+
+# xfsdump, xfsrestore to remote tapes
+remote          tes@sgi.com ivanr@sgi.com
+
+# xfs_copy
+copy            harshula@sgi.com
+
+# chacl, libacl
+acl             tes@sgi.com
+
+# capabilities
+cap             tes@sgi.com
+
+# permissions
+perms           tes@sgi.com
+
+# xfs_growfs
+growfs          ajag@sgi.com
+
+# fsr.xfs
+fsr             ajag@sgi.com
+
+# mkfs.xfs
+mkfs            nathans@sgi.com
+
+# xfs_repair
+repair          nathans@sgi.com
+
+# quota tools and XFS quota kernel code (XQM)
+quota           nathans@sgi.com
+
+# auto - tests to be run as part of nightly qa
+auto            dxm@sgi.com
+
+# ioctl - tests which use ioctl commands (directly/indirectly)
+ioctl           nathans@sgi.com
+
+# udf filesystem
+udf             ajones@sgi.com
+
+# AIO operations
+aio             nathans@sgi.com
+
+# Pattern writing and checking
+pattern         ajones@sgi.com
+
+# dmapi based tests
+dmapi
+
+# filestreams based tests
+filestreams     dgc@sgi.com
+
+# case-insensitive based tests
+ci              bnaujok@sgi.com
+
+# test the mount/remount path
+mount           tes@sgi.com
+
+# test the NFS v4 ACL code if it exists
+nfs4acl         tes@sgi.com donaldd@sgi.com
+
+# test access time
+atime
+
+# Test preallocation calls
+prealloc
+
+# Test filesystem freeze
+freeze
+
+# Tests which may oops or hang
+dangerous
+
+# Old tests that we won't spend any effort trying to run and make work
+# on current systems
+deprecated
+
+#
+# test-group association ... one line per test
+#
+001 rw dir udf auto quick
+002 metadata udf auto quick
+003 db auto quick
+004 db auto quick
+005 dir udf auto quick
+006 dir udf auto quick
+007 dir udf auto quick
+008 rw ioctl auto quick
+009 rw ioctl auto prealloc quick
+010 other udf auto
+011 dir udf auto quick
+012 rw auto quick
+013 other ioctl udf auto quick
+014 rw udf auto quick
+015 other auto quick
+016 rw auto quick
+017 mount auto quick
+018 deprecated # log logprint v2log
+019 mkfs auto quick
+020 metadata attr udf auto quick
+021 db attr auto quick
+022 dump ioctl tape
+023 dump ioctl tape
+024 dump ioctl tape
+025 dump ioctl tape
+026 dump ioctl auto quick
+027 dump ioctl auto quick
+028 dump ioctl auto quick
+029 mkfs logprint log auto quick
+030 repair auto quick
+031 repair mkfs auto quick
+032 mkfs auto quick
+033 repair auto quick
+034 other auto quick
+035 dump ioctl tape auto
+036 dump ioctl remote tape
+037 dump ioctl remote tape
+038 dump ioctl remote tape
+039 dump ioctl remote tape
+040 other auto
+041 growfs ioctl auto
+042 fsr ioctl auto
+043 dump ioctl tape
+044 other auto
+045 other auto quick
+046 dump ioctl auto quick
+047 dump ioctl auto
+048 other auto quick
+049 rw auto quick
+050 quota auto quick
+051 acl udf auto quick
+052 quota db auto quick
+053 acl repair auto quick
+054 quota auto quick
+055 dump ioctl remote tape
+056 dump ioctl auto quick
+057 acl auto
+058 acl auto
+059 dump ioctl auto quick
+060 dump ioctl auto quick
+061 dump ioctl auto quick
+062 attr udf auto quick
+063 dump attr auto quick
+064 dump auto
+065 dump auto
+066 dump ioctl auto quick
+067 acl attr auto quick
+068 other auto freeze dangerous
+069 rw udf auto quick
+070 attr udf auto quick
+071 rw auto
+072 rw auto prealloc quick
+073 copy auto
+074 rw udf auto
+075 rw udf auto quick
+076 metadata rw udf auto quick
+077 acl attr auto enospc
+078 growfs auto quick
+079 acl attr ioctl metadata auto quick
+080 rw ioctl
+081 deprecated # log logprint quota
+082 deprecated # log logprint v2log
+083 rw auto
+084 ioctl rw auto
+085 log auto quick
+086 log v2log auto
+087 log v2log auto quota
+088 perms auto quick
+089 metadata auto
+090 rw auto
+091 rw auto quick
+092 other auto quick
+093 attr cap udf auto
+094 metadata dir ioctl auto
+095 log v2log auto
+096 mkfs v2log auto quick
+097 udf auto
+098 udf auto
+099 udf auto
+100 udf auto
+101 udf
+102 udf
+103 metadata dir ioctl auto quick
+104 growfs ioctl prealloc auto
+105 acl auto quick
+106 quota
+107 quota
+108 quota auto quick
+109 metadata auto
+110 repair auto
+111 ioctl
+112 rw aio auto quick
+113 rw aio auto quick
+114 parent attr
+115 parent attr
+116 quota auto quick
+117 attr auto quick
+118 quota auto quick
+119 log v2log auto freeze dangerous
+120 other auto quick
+121 log auto quick
+122 other auto quick
+123 perms auto quick
+124 pattern auto quick
+125 other auto
+126 perms auto quick
+127 rw auto
+128 perms auto quick
+129 rw auto quick
+130 pattern auto quick
+131 perms auto quick
+132 pattern auto
+133 rw auto
+134 quota auto quick
+135 metadata auto quick
+136 attr2
+137 metadata log auto
+138 metadata log auto
+139 metadata log auto
+140 metadata log auto
+141 rw auto quick
+142 dmapi auto
+143 dmapi auto
+144 dmapi auto
+145 dmapi auto
+146 dmapi auto
+147 dmapi auto
+148 repair auto
+149 repair auto
+150 dmapi auto
+151 dmapi auto
+152 dmapi auto
+153 dmapi auto
+154 dmapi auto
+155 dmapi auto
+156 dmapi auto
+157 dmapi auto
+158 dmapi auto
+159 dmapi auto
+160 dmapi auto
+161 dmapi auto
+162 dmapi auto
+163 dmapi auto
+164 rw pattern auto prealloc quick
+165 rw pattern auto prealloc quick
+166 rw metadata auto quick
+167 rw metadata auto
+168 dmapi auto
+169 rw metadata auto quick
+170 rw filestreams auto quick
+# the next three tests are not deterministic enough to get the
+# "right" result on all platforms/configuration, so don't run
+# them by default.
+171 rw filestreams
+172 rw filestreams
+173 rw filestreams
+174 rw filestreams auto
+175 dmapi auto
+176 dmapi auto
+177 rw other auto
+178 mkfs other auto
+179 metadata rw auto
+180 metadata rw auto
+181 log auto quick
+182 metadata rw auto
+183 rw other auto quick
+184 metadata auto quick
+185 dmapi auto
+186 attr auto quick
+187 attr auto quick
+188 ci dir auto
+189 mount auto quick
+190 rw auto quick
+191 nfs4acl auto
+192 atime auto
+193 metadata auto quick
+194 rw auto
+195 ioctl dump auto quick
+196 quota auto quick
+197 dir auto quick
+198 auto aio quick
+199 mount auto quick
+200 mount auto quick
+201 metadata auto quick
+202 repair auto quick
+203 ioctl auto
+204 metadata rw auto
+205 metadata rw auto
+206 growfs auto quick
+207 auto aio quick
+208 auto aio
+209 auto aio
+210 auto aio quick
+211 auto aio quick
+212 auto aio quick
+213 rw auto prealloc quick enospc
+214 rw auto prealloc quick
+215 auto metadata quick
+216 log metadata auto quick
+217 log metadata auto
+218 auto fsr quick
+219 auto quota quick
+220 auto quota quick
+221 auto metadata quick
+222 auto fsr ioctl quick
+223 auto quick
+224 auto
+225 auto quick
+226 auto enospc
+227 auto fsr
+228 rw auto prealloc quick
+229 auto rw
+230 auto quota quick
+231 auto quota
+232 auto quota
+233 auto quota
+234 auto quota
+235 auto quota quick
+236 auto quick metadata
+237 auto quick acl
+238 auto quick metadata ioctl
+239 auto aio rw
+240 auto aio quick rw
+241 auto
+242 auto quick prealloc
+243 auto quick prealloc
+244 auto quota quick
+245 auto quick dir
+246 auto quick rw
+247 auto quick rw
+248 auto quick rw
+249 auto quick rw 
+250 auto quick rw prealloc metadata
+251 ioctl trim
+252 auto quick prealloc
+253 auto quick
+254 auto quick
+255 auto quick prealloc
+256 auto quick
+257 dir auto quick
+258 auto quick
+259 auto quick
+260 auto quick trim
+261 auto quick quota
+262 auto quick quota
+263 rw auto quick
+264 auto
+265 auto
+266 dump ioctl auto quick
+267 dump ioctl tape
+268 dump ioctl tape
+269 auto rw prealloc ioctl enospc
+270 auto quota rw prealloc ioctl enospc
+271 auto rw quick
+272 auto enospc rw
+273 auto rw
+274 auto rw
+275 auto rw
+276 auto rw metadata
+277 auto ioctl quick metadata
+278 repair auto
+279 auto mkfs
+280 auto quota freeze dangerous
+281 dump ioctl auto quick
+282 dump ioctl auto quick
+283 dump ioctl auto quick
+284 auto
+285 auto rw
+286 other
