@@ -1,7 +1,7 @@
 UBBD_DIR: "/data/ubbd"
 VALGRIND: 0
-ubbd_backend_file: "/dev/ram0"
-ubbd_backend_file_size: 1073741824
+ubbd_backend_file: "/dev/ram0p1"
+ubbd_backend_file_size: 1048576000
 ubbdadm_action_num: 10
 ubbd_daemon_timeout: !mux
         no_timeout:

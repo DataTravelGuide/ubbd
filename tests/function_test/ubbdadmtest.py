@@ -24,17 +24,17 @@ class Ubbdadmtest(Test):
 
         os.chdir(self.ubbd_dir)
         dmesg.clear_dmesg()
-        self.start_ubbdd()
+        self.start_ubbdd_killer()
 
-    def start_ubbdd(self):
-        cmd = str("sh tests/start_ubbdd.sh %s 0" % (self.ubbdd_timeout))
+    def start_ubbdd_killer(self):
+        cmd = str("sh tests/function_test/utils/start_ubbdd_killer.sh %s" % (self.ubbdd_timeout))
         self.proc = process.get_sub_process_klass(cmd)(cmd)
         pid = self.proc.start()
-        self.log.info("ubbdd started: pid: %s, %s", pid, self.proc)
+        self.log.info("ubbdd killer started: pid: %s, %s", pid, self.proc)
 
-    def stop_ubbdd(self):
+    def stop_ubbdd_killer(self):
         process.kill_process_tree(self.proc.get_pid())
-        self.log.info("ubbdd stopped")
+        self.log.info("ubbdd killer stopped")
 
     def start_fio(self, ubbd_dev):
         cmd = str("fio --name test --rw randrw --bs %s --ioengine libaio --filename %s --numjobs 1 --iodepth 128 --eta-newline 1 " % (self.fio_block_size, ubbd_dev))
@@ -114,5 +114,5 @@ class Ubbdadmtest(Test):
 
     def tearDown(self):
         self.stop_devs()
-        self.stop_ubbdd()
+        self.stop_ubbdd_killer()
         dmesg.collect_dmesg()
