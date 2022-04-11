@@ -14,6 +14,7 @@ from avocado.utils import genio
 
 
 class Xfstests(Test):
+    proc = None
 
     def start_ubbdd_killer(self):
         cmd = str("sh tests/function_test/utils/start_ubbdd_killer.sh %s" % (self.ubbdd_timeout))
@@ -28,8 +29,17 @@ class Xfstests(Test):
         process.kill_process_tree(self.proc.get_pid())
         self.log.info("ubbdd killer stopped")
 
+    def do_config(self, dev):
+        os.chdir(self.ubbd_dir)
+        cmd = str("./ubbdadm/ubbdadm --command config --ubbdid %s --data-pages-reserve 0" % (dev))
+        result = process.run(cmd, ignore_status=True)
+        self.log.info("config result: %s" % (result))
+        return (result.exit_status == 0)
+
+
     def setUp(self):
         self.xfstests_dir = self.params.get('xfstests_dir')
+        self.ubbd_dir = self.params.get('ubbd_dir')
         self.scratch_mnt = self.params.get(
             'scratch_mnt', default='/mnt/scratch')
         self.test_mnt = self.params.get('test_mnt', default='/mnt/test')
@@ -48,6 +58,7 @@ class Xfstests(Test):
         self.devices.extend([self.test_dev, self.scratch_dev])
         self.exclude = self.params.get('exclude', default=None)
         self.ubbdd_timeout = self.params.get('ubbdd_timeout', default=0)
+        self.test_set = self.params.get('test_set', default="-g auto")
         # mkfs for devices
         if self.devices:
             cfg_file = os.path.join(self.xfstests_dir, 'local.config')
@@ -84,7 +95,7 @@ class Xfstests(Test):
                     sources.write('MOUNT_OPTIONS="%s"\n' % self.mount_opt)
 
             for ite, dev in enumerate(self.devices):
-                self.do_copnfig(dev)
+                self.do_config(dev)
                 dev_obj = partition.Partition(dev)
                 dev_obj.mkfs(fstype=self.fs_to_test, args=self.mkfs_opt)
 
@@ -96,12 +107,6 @@ class Xfstests(Test):
         if self.ubbdd_timeout:
             self.start_ubbdd_killer()
 
-    def do_config(self, dev):
-        cmd = str("./ubbdadm/ubbdadm --command config --ubbdid %s --data-pages-reserve 0" % (dev))
-        result = process.run(cmd, ignore_status=True)
-        self.log.info("config result: %s" % (result))
-        return (result.exit_status == 0)
-
     def test(self):
         failures = False
         os.chdir(self.xfstests_dir)
@@ -109,7 +114,7 @@ class Xfstests(Test):
         args = ''
         if self.exclude:
             args = ' -e \"%s\"' % self.exclude
-        cmd = './check %s -g auto' % args
+        cmd = './check %s %s' % (args, self.test_set)
         result = process.run(cmd, ignore_status=True, verbose=True)
         if result.exit_status == 0:
             self.log.info('OK: All Tests passed.')
@@ -125,6 +130,9 @@ class Xfstests(Test):
         self.stop_ubbdd_killer()
         # In case if any test has been interrupted
         process.system('umount %s %s' % (self.scratch_mnt, self.test_mnt),
+                       sudo=True, ignore_status=True)
+
+        process.system('wipefs -a %s' % (self.test_dev),
                        sudo=True, ignore_status=True)
         if os.path.exists(self.scratch_mnt):
             shutil.rmtree(self.scratch_mnt)
