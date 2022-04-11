@@ -24,7 +24,8 @@ class Ubbdadmtest(Test):
 
         os.chdir(self.ubbd_dir)
         dmesg.clear_dmesg()
-        self.start_ubbdd_killer()
+        if self.ubbdd_timeout:
+            self.start_ubbdd_killer()
 
     def start_ubbdd_killer(self):
         cmd = str("sh tests/function_test/utils/start_ubbdd_killer.sh %s" % (self.ubbdd_timeout))
@@ -33,6 +34,9 @@ class Ubbdadmtest(Test):
         self.log.info("ubbdd killer started: pid: %s, %s", pid, self.proc)
 
     def stop_ubbdd_killer(self):
+        if not self.proc:
+            return
+
         process.kill_process_tree(self.proc.get_pid())
         self.log.info("ubbdd killer stopped")
 
