@@ -44,7 +44,7 @@ static struct option const long_options[] =
 	{"command", required_argument, NULL, 'c'},
 	{"type", required_argument, NULL, 't'},
 	{"filepath", required_argument, NULL, 'f'},
-	{"filesize", required_argument, NULL, 's'},
+	{"devsize", required_argument, NULL, 's'},
 	{"force", no_argument, NULL, 'o'},
 	{"pool", required_argument, NULL, 'p'},
 	{"image", required_argument, NULL, 'i'},
@@ -70,14 +70,14 @@ static void usage(int status)
 		fprintf(stderr, "Try `ubbdadm --help' for more information.\n");
 	else {
 		printf("\
-			ubbdadm --command map --type file --filepath PATH --filesize SIZE\n\
+			ubbdadm --command map --type file --filepath PATH --devsize SIZE\n\
 			ubbdadm --command map --type rbd --pool POOL --image IMANGE \n\
 			ubbdadm --command unmap --ubbdid ID\n");
 	}
 	exit(status);
 }
 
-static int do_file_map(char *filepath, uint64_t filesize)
+static int do_file_map(char *filepath, uint64_t devsize)
 {
 	struct ubbd_mgmt_request req = {0};
 	struct ubbd_mgmt_rsp rsp = {0};
@@ -87,7 +87,7 @@ static int do_file_map(char *filepath, uint64_t filesize)
 	req.cmd = UBBD_MGMT_CMD_MAP;
 	req.u.add.info.type = UBBD_DEV_TYPE_FILE;
 	strcpy(req.u.add.info.file.path, filepath);
-	req.u.add.info.file.size = filesize;
+	req.u.add.info.file.size = devsize;
 	ret = ubbdd_request(&fd, &req);
 	if (ret) {
 		ubbd_err("failed to send map request to ubbdd: %d.\n", ret);
