@@ -14,7 +14,8 @@
 
 enum ubbd_dev_type {
 	UBBD_DEV_TYPE_FILE,
-	UBBD_DEV_TYPE_RBD
+	UBBD_DEV_TYPE_RBD,
+	UBBD_DEV_TYPE_NULL
 };
 
 enum ubbd_dev_ustatus {
@@ -36,6 +37,9 @@ struct ubbd_dev_info {
 			char pool[POOL_MAX];
 			char image[IMAGE_MAX];
 		} rbd;
+		struct {
+			uint64_t size;
+		} null;
 	};
 };
 
@@ -92,6 +96,10 @@ struct ubbd_rbd_device {
 	uint64_t flags;
 };
 
+struct ubbd_null_device {
+	struct ubbd_device ubbd_dev;
+};
+
 
 struct ubbd_dev_ops {
 	int (*open) (struct ubbd_device *ubbd_dev);
@@ -137,6 +145,7 @@ do { \
 struct ubbd_device *find_ubbd_dev(int dev_id);
 struct ubbd_rbd_device *create_rbd_dev(void);
 struct ubbd_file_device *create_file_dev(void);
+struct ubbd_null_device *create_null_dev(void);
 struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info);
 int ubbd_dev_open(struct ubbd_device *ubbd_dev);
 int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx);
@@ -152,4 +161,5 @@ void *cmd_process(void *arg);
 
 struct ubbd_dev_ops rbd_dev_ops;
 struct ubbd_dev_ops file_dev_ops;
+struct ubbd_dev_ops null_dev_ops;
 #endif	/* UBBD_DEV_H */

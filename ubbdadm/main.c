@@ -31,6 +31,8 @@ static enum ubbd_dev_type str_to_type(char *str)
 		type = UBBD_DEV_TYPE_FILE;
 	else if (!strcmp("rbd", str))
 		type = UBBD_DEV_TYPE_RBD;
+	else if (!strcmp("null", str))
+		type = UBBD_DEV_TYPE_NULL;
 	else
 		type = -1;
 
@@ -128,6 +130,30 @@ static int do_rbd_map(char *pool, char *image)
 	return 0;
 }
 
+static int do_null_map(uint64_t dev_size)
+{
+	struct ubbd_mgmt_request req = {0};
+	struct ubbd_mgmt_rsp rsp = {0};
+	int fd;
+	int ret;
+
+	req.cmd = UBBD_MGMT_CMD_MAP;
+	req.u.add.info.type = UBBD_DEV_TYPE_NULL;
+	req.u.add.info.null.size = dev_size;
+	ret = ubbdd_request(&fd, &req);
+	if (ret) {
+		ubbd_err("failed to send map request to ubbdd: %d.\n", ret);
+		return ret;
+	}
+	
+	ret = ubbdd_response(fd, &rsp, -1);
+	if (ret) {
+		ubbd_err("error in waiting response for map request: %d.\n", ret);
+		return ret;
+	}
+	return 0;
+}
+
 static int do_unmap(int ubbdid, bool force)
 {
 	struct ubbd_mgmt_request req = {0};
@@ -172,7 +198,7 @@ int main(int argc, char **argv)
 	enum ubbd_mgmt_cmd command;
 	enum ubbd_dev_type type;
 	char *filepath, *pool, *image;
-	uint64_t filesize;
+	uint64_t dev_size;
 	int ubbdid;
 	int data_pages_reserve;
 	bool force = false;
@@ -192,7 +218,7 @@ int main(int argc, char **argv)
 			filepath = optarg;
 			break;
 		case 's':
-			filesize = atoll(optarg);
+			dev_size = atoll(optarg);
 			break;
 		case 'o':
 			force = true;
@@ -222,10 +248,13 @@ int main(int argc, char **argv)
 	if (command == UBBD_MGMT_CMD_MAP) {
 		switch (type) {
 		case UBBD_DEV_TYPE_FILE:
-			ret = do_file_map(filepath, filesize);
+			ret = do_file_map(filepath, dev_size);
 			break;
 		case UBBD_DEV_TYPE_RBD:
 			ret = do_rbd_map(pool, image);
+			break;
+		case UBBD_DEV_TYPE_NULL:
+			ret = do_null_map(dev_size);
 			break;
 		default:
 			printf("error type: %d\n", type);
