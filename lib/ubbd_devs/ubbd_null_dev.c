@@ -28,60 +28,21 @@ static void null_dev_release(struct ubbd_device *ubbd_dev)
 
 static int null_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 {
-	struct ubbd_ce *ce;
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
-
-	pthread_mutex_lock(&ubbd_dev->req_lock);
-	ce = get_available_ce(ubbd_dev);
-	ce->priv_data = se->priv_data;
-	ce->flags = 0;
-
-	ce->result = 0;
-	ubbd_dbg("finish se id: %p\n", se);
-	ubbd_dbg("append ce: %llu\n", ce->priv_data);
-	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
-	ubbdlib_processing_complete(ubbd_dev);
+	ubbd_dev_add_ce(ubbd_dev, se->priv_data, 0);
 
 	return 0;
 }
 
 static int null_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 {
-	struct ubbd_ce *ce;
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
-
-	pthread_mutex_lock(&ubbd_dev->req_lock);
-	ce = get_available_ce(ubbd_dev);
-	ce->priv_data = se->priv_data;
-	ce->flags = 0;
-
-	ce->result = 0;
-	ubbd_dbg("finish se id: %p\n", se);
-	ubbd_dbg("append ce: %llu\n", ce->priv_data);
-	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
-	ubbdlib_processing_complete(ubbd_dev);
+	ubbd_dev_add_ce(ubbd_dev, se->priv_data, 0);
 
 	return 0;
 }
 
 static int null_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 {
-	struct ubbd_ce *ce;
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
-
-	pthread_mutex_lock(&ubbd_dev->req_lock);
-	ce = get_available_ce(ubbd_dev);
-	ce->priv_data = se->priv_data;
-	ce->flags = 0;
-
-	ce->result = 0;
-	ubbd_dbg("finish se id: %p\n", se);
-	ubbd_dbg("append ce: %llu\n", ce->priv_data);
-	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
-	ubbdlib_processing_complete(ubbd_dev);
+	ubbd_dev_add_ce(ubbd_dev, se->priv_data, 0);
 
 	return 0;
 }

@@ -155,6 +155,9 @@ int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct
 int ubbd_dev_reopen_devs(void);
 void ubbd_dev_stop_devs(void);
 
+void ubbd_dev_add_ce(struct ubbd_device *ubbd_dev, uint64_t priv_data,
+		int result);
+
 void ubbd_dev_release(struct ubbd_device *ubbd_dev);
 
 void *cmd_process(void *arg);

@@ -803,3 +803,22 @@ void ubbd_dev_stop_devs(void)
 		ubbd_dev_release(ubbd_dev_tmp);
         }
 }
+
+void ubbd_dev_add_ce(struct ubbd_device *ubbd_dev, uint64_t priv_data,
+		int result)
+{
+	struct ubbd_ce *ce;
+	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
+
+	pthread_mutex_lock(&ubbd_dev->req_lock);
+	ce = get_available_ce(ubbd_dev);
+	memset(ce, 0, sizeof(*ce));
+	ce->priv_data = priv_data;
+	ce->flags = 0;
+
+	ce->result = result;
+	ubbd_dbg("append ce: %llu, result: %d\n", ce->priv_data, ce->result);
+	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
+	pthread_mutex_unlock(&ubbd_dev->req_lock);
+	ubbdlib_processing_complete(ubbd_dev);
+}

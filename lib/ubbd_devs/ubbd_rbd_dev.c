@@ -117,33 +117,20 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 				   struct rbd_aio_cb *aio_cb)
 {
 	struct ubbd_device *ubbd_dev = aio_cb->ubbd_dev;
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
 	int64_t ret;
-	struct ubbd_ce *ce;
 
 	ubbd_dev_dbg(ubbd_dev, "into finish op \n");
 	ret = rbd_aio_get_return_value(completion);
 	ubbd_dev_dbg(ubbd_dev, "ret: %ld\n", ret);
 
-	pthread_mutex_lock(&ubbd_dev->req_lock);
-	ce = get_available_ce(ubbd_dev);
-	memset(ce, 0, sizeof(*ce));
-	ce->priv_data = aio_cb->priv_data;
-	ce->flags = 0;
-
 	if (aio_cb->type == RBD_AIO_TYPE_READ ||
 			aio_cb->type == RBD_AIO_TYPE_WRITE)
 		ret = (ret == aio_cb->len? 0 : ret);
 
-	ce->result = ret;
-	ubbd_dev_dbg(ubbd_dev, "append ce: %llu\n", ce->priv_data);
-	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
-	ubbdlib_processing_complete(ubbd_dev);
-
 	free(aio_cb);
 	rbd_aio_release(completion);
 
+	ubbd_dev_add_ce(ubbd_dev, aio_cb->priv_data, ret);
 }
 
 static int rbd_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
