@@ -59,6 +59,8 @@ class Xfstests(Test):
         self.exclude = self.params.get('exclude', default=None)
         self.ubbdd_timeout = self.params.get('ubbdd_timeout', default=0)
         self.test_set = self.params.get('test_set', default="-g auto")
+
+        process.run("dmesg -C ", sudo=True)
         # mkfs for devices
         if self.devices:
             cfg_file = os.path.join(self.xfstests_dir, 'local.config')
@@ -138,6 +140,7 @@ class Xfstests(Test):
             shutil.rmtree(self.scratch_mnt)
         if os.path.exists(self.test_mnt):
             shutil.rmtree(self.test_mnt)
+        self.whiteboard = process.system_output("dmesg").decode()
 
     @staticmethod
     def _parse_error_message(output):
