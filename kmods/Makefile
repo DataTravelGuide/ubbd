@@ -10,8 +10,8 @@ UBBDCONF_HEADER := $(KMODS_SRC)/compat.h
 
 $(UBBDCONF_HEADER):
 	@> $@
-	@echo $(CHECK_BUILD) compat-tests/have_blk_mq_alloc_disk.c
-	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_blk_mq_alloc_disk.c > /dev/null 2>&1; then echo "#define HAVE_BLK_MQ_ALLOC_DISK 1"; else echo "/*#undefined HAVE_BLK_MQ_ALLOC_DISK*/"; fi >> $@
+	@echo $(CHECK_BUILD) compat-tests/have_alloc_disk.c
+	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_nla_parse_nested_deprecated.c > /dev/null 2>&1; then echo "#define HAVE_NLA_PARSE_NESTED_DEPRECATED 1"; else echo "/*#undefined HAVE_NLA_PARSE_NESTED_DEPRECATED*/"; fi >> $@
 	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_genl_small_ops.c > /dev/null 2>&1; then echo "#define HAVE_GENL_SMALL_OPS 1"; else echo "/*#undefined HAVE_GENL_SMALL_OPS*/"; fi >> $@
 	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_genl_policy.c > /dev/null 2>&1; then echo "#define HAVE_GENL_POLICY 1"; else echo "/*#undefined HAVE_GENL_POLICY*/"; fi >> $@
 	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_alloc_disk.c > /dev/null 2>&1; then echo "#define HAVE_ALLOC_DISK 1"; else echo "/*#undefined HAVE_ALLOC_DISK*/"; fi >> $@
