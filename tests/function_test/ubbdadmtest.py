@@ -3,7 +3,7 @@ import os
 import time
 
 from avocado import Test
-from avocado.utils import process, dmesg
+from avocado.utils import process, dmesg, genio
 
 class Ubbdadmtest(Test):
 
@@ -29,7 +29,6 @@ class Ubbdadmtest(Test):
         cmd = str("sh tests/start_ubbdd.sh %s 0" % (self.ubbdd_timeout))
         self.proc = process.get_sub_process_klass(cmd)(cmd)
         pid = self.proc.start()
-        time.sleep(5)
         self.log.info("ubbdd started: pid: %s, %s", pid, self.proc)
 
     def stop_ubbdd(self):
@@ -43,7 +42,11 @@ class Ubbdadmtest(Test):
 
         proc = process.get_sub_process_klass(cmd)(cmd)
         proc.start()
-        time.sleep(3)
+        time.sleep(1)
+
+    def set_dev_timeout(self, ubbd_dev):
+        cmd = str("echo %s > /sys/block/%s/queue/io_timeout" % (self.ubbd_dev_timeout, ubbd_dev.replace("/dev/", "")))
+        process.run(cmd)
 
     def do_map(self):
         result = process.run("./ubbdadm/ubbdadm --command map --type file --filepath %s --filesize %s" % (self.ubbd_backend_file, self.ubbd_backend_file_size), ignore_status=True)
@@ -53,6 +56,7 @@ class Ubbdadmtest(Test):
 
         self.log.info("map result: %s" % (result))
         ubbd_dev = result.stdout_text.strip()
+        self.set_dev_timeout(ubbd_dev)
         self.start_fio(ubbd_dev)
         self.ubbd_dev_list.append(ubbd_dev)
         return True
