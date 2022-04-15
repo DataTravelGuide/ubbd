@@ -9,7 +9,7 @@ static int file_dev_open(struct ubbd_device *ubbd_dev)
 	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
 
 	file_dev->fd = open(file_dev->filepath, O_RDWR | O_DIRECT);
-	ubbd_dev->dev_features.write_cache = true;
+	ubbd_dev->dev_features.write_cache = false;
 	ubbd_dev->dev_features.fua = false;
 	ubbd_dev->dev_features.discard = false;
 	ubbd_dev->dev_features.write_zeros = false;
