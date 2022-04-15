@@ -36,3 +36,8 @@ fio_iops_limit: !mux
                 iops_limit: 0
         ten:
                 iops_limit: 10
+fio_direct: !mux
+        buffer:
+                fio_direct: False
+        direct:
+                fio_direct: True
