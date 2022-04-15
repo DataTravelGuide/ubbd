@@ -15,6 +15,18 @@ from avocado.utils import genio
 
 class Xfstests(Test):
 
+    def start_ubbdd_killer(self):
+        cmd = str("sh tests/function_test/utils/start_ubbdd_killer.sh %s" % (self.ubbdd_timeout))
+        self.proc = process.get_sub_process_klass(cmd)(cmd)
+        pid = self.proc.start()
+        self.log.info("ubbdd killer started: pid: %s, %s", pid, self.proc)
+
+    def stop_ubbdd_killer(self):
+        if not self.proc:
+            return
+
+        process.kill_process_tree(self.proc.get_pid())
+        self.log.info("ubbdd killer stopped")
 
     def setUp(self):
         self.xfstests_dir = self.params.get('xfstests_dir')
@@ -35,6 +47,7 @@ class Xfstests(Test):
         self.scratch_dev = self.params.get('disk_scratch', default=None)
         self.devices.extend([self.test_dev, self.scratch_dev])
         self.exclude = self.params.get('exclude', default=None)
+        self.ubbdd_timeout = self.params.get('ubbdd_timeout', default=0)
         # mkfs for devices
         if self.devices:
             cfg_file = os.path.join(self.xfstests_dir, 'local.config')
@@ -71,6 +84,7 @@ class Xfstests(Test):
                     sources.write('MOUNT_OPTIONS="%s"\n' % self.mount_opt)
 
             for ite, dev in enumerate(self.devices):
+                self.do_copnfig(dev)
                 dev_obj = partition.Partition(dev)
                 dev_obj.mkfs(fstype=self.fs_to_test, args=self.mkfs_opt)
 
@@ -78,6 +92,15 @@ class Xfstests(Test):
             os.makedirs(self.scratch_mnt)
         if not os.path.exists(self.test_mnt):
             os.makedirs(self.test_mnt)
+
+        if self.ubbdd_timeout:
+            self.start_ubbdd_killer()
+
+    def do_config(self, dev):
+        cmd = str("./ubbdadm/ubbdadm --command config --ubbdid %s --data-pages-reserve 0" % (dev))
+        result = process.run(cmd, ignore_status=True)
+        self.log.info("config result: %s" % (result))
+        return (result.exit_status == 0)
 
     def test(self):
         failures = False
@@ -99,6 +122,7 @@ class Xfstests(Test):
             self.fail('One or more tests failed. Please check the logs.')
 
     def tearDown(self):
+        self.stop_ubbdd_killer()
         # In case if any test has been interrupted
         process.system('umount %s %s' % (self.scratch_mnt, self.test_mnt),
                        sudo=True, ignore_status=True)
