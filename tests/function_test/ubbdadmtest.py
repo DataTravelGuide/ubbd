@@ -3,7 +3,7 @@ import os
 import time
 
 from avocado import Test
-from avocado.utils import process, dmesg, genio
+from avocado.utils import process, genio
 
 class Ubbdadmtest(Test):
 
@@ -23,7 +23,7 @@ class Ubbdadmtest(Test):
         self.ubbd_dir = self.params.get("UBBD_DIR")
 
         os.chdir(self.ubbd_dir)
-        dmesg.clear_dmesg()
+        process.run("dmesg -C ", sudo=True)
         if self.ubbdd_timeout:
             self.start_ubbdd_killer()
 
@@ -119,4 +119,4 @@ class Ubbdadmtest(Test):
     def tearDown(self):
         self.stop_devs()
         self.stop_ubbdd_killer()
-        dmesg.collect_dmesg()
+        self.whiteboard = process.system_output("dmesg").decode()

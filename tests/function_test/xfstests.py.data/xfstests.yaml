@@ -4,8 +4,6 @@ scratch_mnt: '/mnt/scratch'
 test_mnt: '/mnt/test'
 test_set: '-g auto'
 ubbdd_timeout: !mux
-        no_timeout:
-                ubbdd_timeout: 0
         30sec:
                 ubbdd_timeout: 30
 fs_type: !mux
