@@ -18,8 +18,6 @@ class Xfstests(Test):
 
     def setUp(self):
         self.xfstests_dir = self.params.get('xfstests_dir')
-        self.skip_dangerous = self.params.get('skip_dangerous', default=True)
-        self.test_range = self.params.get('test_range', default=None)
         self.scratch_mnt = self.params.get(
             'scratch_mnt', default='/mnt/scratch')
         self.test_mnt = self.params.get('test_mnt', default='/mnt/test')
@@ -32,12 +30,11 @@ class Xfstests(Test):
         self.devices = []
         shutil.copyfile(self.get_data('local.config'),
                         os.path.join(self.xfstests_dir, 'local.config'))
-        shutil.copyfile(self.get_data('group'),
-                        os.path.join(self.xfstests_dir, 'group'))
 
         self.test_dev = self.params.get('disk_test', default=None)
         self.scratch_dev = self.params.get('disk_scratch', default=None)
         self.devices.extend([self.test_dev, self.scratch_dev])
+        self.exclude = self.params.get('exclude', default=None)
         # mkfs for devices
         if self.devices:
             cfg_file = os.path.join(self.xfstests_dir, 'local.config')
@@ -77,26 +74,6 @@ class Xfstests(Test):
                 dev_obj = partition.Partition(dev)
                 dev_obj.mkfs(fstype=self.fs_to_test, args=self.mkfs_opt)
 
-        self.available_tests = self._get_available_tests()
-
-        self.test_list = self._create_test_list(self.test_range)
-        self.log.info("Tests available in srcdir: %s",
-                      ", ".join(self.available_tests))
-        if not self.test_range:
-            self.exclude = self.params.get('exclude', default=None)
-            self.gen_exclude = self.params.get('gen_exclude', default=None)
-            self.share_exclude = self.params.get('share_exclude', default=None)
-            if self.exclude or self.gen_exclude or self.share_exclude:
-                self.exclude_file = os.path.join(self.xfstests_dir, 'exclude')
-                if self.exclude:
-                    self._create_test_list(self.exclude, self.fs_to_test,
-                                           dangerous=False)
-                if self.gen_exclude:
-                    self._create_test_list(self.gen_exclude, "generic",
-                                           dangerous=False)
-                if self.share_exclude:
-                    self._create_test_list(self.share_exclude, "shared",
-                                           dangerous=False)
         if not os.path.exists(self.scratch_mnt):
             os.makedirs(self.scratch_mnt)
         if not os.path.exists(self.test_mnt):
@@ -105,32 +82,19 @@ class Xfstests(Test):
     def test(self):
         failures = False
         os.chdir(self.xfstests_dir)
-        if not self.test_list:
-            self.log.info('Running all tests')
-            args = ''
-            if self.exclude or self.gen_exclude:
-                args = ' -E %s' % self.exclude_file
-            cmd = './check %s -g auto' % args
-            result = process.run(cmd, ignore_status=True, verbose=True)
-            if result.exit_status == 0:
-                self.log.info('OK: All Tests passed.')
-            else:
-                msg = self._parse_error_message(result.stdout)
-                self.log.info('ERR: Test(s) failed. Message: %s', msg)
-                failures = True
 
+        args = ''
+        if self.exclude:
+            args = ' -e \"%s\"' % self.exclude
+        cmd = './check %s -g auto' % args
+        result = process.run(cmd, ignore_status=True, verbose=True)
+        if result.exit_status == 0:
+            self.log.info('OK: All Tests passed.')
         else:
-            self.log.info('Running only specified tests')
-            for test in self.test_list:
-                test = '%s/%s' % (self.fs_to_test, test)
-                cmd = './check %s' % test
-                result = process.run(cmd, ignore_status=True, verbose=True)
-                if result.exit_status == 0:
-                    self.log.info('OK: Test %s passed.', test)
-                else:
-                    msg = self._parse_error_message(result.stdout)
-                    self.log.info('ERR: %s failed. Message: %s', test, msg)
-                    failures = True
+            msg = self._parse_error_message(result.stdout)
+            self.log.info('ERR: Test(s) failed. Message: %s', msg)
+            failures = True
+
         if failures:
             self.fail('One or more tests failed. Please check the logs.')
 
@@ -142,68 +106,6 @@ class Xfstests(Test):
             shutil.rmtree(self.scratch_mnt)
         if os.path.exists(self.test_mnt):
             shutil.rmtree(self.test_mnt)
-
-    def _create_test_list(self, test_range, test_type=None, dangerous=True):
-        test_list = []
-        dangerous_tests = []
-        if self.skip_dangerous:
-            dangerous_tests = self._get_tests_for_group('dangerous')
-        if test_range:
-            for test in data_structures.comma_separated_ranges_to_list(test_range):
-                test = "%03d" % test
-                if dangerous:
-                    if test in dangerous_tests:
-                        self.log.debug('Test %s is dangerous. Skipping.', test)
-                        continue
-                if not self._is_test_valid(test):
-                    self.log.debug('Test %s invalid. Skipping.', test)
-                    continue
-                test_list.append(test)
-
-        if test_type:
-            with open(self.exclude_file, 'a') as fp:
-                for test in test_list:
-                    fp.write('%s/%s\n' % (test_type, test))
-        return test_list
-
-    def _get_tests_for_group(self, group):
-        """
-        Returns the list of tests that belong to a certain test group
-        """
-        group_test_line_re = re.compile(r'(\d{3})\s(.*)')
-        group_path = os.path.join(self.xfstests_dir, 'group')
-        with open(group_path, 'r') as group_file:
-            content = group_file.readlines()
-
-        tests = []
-        for g_test in content:
-            match = group_test_line_re.match(g_test)
-            if match is not None:
-                test = match.groups()[0]
-                groups = match.groups()[1]
-                if group in groups.split():
-                    tests.append(test)
-        return tests
-
-    def _get_available_tests(self):
-        os.chdir(self.xfstests_dir)
-        tests_set = []
-        tests = glob.glob(self.xfstests_dir + '/tests/*/???.out')
-        tests += glob.glob(self.xfstests_dir + '/tests/*/???.out.linux')
-        tests = [t.replace('.linux', '') for t in tests]
-
-        tests_set = sorted([t[-7:-4] for t in tests if os.path.exists(t[:-4])])
-        tests_set = set(tests_set)
-
-        return tests_set
-
-    def _is_test_valid(self, test_number):
-        os.chdir(self.xfstests_dir)
-        if test_number == '000':
-            return False
-        if test_number not in self.available_tests:
-            return False
-        return True
 
     @staticmethod
     def _parse_error_message(output):
