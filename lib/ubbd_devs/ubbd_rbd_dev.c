@@ -138,7 +138,6 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 	ce->result = ret;
 	ubbd_dev_dbg(ubbd_dev, "append ce: %llu\n", ce->priv_data);
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
-	//ubbd_uio_advance_cmd_ring(ubbd_dev);
 	pthread_mutex_unlock(&ubbd_dev->req_lock);
 	ubbdlib_processing_complete(ubbd_dev);
 

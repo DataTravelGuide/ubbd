@@ -241,6 +241,22 @@ struct ubbd_rbd_device *create_rbd_dev(void)
 	return dev;
 }
 
+struct ubbd_null_device *create_null_dev(void)
+{
+	struct ubbd_device *ubbd_dev;
+	struct ubbd_null_device *dev;
+
+	dev = calloc(1, sizeof(*dev));
+	if (!dev)
+		return NULL;
+
+	ubbd_dev = &dev->ubbd_dev;
+	ubbd_dev->dev_type = UBBD_DEV_TYPE_NULL;
+	ubbd_dev->dev_ops = &null_dev_ops;
+
+	return dev;
+}
+
 struct ubbd_file_device *create_file_dev(void)
 {
 	struct ubbd_device *ubbd_dev;
@@ -279,7 +295,15 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 		ubbd_dev = &rbd_dev->ubbd_dev;
 		strcpy(rbd_dev->pool, info->rbd.pool);
 		strcpy(rbd_dev->imagename, info->rbd.image);
-	} else {
+	} else if (info->type == UBBD_DEV_TYPE_NULL){
+		struct ubbd_null_device *null_dev;
+
+		null_dev = create_null_dev();
+		if (!null_dev)
+			return NULL;
+		ubbd_dev = &null_dev->ubbd_dev;
+		ubbd_dev->dev_size = info->null.size;
+	}else {
 		ubbd_err("Unknown dev type\n");
 		return NULL;
 	}
