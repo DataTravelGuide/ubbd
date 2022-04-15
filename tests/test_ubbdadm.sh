@@ -44,7 +44,7 @@ get_random_id()
 do_ubbdadm_map()
 {
 	get_random_id
-	dev=`$CMD_PREFIX ./ubbdadm/ubbdadm --command map --type file --filepath /dev/ram0 --filesize $((1*1024*1024*1024))`
+	dev=`$CMD_PREFIX ./ubbdadm/ubbdadm --command map --type file --filepath /dev/ram0 --devsize $((1*1024*1024*1024))`
 	start_fio $dev
 }
 

@@ -61,7 +61,7 @@ class Ubbdadmtest(Test):
         return str(ubbd_dev.replace("/dev/ubbd", "")).strip()
 
     def do_map(self):
-        result = process.run("./ubbdadm/ubbdadm --command map --type file --filepath %s --filesize %s" % (self.ubbd_backend_file, self.ubbd_backend_file_size), ignore_status=True)
+        result = process.run("./ubbdadm/ubbdadm --command map --type file --filepath %s --devsize %s" % (self.ubbd_backend_file, self.ubbd_backend_file_size), ignore_status=True)
         if result.exit_status:
             self.log.error("map error: %s" % (result))
             return False
