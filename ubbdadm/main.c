@@ -225,14 +225,14 @@ int main(int argc, char **argv)
 			ret = do_file_map(filepath, filesize);
 			break;
 		case UBBD_DEV_TYPE_RBD:
-			do_rbd_map(pool, image);
+			ret = do_rbd_map(pool, image);
 			break;
 		default:
 			printf("error type: %d\n", type);
 			exit(-1);
 		}
 	} else if (command == UBBD_MGMT_CMD_UNMAP) {
-		do_unmap(ubbdid, force);
+		ret = do_unmap(ubbdid, force);
 	} else if (command == UBBD_MGMT_CMD_CONFIG) {
 		if (data_pages_reserve < 0 ||
 				data_pages_reserve > 100) {
@@ -240,7 +240,7 @@ int main(int argc, char **argv)
 			exit(-1);
 		}
 
-		do_config(ubbdid, data_pages_reserve);
+		ret = do_config(ubbdid, data_pages_reserve);
 	} else {
 		printf("error command: %d\n", command);
 		exit(-1);
