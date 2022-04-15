@@ -1,7 +1,9 @@
 xfstests_dir: '/data/xfstests'
+ubbd_dir: "/data/ubbd"
 scratch_mnt: '/mnt/scratch'
 test_mnt: '/mnt/test'
-ubbdd_timeout:
+test_set: '-g auto'
+ubbdd_timeout: !mux
         no_timeout:
                 ubbdd_timeout: 0
         30sec:
