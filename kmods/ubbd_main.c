@@ -130,6 +130,7 @@ void ubbd_dev_destroy(struct ubbd_device *ubbd_dev)
 	module_put(THIS_MODULE);
 }
 
+#ifdef HAVE_ALLOC_DISK
 static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 {
 	struct gendisk *disk;
@@ -220,6 +221,100 @@ void ubbd_free_disk(struct ubbd_device *ubbd_dev)
 	put_disk(ubbd_dev->disk);
 	ubbd_dev->disk = NULL;
 }
+
+int ubbd_add_disk(struct ubbd_device *ubbd_dev)
+{
+	add_disk(ubbd_dev->disk);
+	blk_put_queue(ubbd_dev->disk->queue);
+
+	return 0;
+}
+#else /* HAVE_ALLOC_DISK */
+static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
+{
+	struct gendisk *disk;
+	struct request_queue *q;
+	int err;
+
+	memset(&ubbd_dev->tag_set, 0, sizeof(ubbd_dev->tag_set));
+	ubbd_dev->tag_set.ops = &ubbd_mq_ops;
+	ubbd_dev->tag_set.queue_depth = 128;
+	ubbd_dev->tag_set.numa_node = NUMA_NO_NODE;
+	ubbd_dev->tag_set.flags = BLK_MQ_F_SHOULD_MERGE;
+	ubbd_dev->tag_set.nr_hw_queues = num_present_cpus();
+	ubbd_dev->tag_set.cmd_size = sizeof(struct ubbd_request);
+
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		err = -ENOMEM;
+		goto err;
+	}
+#endif
+	err = blk_mq_alloc_tag_set(&ubbd_dev->tag_set);
+	if (err)
+		goto err;
+
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		err = -ENOMEM;
+		goto out_tag_set;
+	}
+#endif
+	disk = blk_mq_alloc_disk(&ubbd_dev->tag_set, ubbd_dev);
+	if (IS_ERR(disk)) {
+		err = PTR_ERR(disk);
+		goto out_tag_set;
+	}
+	q = disk->queue;
+
+        snprintf(disk->disk_name, sizeof(disk->disk_name), UBBD_DRV_NAME "%d",
+                 ubbd_dev->dev_id);
+	disk->major = ubbd_dev->major;
+	disk->first_minor = ubbd_dev->minor;
+	disk->minors = (1 << UBBD_SINGLE_MAJOR_PART_SHIFT);
+	disk->flags |= GENHD_FL_EXT_DEVT;
+	disk->fops = &ubbd_bd_ops;
+	disk->private_data = ubbd_dev;
+ 
+	blk_queue_flag_set(QUEUE_FLAG_NONROT, q);
+
+	blk_queue_max_hw_sectors(q, 128);
+	q->limits.max_sectors = queue_max_hw_sectors(q);
+	blk_queue_max_segments(q, USHRT_MAX);
+	blk_queue_max_segment_size(q, UINT_MAX);
+	blk_queue_io_min(q, 4096);
+	blk_queue_io_opt(q, 4096);
+
+	blk_queue_flag_clear(QUEUE_FLAG_DISCARD, q);
+	q->limits.discard_granularity = 0;
+	blk_queue_max_discard_sectors(q, 0);
+	blk_queue_max_write_zeroes_sectors(q, 0);
+
+	ubbd_dev->disk = disk;
+
+	return 0;
+out_tag_set:
+	blk_mq_free_tag_set(&ubbd_dev->tag_set);
+err:
+	return err;
+}
+
+void ubbd_free_disk(struct ubbd_device *ubbd_dev)
+{
+	blk_cleanup_disk(ubbd_dev->disk);
+	blk_mq_free_tag_set(&ubbd_dev->tag_set);
+	ubbd_dev->disk = NULL;
+}
+
+int ubbd_add_disk(struct ubbd_device *ubbd_dev)
+{
+	int ret;
+
+	ret = add_disk(ubbd_dev->disk);
+
+	return ret;
+}
+#endif /* HAVE_ALLOC_DISK */
 
 int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
 			u64 device_size,
