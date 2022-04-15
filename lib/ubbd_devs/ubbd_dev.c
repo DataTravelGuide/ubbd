@@ -356,9 +356,11 @@ int dev_stop(struct ubbd_device *ubbd_dev)
 	int ret;
 
 	ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
-	ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
-	if (ret)
-		return ret;
+	if (ubbd_dev->cmdproc_thread) {
+		ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
+		if (ret)
+			return ret;
+	}
 	device_close_shm(&ubbd_dev->uio_info);
 
 	return 0;
@@ -634,6 +636,7 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ct
 		break;
 	case UBBD_DEV_USTATUS_PREPARED:
 	case UBBD_DEV_USTATUS_RUNNING:
+	case UBBD_DEV_USTATUS_STOPPING:
 		ret = dev_remove_disk(ubbd_dev, force, ctx);
 		break;
 	default:
