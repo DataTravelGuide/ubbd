@@ -59,6 +59,10 @@ static void wait_for_compr_empty(struct ubbd_device *ubbd_dev)
          while (sb->compr_head != sb->compr_tail) {
 		 ubbd_info("head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
                  usleep(50000);
+		 if (ubbd_dev->status == UBBD_DEV_USTATUS_STOPPING) {
+			 ubbd_err("ubbd device is stopping\n");
+			 break;
+		 }
 	 }
          ubbd_info("ring clear\n");
 }
@@ -283,6 +287,10 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 	ubbd_dev_init(ubbd_dev);
 	memcpy(&ubbd_dev->dev_info, info, sizeof(*info));
 
+	pthread_mutex_lock(&ubbd_dev_list_mutex);
+	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
+	pthread_mutex_unlock(&ubbd_dev_list_mutex);
+
 	return ubbd_dev;
 }
 
@@ -294,10 +302,6 @@ int ubbd_dev_open(struct ubbd_device *ubbd_dev)
 	if (ret)
 		goto out;
 
-	ubbd_dbg("add ubbd_dev: %p dev_id: %dinto list\n", ubbd_dev, ubbd_dev->dev_id);
-	pthread_mutex_lock(&ubbd_dev_list_mutex);
-	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
-	pthread_mutex_unlock(&ubbd_dev_list_mutex);
 	ubbd_dev->status = UBBD_DEV_USTATUS_OPENED;
 
 out:
@@ -306,7 +310,6 @@ out:
 
 void ubbd_dev_close(struct ubbd_device *ubbd_dev)
 {
-	list_del_init(&ubbd_dev->dev_node);
 
 	ubbd_dev->dev_ops->close(ubbd_dev);
 	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
@@ -314,6 +317,10 @@ void ubbd_dev_close(struct ubbd_device *ubbd_dev)
 
 void ubbd_dev_release(struct ubbd_device *ubbd_dev)
 {
+	pthread_mutex_lock(&ubbd_dev_list_mutex);
+	list_del_init(&ubbd_dev->dev_node);
+	pthread_mutex_unlock(&ubbd_dev_list_mutex);
+
 	ubbd_dev->dev_ops->release(ubbd_dev);
 }
 
@@ -692,12 +699,18 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 		goto err_close;
 	}
 
+	ubbd_dev->dev_id = dev_status->dev_id;
+	memcpy(&ubbd_dev->uio_info, &uio_info, sizeof(uio_info));
+	if (dev_status->status != UBBD_DEV_STATUS_RUNNING) {
+		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
+		goto out;
+	}
+
 	ret = ubbd_dev_open(ubbd_dev);
 	if (ret)
 		goto release_dev;
 
-	ubbd_dev->dev_id = dev_status->dev_id;
-	memcpy(&ubbd_dev->uio_info, &uio_info, sizeof(uio_info));
+	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
 
 	ret = pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev); 
 	if (ret) {
@@ -707,7 +720,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 
 	ubbd_err("version: %d\n", ubbd_dev->uio_info.map->version);
 
-	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
+out:
 	*ubbd_dev_p = ubbd_dev;
 
 	return 0;
@@ -732,8 +745,9 @@ int ubbd_dev_reopen_devs(void)
 	ret = ubbd_nl_dev_list(&tmp_list);
 	list_for_each_entry_safe(tmp_status, next_status, &tmp_list, node) {
 		list_del(&tmp_status->node);
+		ubbd_err("tmp_status: %p\n", tmp_status);
 		ret = reopen_dev(tmp_status, &ubbd_dev);
-		ubbd_err("ubbd_Dev: %p\n", ubbd_dev);
+		ubbd_err("ubbd_Dev: %p, status: %d\n", ubbd_dev, tmp_status->status);
 		if (ret)
 			return ret;
 
@@ -748,14 +762,17 @@ int ubbd_dev_reopen_devs(void)
 void ubbd_dev_stop_devs(void)
 {
         struct ubbd_device *ubbd_dev_tmp, *next;
+	LIST_HEAD(tmp_list);
 
 	pthread_mutex_lock(&ubbd_dev_list_mutex);
-        list_for_each_entry_safe(ubbd_dev_tmp, next, &ubbd_dev_list, dev_node) {
+	list_splice_init(&ubbd_dev_list, &tmp_list);
+	pthread_mutex_unlock(&ubbd_dev_list_mutex);
+
+        list_for_each_entry_safe(ubbd_dev_tmp, next, &tmp_list, dev_node) {
 		pthread_mutex_lock(&ubbd_dev_tmp->lock);
 		dev_stop(ubbd_dev_tmp);
 		ubbd_dev_close(ubbd_dev_tmp);
 		pthread_mutex_unlock(&ubbd_dev_tmp->lock);
 		ubbd_dev_release(ubbd_dev_tmp);
         }
-	pthread_mutex_unlock(&ubbd_dev_list_mutex);
 }
