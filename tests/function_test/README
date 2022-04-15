@@ -1,0 +1,2 @@
+pip install avocado-framework
+pip install avocado-framework-plugin-varianter-yaml-to-mux avocado-framework-plugin-result-html
