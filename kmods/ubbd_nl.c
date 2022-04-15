@@ -460,10 +460,17 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
+#ifdef HAVE_NLA_PARSE_NESTED_DEPRECATED
 	ret = nla_parse_nested_deprecated(config, UBBD_DEV_CONFIG_MAX,
 			info->attrs[UBBD_ATTR_DEV_CONFIG],
 			ubbd_dev_config_attr_policy,
 			info->extack);
+#else
+	ret = nla_parse_nested(config, UBBD_DEV_CONFIG_MAX,
+			info->attrs[UBBD_ATTR_DEV_CONFIG],
+			ubbd_dev_config_attr_policy,
+			info->extack);
+#endif
 	if (ret) {
 		pr_err("failed to parse config");
 		goto out;
