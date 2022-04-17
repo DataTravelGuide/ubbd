@@ -5,6 +5,7 @@
 #include "ubbd_dev.h"
 #include "utils.h"
 #include "ubbd_uio.h"
+#include "barrier.h"
 
 struct ubbd_dev_info *ubbd_uio_get_dev_info(void *map)
 {
@@ -106,10 +107,11 @@ void ubbdlib_processing_complete(struct ubbd_device *ubbd_dev)
 struct ubbd_se *device_cmd_head(struct ubbd_device *dev)
 {
         struct ubbd_sb *sb = dev->uio_info.map;
+	uint32_t cmd_head = io_uring_smp_load_acquire(&sb->cmd_head);
 
 	ubbd_dbg("cmd: head: %u tail: %u\n", sb->cmd_head, sb->cmd_tail);
 
-        return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_head);
+        return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + cmd_head);
 }
 
 struct ubbd_se *device_cmd_tail(struct ubbd_device *dev)

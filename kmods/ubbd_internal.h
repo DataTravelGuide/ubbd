@@ -50,8 +50,12 @@ struct ubbd_device {
 	/* Block layer tags. */
 	struct blk_mq_tag_set	tag_set;
 
+	struct task_struct	*submit_thread;
+	struct task_struct	*complete_thread;
 	struct list_head	inflight_reqs;
+	struct list_head	pending_reqs;
 	spinlock_t		inflight_reqs_lock;
+	spinlock_t		pending_reqs_lock;
 	u64			req_tid;
 
 	unsigned long		open_count;	/* protected by lock */
@@ -127,6 +131,7 @@ static const struct block_device_operations ubbd_bd_ops = {
 #define UBBD_REQ_INLINE_PI_MAX	4
 
 struct ubbd_request {
+	u64			req_tid;
 	struct ubbd_device	*ubbd_dev;
 
 	struct ubbd_se		*se;
@@ -134,7 +139,6 @@ struct ubbd_request {
 	struct request		*req;
 
 	enum ubbd_op		op;
-	u64			req_tid;
 	struct list_head	inflight_reqs_node;
 	uint32_t		pi_cnt;
 	uint32_t		inline_pi[UBBD_REQ_INLINE_PI_MAX];
@@ -166,6 +170,9 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		const struct blk_mq_queue_data *bd);
 void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret);
 enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved);
+int submit_thread_fn(void *arg);
+int complete_thread_fn(void *arg);
+
 struct ubbd_device *ubbd_dev_create(u32 data_pages);
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev);
 void ubbd_free_disk(struct ubbd_device *ubbd_dev);

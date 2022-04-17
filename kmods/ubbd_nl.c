@@ -1,4 +1,5 @@
 /* netlink */
+#include <linux/kthread.h>
 
 #include "ubbd_internal.h"
 static int ubbd_total_devs = 0;
@@ -115,6 +116,11 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	if (ret) {
 		pr_debug("failed to init uio: %d.", ret);
 		goto err_dev_put;
+	}
+
+	ubbd_dev->submit_thread = kthread_run(submit_thread_fn, ubbd_dev, "ubbd-submit");
+	if (0) {
+		ubbd_dev->complete_thread = kthread_run(complete_thread_fn, ubbd_dev, "ubbd-complete");
 	}
 
 	ret = ubbd_dev_device_setup(ubbd_dev, device_size, dev_features);

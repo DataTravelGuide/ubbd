@@ -1,6 +1,7 @@
 /*
  * Userspace Backend Block Device
  */
+#include <linux/kthread.h>
 
 #include "ubbd_internal.h"
 
@@ -49,6 +50,7 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 		goto err_bitmap_free;
 	}
 
+
 	INIT_WORK(&ubbd_dev->complete_work, complete_work_fn);
 	ubbd_dev->status = UBBD_DEV_STATUS_INIT;
 	xa_init(&ubbd_dev->data_pages_array);
@@ -57,7 +59,9 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 	mutex_init(&ubbd_dev->req_lock);
 	INIT_LIST_HEAD(&ubbd_dev->dev_node);
 	INIT_LIST_HEAD(&ubbd_dev->inflight_reqs);
+	INIT_LIST_HEAD(&ubbd_dev->pending_reqs);
 	spin_lock_init(&ubbd_dev->inflight_reqs_lock);
+	spin_lock_init(&ubbd_dev->pending_reqs_lock);
 	ubbd_dev->req_tid = 0;
 
 	kref_init(&ubbd_dev->kref);
@@ -74,6 +78,8 @@ err:
 
 static void __ubbd_dev_free(struct ubbd_device *ubbd_dev)
 {
+	kthread_stop(ubbd_dev->submit_thread);
+	//kthread_stop(ubbd_dev->complete_thread);
 	destroy_workqueue(ubbd_dev->task_wq);
 	bitmap_free(ubbd_dev->data_bitmap);
 	kfree(ubbd_dev);

@@ -5,6 +5,7 @@ static int ubbd_irqcontrol(struct uio_info *info, s32 irq_on)
 	struct ubbd_device *ubbd_dev = container_of(info, struct ubbd_device, uio_info);
 
 	queue_work(ubbd_dev->task_wq, &ubbd_dev->complete_work);
+	//wake_up_process(ubbd_dev->complete_thread);
 
 	return 0;
 }

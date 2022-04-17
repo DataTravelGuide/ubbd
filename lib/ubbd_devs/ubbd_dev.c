@@ -43,7 +43,7 @@ struct ubbd_ce *get_available_ce(struct ubbd_device *ubbd_dev)
 	while (!compr_space_enough(ubbd_dev, sizeof(struct ubbd_ce))) {
 		pthread_mutex_unlock(&ubbd_dev->req_lock);
 		ubbd_err(" compr not enough head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
-		ubbdlib_processing_complete(ubbd_dev);
+		//ubbdlib_processing_complete(ubbd_dev);
                 usleep(50000);
 		pthread_mutex_lock(&ubbd_dev->req_lock);
 	}
@@ -78,28 +78,31 @@ void *cmd_process(void *arg)
 	struct pollfd pollfds[128];
 	int ret;
 
-	ubbdlib_processing_complete(ubbd_dev);
+	//ubbdlib_processing_complete(ubbd_dev);
 	wait_for_compr_empty(ubbd_dev);
 
 	ubbd_dev->se_to_handle = sb->cmd_tail;
 	ubbd_dbg("cmd_tail: %u, cmd_head: %u\n", sb->cmd_tail, sb->cmd_head);
 
 	while (1) {
-		while (1) {
-			ubbdlib_processing_start(ubbd_dev);
+		while (1 && ubbd_dev->status != UBBD_DEV_USTATUS_STOPPING) {
+			//ubbdlib_processing_start(ubbd_dev);
 
 			se = device_cmd_to_handle(ubbd_dev);
 			if (se == device_cmd_head(ubbd_dev)) {
-				break;
+				//ubbd_dbg("se: %p, head: %p \n", se, device_cmd_head(ubbd_dev));
+				usleep(1);
+				continue;
 			}
 			op_len = ubbd_se_hdr_get_len(se->header.len_op);
-			ubbd_dbg("len_op: %x\n", se->header.len_op);
-			ubbd_dbg("op: %d, length: %u\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op));
-			if (ubbd_se_hdr_get_op(se->header.len_op) != UBBD_OP_PAD)
-				ubbd_dbg("se id: %llu\n", se->priv_data);
+			//ubbd_dbg("len_op: %x\n", se->header.len_op);
+			//ubbd_dbg("op: %d, length: %u\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op));
+			//if (ubbd_se_hdr_get_op(se->header.len_op) != UBBD_OP_PAD)
+			//	ubbd_dbg("se id: %llu\n", se->priv_data);
 			handle_cmd(ubbd_dev, se);
 			UBBD_UPDATE_CMD_TO_HANDLE(ubbd_dev, sb, op_len);
 			ubbd_dbg("finish handle_cmd\n");
+			continue;
 		}
 
 poll:

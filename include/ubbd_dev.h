@@ -8,6 +8,7 @@
 #include "ubbd_log.h"
 #include "utils.h"
 #include "list.h"
+#include "barrier.h"
 
 #define POOL_MAX	1024
 #define IMAGE_MAX	1024
@@ -133,7 +134,7 @@ do { \
 
 #define UBBD_UPDATE_DEV_COMP_HEAD(dev, sb, ce) \
 do { \
-        sb->compr_head = (sb->compr_head + sizeof(struct ubbd_ce)) % sb->compr_size; \
+	io_uring_smp_store_release(&sb->compr_head, (sb->compr_head + sizeof(struct ubbd_ce)) % sb->compr_size); \
 	ubbd_dbg("compr_head: %u, compr_tail: %u\n", sb->compr_head, sb->compr_tail); \
 } while (0)
 

@@ -1,3 +1,6 @@
+#include <linux/kthread.h>
+#include <linux/delay.h>
+
 #include "ubbd_internal.h"
 
 struct ubbd_se *get_submit_entry(struct ubbd_device *ubbd_dev)
@@ -21,6 +24,7 @@ struct ubbd_se *get_oldest_se(struct ubbd_device *ubbd_dev)
 
 struct ubbd_ce *get_complete_entry(struct ubbd_device *ubbd_dev)
 {
+	smp_load_acquire(&ubbd_dev->sb_addr->compr_head);
 	if (ubbd_dev->sb_addr->compr_tail == ubbd_dev->sb_addr->compr_head)
 		return NULL;
 
@@ -448,6 +452,8 @@ static void queue_req_data_init(struct ubbd_request *ubbd_req)
 	}
 }
 
+
+
 void ubbd_queue_workfn(struct work_struct *work)
 {
 	struct ubbd_request *ubbd_req =
@@ -456,6 +462,48 @@ void ubbd_queue_workfn(struct work_struct *work)
 	int ret = 0;
 
 	mutex_lock(&ubbd_dev->req_lock);
+
+	ret = queue_req_prepare(ubbd_req);
+	if (ret)
+		goto end_request;
+
+	queue_req_se_init(ubbd_req);
+	queue_req_data_init(ubbd_req);
+
+	/* ubbd_req is ready, submit it to cmd ring */
+	spin_lock(&ubbd_dev->inflight_reqs_lock);
+	list_add_tail(&ubbd_req->inflight_reqs_node, &ubbd_dev->inflight_reqs);
+	spin_unlock(&ubbd_dev->inflight_reqs_lock);
+
+	UPDATE_CMDR_HEAD(ubbd_dev->sb_addr->cmd_head,
+			ubbd_get_cmd_size(ubbd_req),
+			ubbd_dev->sb_addr->cmdr_size);
+
+	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
+	mutex_unlock(&ubbd_dev->req_lock);
+
+	uio_event_notify(&ubbd_dev->uio_info);
+	blk_mq_end_request(ubbd_req->req, errno_to_blk_status(0));
+
+	return;
+
+end_request:
+	mutex_unlock(&ubbd_dev->req_lock);
+	if (ret == -ENOMEM)
+		blk_mq_requeue_request(ubbd_req->req, true);
+	else
+		blk_mq_end_request(ubbd_req->req, errno_to_blk_status(ret));
+
+	return;
+}
+
+void submit_req(struct ubbd_request *ubbd_req)
+{
+	struct ubbd_device *ubbd_dev = ubbd_req->ubbd_dev;
+	int ret = 0;
+
+	mutex_lock(&ubbd_dev->req_lock);
+
 	ret = queue_req_prepare(ubbd_req);
 	if (ret)
 		goto end_request;
@@ -473,7 +521,7 @@ void ubbd_queue_workfn(struct work_struct *work)
 	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
 	mutex_unlock(&ubbd_dev->req_lock);
 
-	uio_event_notify(&ubbd_dev->uio_info);
+	//uio_event_notify(&ubbd_dev->uio_info);
 
 	return;
 
@@ -485,6 +533,64 @@ end_request:
 		blk_mq_end_request(ubbd_req->req, errno_to_blk_status(ret));
 
 	return;
+}
+
+static void ubbd_req_release(struct ubbd_request *ubbd_req);
+int submit_thread_fn(void *arg)
+{
+	struct ubbd_device *ubbd_dev = arg;
+	struct ubbd_request *ubbd_req, *next_req;
+	bool need_schedule = false;
+	LIST_HEAD(tmp_list);
+	cpumask_var_t cpumask;
+
+	alloc_cpumask_var(&cpumask, GFP_KERNEL);
+	cpumask_clear(cpumask);
+	cpumask_set_cpu(1, cpumask);
+	set_cpus_allowed_ptr(current, cpumask);
+	free_cpumask_var(cpumask);
+
+	while (!kthread_should_stop() &&
+	       !(ubbd_dev->status == UBBD_DEV_STATUS_REMOVING)) {
+		need_schedule = false;
+
+		spin_lock(&ubbd_dev->pending_reqs_lock);
+		if (list_empty(&ubbd_dev->pending_reqs)) {
+			//pr_err("empty");
+			need_schedule = true;
+		} else {
+			//pr_err("not empty");
+			list_splice_init(&ubbd_dev->pending_reqs, &tmp_list);
+		}
+		spin_unlock(&ubbd_dev->pending_reqs_lock);
+
+		if (need_schedule) {
+			if (true) {
+				//pr_err("before schedule");
+				set_current_state(TASK_INTERRUPTIBLE);
+				schedule();
+				//pr_err("after schedule.");
+			} else {
+				yield();
+			}
+			continue;
+		}
+		set_current_state(TASK_RUNNING);
+
+		//pr_err("before process");
+		list_for_each_entry_safe(ubbd_req, next_req, &tmp_list, inflight_reqs_node) {
+			list_del_init(&ubbd_req->inflight_reqs_node);
+			submit_req(ubbd_req);
+		}
+	}
+
+
+	while (!kthread_should_stop()) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule();
+	}
+
+	return 0;
 }
 
 blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
@@ -518,6 +624,16 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	default:
 		return BLK_STS_IOERR;
 	}
+
+	spin_lock(&ubbd_dev->pending_reqs_lock);
+	list_add_tail(&ubbd_req->inflight_reqs_node, &ubbd_dev->pending_reqs);
+	spin_unlock(&ubbd_dev->pending_reqs_lock);
+
+	//pr_err("before wakeup");
+	wake_up_process(ubbd_dev->submit_thread);
+	//pr_err("after wakeup");
+
+	return BLK_STS_OK;
 
 	INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
 	queue_work(ubbd_wq, &ubbd_req->work);
@@ -580,10 +696,72 @@ static struct ubbd_request *find_inflight_req(struct ubbd_device *ubbd_dev, u64 
 static void complete_inflight_req(struct ubbd_device *ubbd_dev, struct ubbd_request *req, int ret)
 {
 	ubbd_se_hdr_flags_set(req->se, UBBD_SE_HDR_DONE);
+	spin_lock(&ubbd_dev->inflight_reqs_lock);
 	list_del_init(&req->inflight_reqs_node);
+	spin_unlock(&ubbd_dev->inflight_reqs_lock);
 	ubbd_req_release(req);
 	blk_mq_end_request(req->req, errno_to_blk_status(ret));
 	advance_cmd_ring(ubbd_dev);
+}
+
+int complete_thread_fn(void *arg)
+{
+	struct ubbd_device *ubbd_dev = arg;
+	struct ubbd_ce *ce;
+	struct ubbd_request *ubbd_req;
+	cpumask_var_t cpumask;
+
+	alloc_cpumask_var(&cpumask, GFP_KERNEL);
+	cpumask_clear(cpumask);
+	cpumask_set_cpu(5, cpumask);
+	set_cpus_allowed_ptr(current, cpumask);
+	free_cpumask_var(cpumask);
+
+	while (!kthread_should_stop() &&
+	       !(ubbd_dev->status == UBBD_DEV_STATUS_REMOVING)) {
+
+		ce = get_complete_entry(ubbd_dev);
+		if (!ce) {
+			if (false) {
+				//pr_err("before schedule");
+				set_current_state(TASK_INTERRUPTIBLE);
+				schedule();
+				//pr_err("after schedule.");
+			} else {
+				udelay(2);
+				yield();
+			}
+			continue;
+		}
+
+		ubbd_flush_dcache_range(ce, sizeof(*ce));
+		mutex_lock(&ubbd_dev->req_lock);
+		ubbd_req = find_inflight_req(ubbd_dev, ce->priv_data);
+		WARN_ON(!ubbd_req);
+		if (!ubbd_req) {
+			mutex_unlock(&ubbd_dev->req_lock);
+			goto advance_compr;
+		}
+
+		if (req_op(ubbd_req->req) == REQ_OP_READ)
+			copy_data_from_ubbdreq(ubbd_req);
+
+		complete_inflight_req(ubbd_dev, ubbd_req, ce->result);
+		mutex_unlock(&ubbd_dev->req_lock);
+
+	advance_compr:
+		UPDATE_COMPR_TAIL(ubbd_dev->sb_addr->compr_tail, sizeof(struct ubbd_ce), ubbd_dev->sb_addr->compr_size);
+
+		ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
+	}
+
+
+	while (!kthread_should_stop()) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule();
+	}
+
+	return 0;
 }
 
 void complete_work_fn(struct work_struct *work)
@@ -591,18 +769,28 @@ void complete_work_fn(struct work_struct *work)
 	struct ubbd_device *ubbd_dev = container_of(work, struct ubbd_device, complete_work);
 	struct ubbd_ce *ce;
 	struct ubbd_request *req;
+	cpumask_var_t cpumask;
+
+	alloc_cpumask_var(&cpumask, GFP_KERNEL);
+	cpumask_clear(cpumask);
+	cpumask_set_cpu(1, cpumask);
+	set_cpus_allowed_ptr(current, cpumask);
+	free_cpumask_var(cpumask);
 
 again:
-	mutex_lock(&ubbd_dev->req_lock);
 	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
-		mutex_unlock(&ubbd_dev->req_lock);
 		return;
 	}
 
 	ce = get_complete_entry(ubbd_dev);
 	if (!ce) {
-		mutex_unlock(&ubbd_dev->req_lock);
-		return;
+		if (false) {
+			udelay(1);
+			yield();
+			goto again;
+		} else {
+			return;
+		}
 	}
 
 	ubbd_flush_dcache_range(ce, sizeof(*ce));
@@ -615,11 +803,12 @@ again:
 	if (req_op(req->req) == REQ_OP_READ)
 		copy_data_from_ubbdreq(req);
 
+	mutex_lock(&ubbd_dev->req_lock);
 	complete_inflight_req(ubbd_dev, req, ce->result);
+	mutex_unlock(&ubbd_dev->req_lock);
 
 advance_compr:
 	UPDATE_COMPR_TAIL(ubbd_dev->sb_addr->compr_tail, sizeof(struct ubbd_ce), ubbd_dev->sb_addr->compr_size);
-	mutex_unlock(&ubbd_dev->req_lock);
 
 	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
 	goto again;
