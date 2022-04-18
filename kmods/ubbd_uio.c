@@ -125,16 +125,16 @@ static int ubbd_uio_release(struct uio_info *info, struct inode *inode)
 	return 0;
 }
 
-int ubbd_dev_uio_init(struct ubbd_device *ubbd_dev)
+int ubbd_queue_uio_init(struct ubbd_queue *ubbd_q)
 {
 	struct uio_info *info;
 
-	info = &ubbd_dev->uio_info;
+	info = &ubbd_q->uio_info;
 	info->version = __stringify(UBBD_SB_VERSION);
 
 	info->mem[0].name = "ubbd buffer";
-	info->mem[0].addr = (phys_addr_t)(uintptr_t)ubbd_dev->sb_addr;
-	info->mem[0].size = ubbd_dev->mmap_pages << PAGE_SHIFT;
+	info->mem[0].addr = (phys_addr_t)(uintptr_t)ubbd_q->sb_addr;
+	info->mem[0].size = ubbd_q->mmap_pages << PAGE_SHIFT;
 	info->mem[0].memtype = UIO_MEM_NONE;
 
 	info->irqcontrol = ubbd_irqcontrol;
@@ -144,16 +144,16 @@ int ubbd_dev_uio_init(struct ubbd_device *ubbd_dev)
 	info->open = ubbd_uio_open;
 	info->release = ubbd_uio_release;
 
-	info->name = kasprintf(GFP_KERNEL, "ubbd%d", ubbd_dev->dev_id);
+	info->name = kasprintf(GFP_KERNEL, "ubbd%d-%d", ubbd_q->ubbd_dev->dev_id, ubbd_q->index);
 	if (!info->name)
 		return -ENOMEM;
 
 	return uio_register_device(ubbd_uio_root_device, info);
 }
 
-void ubbd_dev_uio_destroy(struct ubbd_device *ubbd_dev)
+void ubbd_queue_uio_destroy(struct ubbd_queue *ubbd_q)
 {
-	struct uio_info *info = &ubbd_dev->uio_info;
+	struct uio_info *info = &ubbd_q->uio_info;
 
 	kfree(info->name);
 	uio_unregister_device(info);

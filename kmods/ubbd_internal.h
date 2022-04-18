@@ -33,28 +33,13 @@
 
 extern struct workqueue_struct *ubbd_wq;
 
-struct ubbd_device {
-	int			dev_id;		/* blkdev unique id */
+struct ubbd_queue {
+	struct ubbd_device	*ubbd_dev;
 
-	int			major;		/* blkdev assigned major */
-	int			minor;
-	struct gendisk		*disk;		/* blkdev's gendisk and rq */
-
-	char			name[DEV_NAME_LEN]; /* blkdev name, e.g. ubbd3 */
-
-	spinlock_t		lock;		/* open_count */
-	struct mutex   		req_lock;
-	struct inode		*inode;
-	struct list_head	dev_node;	/* ubbd_dev_list */
-
-	/* Block layer tags. */
-	struct blk_mq_tag_set	tag_set;
-
+	int			index;
 	struct list_head	inflight_reqs;
 	spinlock_t		inflight_reqs_lock;
 	u64			req_tid;
-
-	unsigned long		open_count;	/* protected by lock */
 
 	struct uio_info		uio_info;
 	struct xarray		data_pages_array;
@@ -71,6 +56,29 @@ struct ubbd_device {
 	uint32_t		max_blocks;
 	size_t			mmap_pages;
 
+	struct mutex   		req_lock;
+	struct inode		*inode;
+};
+
+struct ubbd_device {
+	int			dev_id;		/* blkdev unique id */
+
+	int			major;		/* blkdev assigned major */
+	int			minor;
+	struct gendisk		*disk;		/* blkdev's gendisk and rq */
+
+	char			name[DEV_NAME_LEN]; /* blkdev name, e.g. ubbd3 */
+
+	spinlock_t		lock;		/* open_count */
+	struct list_head	dev_node;	/* ubbd_dev_list */
+
+	/* Block layer tags. */
+	struct blk_mq_tag_set	tag_set;
+
+	unsigned long		open_count;	/* protected by lock */
+
+	uint32_t		num_queues;
+	struct ubbd_queue	*queues;
 	struct workqueue_struct	*task_wq;
 	struct work_struct	complete_work;
 
@@ -175,8 +183,8 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved);
 struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *);
 void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev);
 int ubbd_add_disk(struct ubbd_device *ubbd_dev);
-int ubbd_dev_uio_init(struct ubbd_device *ubbd_dev);
-void ubbd_dev_uio_destroy(struct ubbd_device *ubbd_dev);
+int ubbd_queue_uio_init(struct ubbd_queue *ubbd_q);
+void ubbd_queue_uio_destroy(struct ubbd_queue *ubbd_q);
 
 #undef UBBD_FAULT_INJECT
 
