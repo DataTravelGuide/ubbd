@@ -117,10 +117,6 @@ static int send_netlink_remove_dev(struct ubbd_nl_req *req)
 	if (!hdr)
 		goto free_msg;
 
-	ret = nla_put_u64(msg, UBBD_ATTR_PRIV_DATA, (uint64_t)ubbd_dev);
-	if (ret < 0)
-		goto free_msg;
-
 	ret = nla_put_s32(msg, UBBD_ATTR_DEV_ID, ubbd_dev->dev_id);
 	if (ret < 0)
 		goto free_msg;
@@ -217,10 +213,6 @@ int send_netlink_remove_disk(struct ubbd_nl_req *req)
 	if (!hdr)
 		goto free_msg;
 
-	ret = nla_put_u64(msg, UBBD_ATTR_PRIV_DATA, (uint64_t)ubbd_dev);
-	if (ret < 0)
-		goto free_msg;
-
 	ret = nla_put_s32(msg, UBBD_ATTR_DEV_ID, ubbd_dev->dev_id);
 	if (ret < 0)
 		goto free_msg;
@@ -269,10 +261,6 @@ static int send_netlink_add_disk(struct ubbd_nl_req *req)
 	if (!hdr)
 		goto free_msg;
 
-	ret = nla_put_u64(msg, UBBD_ATTR_PRIV_DATA, (uint64_t)ubbd_dev);
-	if (ret < 0)
-		goto free_msg;
-
 	ret = nla_put_s32(msg, UBBD_ATTR_DEV_ID, ubbd_dev->dev_id);
 	if (ret < 0)
 		goto free_msg;
@@ -296,7 +284,7 @@ close_sock:
 
 static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 {
-	struct ubbd_device *ubbd_dev;
+	struct ubbd_device *ubbd_dev = arg;
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
 	int ret;
@@ -308,7 +296,6 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 		return ret;
 	}
 
-	ubbd_dev = (struct ubbd_device *)(nla_get_u64(msg_attr[UBBD_ATTR_PRIV_DATA]));
 	ubbd_dev->dev_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_DEV_ID]));
 	ubbd_dev->uio_info.uio_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_UIO_ID]));
 	ubbd_dev->uio_info.uio_map_size = (uint64_t)(nla_get_u64(msg_attr[UBBD_ATTR_UIO_MAP_SIZE]));
@@ -330,7 +317,7 @@ int send_netlink_add_dev(struct ubbd_nl_req *req)
 	if (!socket)
 		return -1;
 
-	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, add_dev_done_callback, NULL);
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, add_dev_done_callback, ubbd_dev);
 
 	msg = nlmsg_alloc();
 	if (!msg)
@@ -339,10 +326,6 @@ int send_netlink_add_dev(struct ubbd_nl_req *req)
 	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
 			  0, 0, UBBD_CMD_ADD_DEV, UBBD_NL_VERSION);
 	if (!hdr)
-		goto free_msg;
-
-	ret = nla_put_u64(msg, UBBD_ATTR_PRIV_DATA, (uint64_t)ubbd_dev);
-	if (ret < 0)
 		goto free_msg;
 
 	ret = nla_put_u64(msg, UBBD_ATTR_DEV_SIZE, ubbd_dev->dev_size);
