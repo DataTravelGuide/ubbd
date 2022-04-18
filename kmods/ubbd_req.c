@@ -1,31 +1,31 @@
 #include "ubbd_internal.h"
 
-struct ubbd_se *get_submit_entry(struct ubbd_device *ubbd_dev)
+struct ubbd_se *get_submit_entry(struct ubbd_queue *ubbd_q)
 {
 	struct ubbd_se *se;
 
-	pr_debug("get se head : %u", ubbd_dev->sb_addr->cmd_head);
-	se = (struct ubbd_se *)(ubbd_dev->cmdr + ubbd_dev->sb_addr->cmd_head);
+	pr_debug("get se head : %u", ubbd_q->sb_addr->cmd_head);
+	se = (struct ubbd_se *)(ubbd_q->cmdr + ubbd_q->sb_addr->cmd_head);
 
 	return se;
 }
 
-struct ubbd_se *get_oldest_se(struct ubbd_device *ubbd_dev)
+struct ubbd_se *get_oldest_se(struct ubbd_queue *ubbd_q)
 {
-	if (ubbd_dev->sb_addr->cmd_tail == ubbd_dev->sb_addr->cmd_head)
+	if (ubbd_q->sb_addr->cmd_tail == ubbd_q->sb_addr->cmd_head)
 		return NULL;
 
-	pr_debug("get tail se: %u", ubbd_dev->sb_addr->cmd_tail);
-	return (struct ubbd_se *)(ubbd_dev->cmdr + ubbd_dev->sb_addr->cmd_tail);
+	pr_debug("get tail se: %u", ubbd_q->sb_addr->cmd_tail);
+	return (struct ubbd_se *)(ubbd_q->cmdr + ubbd_q->sb_addr->cmd_tail);
 }
 
-struct ubbd_ce *get_complete_entry(struct ubbd_device *ubbd_dev)
+struct ubbd_ce *get_complete_entry(struct ubbd_queue *ubbd_q)
 {
-	if (ubbd_dev->sb_addr->compr_tail == ubbd_dev->sb_addr->compr_head)
+	if (ubbd_q->sb_addr->compr_tail == ubbd_q->sb_addr->compr_head)
 		return NULL;
 
-	pr_debug("get complete entry: %u, head: %u", ubbd_dev->sb_addr->compr_tail, ubbd_dev->sb_addr->compr_head);
-	return (struct ubbd_ce *)(ubbd_dev->compr + ubbd_dev->sb_addr->compr_tail);
+	pr_debug("get complete entry: %u, head: %u", ubbd_q->sb_addr->compr_tail, ubbd_q->sb_addr->compr_head);
+	return (struct ubbd_ce *)(ubbd_q->compr + ubbd_q->sb_addr->compr_tail);
 }
 
 static uint32_t ubbd_req_get_pi(struct ubbd_request *req, uint32_t bvec_index)
@@ -45,7 +45,7 @@ static void ubbd_req_set_pi(struct ubbd_request *req, uint32_t index, int value)
 		req->pi[index - UBBD_REQ_INLINE_PI_MAX] = value;
 }
 
-static struct page *ubbd_alloc_page(struct ubbd_device *ubbd_dev)
+static struct page *ubbd_alloc_page(struct ubbd_queue *ubbd_q)
 {
 	struct page *page;
 
@@ -60,19 +60,19 @@ static struct page *ubbd_alloc_page(struct ubbd_device *ubbd_dev)
 	}
 
 	pr_debug("alloc page: %p", page);
-	ubbd_dev->data_pages_allocated++;
+	ubbd_q->data_pages_allocated++;
 
 	return page;
 }
 
-static void __ubbd_release_page(struct ubbd_device *ubbd_dev, struct page *page)
+static void __ubbd_release_page(struct ubbd_queue *ubbd_q, struct page *page)
 {
 	pr_debug("release page: %p", page);
 	__free_page(page);
-	ubbd_dev->data_pages_allocated--;
+	ubbd_q->data_pages_allocated--;
 }
 
-static void ubbd_release_page(struct ubbd_device *ubbd_dev,
+static void ubbd_release_page(struct ubbd_queue *ubbd_q,
 		struct ubbd_request *ubbd_req, int bvec_index)
 {
 	struct page *page = NULL;
@@ -81,34 +81,34 @@ static void ubbd_release_page(struct ubbd_device *ubbd_dev,
 	pr_debug("release page: %u, req: %p, bvec_index: %u ",
 			page_index, ubbd_req, bvec_index);
 
-	clear_bit(page_index, ubbd_dev->data_bitmap);
-	if (ubbd_dev->data_pages_allocated > ubbd_dev->data_pages_reserve) {
+	clear_bit(page_index, ubbd_q->data_bitmap);
+	if (ubbd_q->data_pages_allocated > ubbd_q->data_pages_reserve) {
 		loff_t off;
 
-		page = xa_load(&ubbd_dev->data_pages_array, page_index);
+		page = xa_load(&ubbd_q->data_pages_array, page_index);
 		if (!page)
 			return;
 
-		off = ubbd_dev->data_off + page_index * 4096;
-		unmap_mapping_range(ubbd_dev->inode->i_mapping, off, 2, 1);
+		off = ubbd_q->data_off + page_index * 4096;
+		unmap_mapping_range(ubbd_q->inode->i_mapping, off, 2, 1);
 
-		xa_erase(&ubbd_dev->data_pages_array, page_index);
-		__ubbd_release_page(ubbd_dev, page);
+		xa_erase(&ubbd_q->data_pages_array, page_index);
+		__ubbd_release_page(ubbd_q, page);
 	}
 }
 
-static int ubbd_xa_store_page(struct ubbd_device *ubbd_dev, int page_index,
+static int ubbd_xa_store_page(struct ubbd_queue *ubbd_q, int page_index,
 		struct page *page)
 {
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_req_need_fault())
 		return -ENOMEM;
 #endif /* UBBD_FAULT_INJECT */
-	return xa_err(xa_store(&ubbd_dev->data_pages_array,
+	return xa_err(xa_store(&ubbd_q->data_pages_array,
 				page_index, page, GFP_NOIO));
 }
 
-static int ubbd_get_data_pages(struct ubbd_device *ubbd_dev, struct ubbd_request *req)
+static int ubbd_get_data_pages(struct ubbd_queue *ubbd_q, struct ubbd_request *req)
 {
 	struct page *page;
 	int bvec_index = 0, page_index = 0;
@@ -119,29 +119,29 @@ static int ubbd_get_data_pages(struct ubbd_device *ubbd_dev, struct ubbd_request
 
 next_bio:
 	bio_for_each_segment(bv, bio, iter) {
-		page_index = find_first_zero_bit(ubbd_dev->data_bitmap, ubbd_dev->data_pages);
-		if (page_index == ubbd_dev->data_pages) {
+		page_index = find_first_zero_bit(ubbd_q->data_bitmap, ubbd_q->data_pages);
+		if (page_index == ubbd_q->data_pages) {
 			ret = -ENOMEM;
 			goto out;
 		}
 
-		page = xa_load(&ubbd_dev->data_pages_array, page_index);
+		page = xa_load(&ubbd_q->data_pages_array, page_index);
 		if (!page) {
-			page = ubbd_alloc_page(ubbd_dev);
+			page = ubbd_alloc_page(ubbd_q);
 			if (!page) {
 				pr_err("failed to alloc page.");
 				ret = -ENOMEM;
 				goto out;
 			}
-			ret = ubbd_xa_store_page(ubbd_dev, page_index, page);
+			ret = ubbd_xa_store_page(ubbd_q, page_index, page);
 			if (ret) {
 				pr_err("xa_store failed.");
-				__ubbd_release_page(ubbd_dev, page);
+				__ubbd_release_page(ubbd_q, page);
 				goto out;
 			}
 		}
 
-		set_bit(page_index, ubbd_dev->data_bitmap);
+		set_bit(page_index, ubbd_q->data_bitmap);
 		ubbd_req_set_pi(req, bvec_index++, page_index);
 	}
 
@@ -154,7 +154,7 @@ out:
 	if (ret) {
 		pr_err("ret is %d, bvec_index: %d", ret, bvec_index);
 		while (bvec_index > 0) {
-			ubbd_release_page(ubbd_dev, req, --bvec_index);
+			ubbd_release_page(ubbd_q, req, --bvec_index);
 		}
 	}
 	return ret;
@@ -174,7 +174,7 @@ next:
 		page_index = ubbd_req_get_pi(ubbd_req, bvec_index);
 
 		pr_debug("bvec_index: %u, page_index: %u", bvec_index, page_index);
-		se->iov[bvec_index].iov_base = (void *)((page_index * PAGE_SIZE) + ubbd_req->ubbd_dev->data_off + bv.bv_offset);
+		se->iov[bvec_index].iov_base = (void *)((page_index * PAGE_SIZE) + ubbd_req->ubbd_q->data_off + bv.bv_offset);
 		se->iov[bvec_index].iov_len = bv.bv_len;
 		bvec_index++;
 	}
@@ -189,9 +189,9 @@ next:
 
 static struct page *ubbd_req_get_page(struct ubbd_request *req, uint32_t bvec_index)
 {
-	struct ubbd_device *ubbd_dev = req->ubbd_dev;
+	struct ubbd_queue *ubbd_q = req->ubbd_q;
 
-	return xa_load(&ubbd_dev->data_pages_array, ubbd_req_get_pi(req, bvec_index));
+	return xa_load(&ubbd_q->data_pages_array, ubbd_req_get_pi(req, bvec_index));
 }
 
 static bool ubbd_req_nodata(struct ubbd_request *ubbd_req)
@@ -288,28 +288,28 @@ copy:
 	return;
 }
 
-static bool submit_ring_space_enough(struct ubbd_device *ubbd_dev, u32 cmd_size)
+static bool submit_ring_space_enough(struct ubbd_queue *ubbd_q, u32 cmd_size)
 {
 	u32 space_available;
 	u32 space_needed;
 	u32 space_max, space_used;
 
 	/* There is a CMDR_RESERVED we dont use to prevent the ring to be used up */
-	space_max = ubbd_dev->sb_addr->cmdr_size - CMDR_RESERVED;
+	space_max = ubbd_q->sb_addr->cmdr_size - CMDR_RESERVED;
 
-	if (ubbd_dev->sb_addr->cmd_head > ubbd_dev->sb_addr->cmd_tail)
-		space_used = ubbd_dev->sb_addr->cmd_head - ubbd_dev->sb_addr->cmd_tail;
-	else if (ubbd_dev->sb_addr->cmd_head < ubbd_dev->sb_addr->cmd_tail)
-		space_used = ubbd_dev->sb_addr->cmd_head + (ubbd_dev->sb_addr->cmdr_size - ubbd_dev->sb_addr->cmd_tail);
+	if (ubbd_q->sb_addr->cmd_head > ubbd_q->sb_addr->cmd_tail)
+		space_used = ubbd_q->sb_addr->cmd_head - ubbd_q->sb_addr->cmd_tail;
+	else if (ubbd_q->sb_addr->cmd_head < ubbd_q->sb_addr->cmd_tail)
+		space_used = ubbd_q->sb_addr->cmd_head + (ubbd_q->sb_addr->cmdr_size - ubbd_q->sb_addr->cmd_tail);
 	else
 		space_used = 0;
 
 	space_available = space_max - space_used;
 
-	if (ubbd_dev->sb_addr->cmdr_size - ubbd_dev->sb_addr->cmd_head > cmd_size)
+	if (ubbd_q->sb_addr->cmdr_size - ubbd_q->sb_addr->cmd_head > cmd_size)
 		space_needed = cmd_size;
 	else
-		space_needed = cmd_size + ubbd_dev->sb_addr->cmdr_size - ubbd_dev->sb_addr->cmd_head;
+		space_needed = cmd_size + ubbd_q->sb_addr->cmdr_size - ubbd_q->sb_addr->cmd_head;
 
 	if (space_available < space_needed)
 		return false;
@@ -317,30 +317,30 @@ static bool submit_ring_space_enough(struct ubbd_device *ubbd_dev, u32 cmd_size)
 	return true;
 }
 
-static void insert_padding(struct ubbd_device *ubbd_dev, u32 cmd_size)
+static void insert_padding(struct ubbd_queue *ubbd_q, u32 cmd_size)
 {
 	struct ubbd_se_hdr *header;
 	u32 pad_len;
 
-	if (ubbd_dev->sb_addr->cmdr_size - ubbd_dev->sb_addr->cmd_head >= cmd_size)
+	if (ubbd_q->sb_addr->cmdr_size - ubbd_q->sb_addr->cmd_head >= cmd_size)
 		return;
 
-	pad_len = ubbd_dev->sb_addr->cmdr_size - ubbd_dev->sb_addr->cmd_head;
+	pad_len = ubbd_q->sb_addr->cmdr_size - ubbd_q->sb_addr->cmd_head;
 
-	header = (struct ubbd_se_hdr *)get_submit_entry(ubbd_dev);
+	header = (struct ubbd_se_hdr *)get_submit_entry(ubbd_q);
 	memset(header, 0, pad_len);
 	ubbd_se_hdr_set_op(&header->len_op, UBBD_OP_PAD);
 	ubbd_se_hdr_set_len(&header->len_op, pad_len);
 
-	UPDATE_CMDR_HEAD(ubbd_dev->sb_addr->cmd_head, pad_len, ubbd_dev->sb_addr->cmdr_size);
+	UPDATE_CMDR_HEAD(ubbd_q->sb_addr->cmd_head, pad_len, ubbd_q->sb_addr->cmdr_size);
 }
 
-void ubbd_req_init(struct ubbd_device *ubbd_dev, enum ubbd_op op, struct request *rq)
+void ubbd_req_init(struct ubbd_queue *ubbd_q, enum ubbd_op op, struct request *rq)
 {
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(rq);
 
 	ubbd_req->req = rq;
-	ubbd_req->ubbd_dev = ubbd_dev;
+	ubbd_req->ubbd_q = ubbd_q;
 	ubbd_req->op = op;
 }
 
@@ -367,7 +367,8 @@ static inline size_t ubbd_get_cmd_size(struct ubbd_request *ubbd_req)
 
 static int queue_req_prepare(struct ubbd_request *ubbd_req)
 {
-	struct ubbd_device *ubbd_dev = ubbd_req->ubbd_dev;
+	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 	size_t command_size;
 	int ret;
 
@@ -379,7 +380,7 @@ static int queue_req_prepare(struct ubbd_request *ubbd_req)
 		goto err;
 	}
 
-	if (!submit_ring_space_enough(ubbd_dev, command_size)) {
+	if (!submit_ring_space_enough(ubbd_q, command_size)) {
 		pr_debug("cmd ring space is not enough");
 		ret = -ENOMEM;
 		goto err;
@@ -395,15 +396,15 @@ static int queue_req_prepare(struct ubbd_request *ubbd_req)
 	}
 
 	if (ubbd_req->pi_cnt) {
-		ret = ubbd_get_data_pages(ubbd_dev, ubbd_req);
+		ret = ubbd_get_data_pages(ubbd_q, ubbd_req);
 		if (ret) {
 			pr_err("get data page failed");
 			goto err_free_pi;
 		}
 	}
 
-	insert_padding(ubbd_dev, command_size);
-	ubbd_req->req_tid = ++ubbd_dev->req_tid;
+	insert_padding(ubbd_q, command_size);
+	ubbd_req->req_tid = ++ubbd_q->req_tid;
 
 	return 0;
 
@@ -422,7 +423,7 @@ static void queue_req_se_init(struct ubbd_request *ubbd_req)
 	u64 offset = (u64)blk_rq_pos(ubbd_req->req) << SECTOR_SHIFT;
 	u64 length = blk_rq_bytes(ubbd_req->req);
 
-	se = get_submit_entry(ubbd_req->ubbd_dev);
+	se = get_submit_entry(ubbd_req->ubbd_q);
 	memset(se, 0, ubbd_get_cmd_size(ubbd_req));
 	header = &se->header;
 
@@ -452,10 +453,10 @@ void ubbd_queue_workfn(struct work_struct *work)
 {
 	struct ubbd_request *ubbd_req =
 		container_of(work, struct ubbd_request, work);
-	struct ubbd_device *ubbd_dev = ubbd_req->ubbd_dev;
+	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
 	int ret = 0;
 
-	mutex_lock(&ubbd_dev->req_lock);
+	mutex_lock(&ubbd_q->req_lock);
 	ret = queue_req_prepare(ubbd_req);
 	if (ret)
 		goto end_request;
@@ -464,21 +465,21 @@ void ubbd_queue_workfn(struct work_struct *work)
 	queue_req_data_init(ubbd_req);
 
 	/* ubbd_req is ready, submit it to cmd ring */
-	list_add_tail(&ubbd_req->inflight_reqs_node, &ubbd_dev->inflight_reqs);
+	list_add_tail(&ubbd_req->inflight_reqs_node, &ubbd_q->inflight_reqs);
 
-	UPDATE_CMDR_HEAD(ubbd_dev->sb_addr->cmd_head,
+	UPDATE_CMDR_HEAD(ubbd_q->sb_addr->cmd_head,
 			ubbd_get_cmd_size(ubbd_req),
-			ubbd_dev->sb_addr->cmdr_size);
+			ubbd_q->sb_addr->cmdr_size);
 
-	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
-	mutex_unlock(&ubbd_dev->req_lock);
+	ubbd_flush_dcache_range(ubbd_q->sb_addr, sizeof(*ubbd_q->sb_addr));
+	mutex_unlock(&ubbd_q->req_lock);
 
-	uio_event_notify(&ubbd_dev->uio_info);
+	uio_event_notify(&ubbd_q->uio_info);
 
 	return;
 
 end_request:
-	mutex_unlock(&ubbd_dev->req_lock);
+	mutex_unlock(&ubbd_q->req_lock);
 	if (ret == -ENOMEM)
 		blk_mq_requeue_request(ubbd_req->req, true);
 	else
@@ -490,7 +491,7 @@ end_request:
 blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		const struct blk_mq_queue_data *bd)
 {
-	struct ubbd_device *ubbd_dev = hctx->queue->queuedata;
+	struct ubbd_queue *ubbd_q = hctx->driver_data;
 	struct request *req = bd->rq;
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(bd->rq);
 
@@ -501,19 +502,19 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 
 	switch (req_op(bd->rq)) {
 	case REQ_OP_FLUSH:
-		ubbd_req_init(ubbd_dev, UBBD_OP_FLUSH, req);
+		ubbd_req_init(ubbd_q, UBBD_OP_FLUSH, req);
 		break;
 	case REQ_OP_DISCARD:
-		ubbd_req_init(ubbd_dev, UBBD_OP_DISCARD, req);
+		ubbd_req_init(ubbd_q, UBBD_OP_DISCARD, req);
 		break;
 	case REQ_OP_WRITE_ZEROES:
-		ubbd_req_init(ubbd_dev, UBBD_OP_WRITE_ZEROS, req);
+		ubbd_req_init(ubbd_q, UBBD_OP_WRITE_ZEROS, req);
 		break;
 	case REQ_OP_WRITE:
-		ubbd_req_init(ubbd_dev, UBBD_OP_WRITE, req);
+		ubbd_req_init(ubbd_q, UBBD_OP_WRITE, req);
 		break;
 	case REQ_OP_READ:
-		ubbd_req_init(ubbd_dev, UBBD_OP_READ, req);
+		ubbd_req_init(ubbd_q, UBBD_OP_READ, req);
 		break;
 	default:
 		return BLK_STS_IOERR;
@@ -528,10 +529,10 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 static void ubbd_req_release(struct ubbd_request *ubbd_req)
 {
 	uint32_t bvec_index = 0;
-	struct ubbd_device *ubbd_dev = ubbd_req->ubbd_dev;
+	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
 
 	for (bvec_index = 0; bvec_index < ubbd_req->pi_cnt; bvec_index++) {
-		ubbd_release_page(ubbd_dev, ubbd_req, bvec_index);
+		ubbd_release_page(ubbd_q, ubbd_req, bvec_index);
 	}
 
 	if (ubbd_req->pi) {
@@ -540,32 +541,32 @@ static void ubbd_req_release(struct ubbd_request *ubbd_req)
 	}
 }
 
-static void advance_cmd_ring(struct ubbd_device *ubbd_dev)
+static void advance_cmd_ring(struct ubbd_queue *ubbd_q)
 {
        struct ubbd_se *se;
 
 again:
-       se = get_oldest_se(ubbd_dev);
+       se = get_oldest_se(ubbd_q);
         if (!se)
                goto out;
 
 	if (ubbd_se_hdr_flags_test(se, UBBD_SE_HDR_DONE)) {
-		UPDATE_CMDR_TAIL(ubbd_dev->sb_addr->cmd_tail,
+		UPDATE_CMDR_TAIL(ubbd_q->sb_addr->cmd_tail,
 				ubbd_se_hdr_get_len(se->header.len_op),
-				ubbd_dev->sb_addr->cmdr_size);
+				ubbd_q->sb_addr->cmdr_size);
 		goto again;
        }
 out:
-       ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
+       ubbd_flush_dcache_range(ubbd_q->sb_addr, sizeof(*ubbd_q->sb_addr));
        return;
 }
 
-static struct ubbd_request *find_inflight_req(struct ubbd_device *ubbd_dev, u64 req_tid)
+static struct ubbd_request *find_inflight_req(struct ubbd_queue *ubbd_q, u64 req_tid)
 {
 	struct ubbd_request *req;
 	bool found = false;
 
-	list_for_each_entry(req, &ubbd_dev->inflight_reqs, inflight_reqs_node) {
+	list_for_each_entry(req, &ubbd_q->inflight_reqs, inflight_reqs_node) {
 		if (req->req_tid == req_tid) {
 			found = true;
 			break;
@@ -577,36 +578,37 @@ static struct ubbd_request *find_inflight_req(struct ubbd_device *ubbd_dev, u64 
 	return NULL;
 }
 
-static void complete_inflight_req(struct ubbd_device *ubbd_dev, struct ubbd_request *req, int ret)
+static void complete_inflight_req(struct ubbd_queue *ubbd_q, struct ubbd_request *req, int ret)
 {
 	ubbd_se_hdr_flags_set(req->se, UBBD_SE_HDR_DONE);
 	list_del_init(&req->inflight_reqs_node);
 	ubbd_req_release(req);
 	blk_mq_end_request(req->req, errno_to_blk_status(ret));
-	advance_cmd_ring(ubbd_dev);
+	advance_cmd_ring(ubbd_q);
 }
 
 void complete_work_fn(struct work_struct *work)
 {
-	struct ubbd_device *ubbd_dev = container_of(work, struct ubbd_device, complete_work);
+	struct ubbd_queue *ubbd_q = container_of(work, struct ubbd_queue, complete_work);
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 	struct ubbd_ce *ce;
 	struct ubbd_request *req;
 
 again:
-	mutex_lock(&ubbd_dev->req_lock);
+	mutex_lock(&ubbd_q->req_lock);
 	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
-		mutex_unlock(&ubbd_dev->req_lock);
+		mutex_unlock(&ubbd_q->req_lock);
 		return;
 	}
 
-	ce = get_complete_entry(ubbd_dev);
+	ce = get_complete_entry(ubbd_q);
 	if (!ce) {
-		mutex_unlock(&ubbd_dev->req_lock);
+		mutex_unlock(&ubbd_q->req_lock);
 		return;
 	}
 
 	ubbd_flush_dcache_range(ce, sizeof(*ce));
-	req = find_inflight_req(ubbd_dev, ce->priv_data);
+	req = find_inflight_req(ubbd_q, ce->priv_data);
 	WARN_ON(!req);
 	if (!req) {
 		goto advance_compr;
@@ -615,40 +617,49 @@ again:
 	if (req_op(req->req) == REQ_OP_READ)
 		copy_data_from_ubbdreq(req);
 
-	complete_inflight_req(ubbd_dev, req, ce->result);
+	complete_inflight_req(ubbd_q, req, ce->result);
 
 advance_compr:
-	UPDATE_COMPR_TAIL(ubbd_dev->sb_addr->compr_tail, sizeof(struct ubbd_ce), ubbd_dev->sb_addr->compr_size);
-	mutex_unlock(&ubbd_dev->req_lock);
+	UPDATE_COMPR_TAIL(ubbd_q->sb_addr->compr_tail, sizeof(struct ubbd_ce), ubbd_q->sb_addr->compr_size);
+	mutex_unlock(&ubbd_q->req_lock);
 
-	ubbd_flush_dcache_range(ubbd_dev->sb_addr, sizeof(*ubbd_dev->sb_addr));
+	ubbd_flush_dcache_range(ubbd_q->sb_addr, sizeof(*ubbd_q->sb_addr));
 	goto again;
+}
+
+void ubbd_queue_end_inflight_reqs(struct ubbd_queue *ubbd_q, int ret)
+{
+	struct ubbd_request *req;
+
+	while (!list_empty(&ubbd_q->inflight_reqs)) {
+		req = list_first_entry(&ubbd_q->inflight_reqs,
+				struct ubbd_request, inflight_reqs_node);
+		complete_inflight_req(ubbd_q, req, ret);
+	}
 }
 
 void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret)
 {
-	struct ubbd_request *req;
+	int i;
 
-	while (!list_empty(&ubbd_dev->inflight_reqs)) {
-		req = list_first_entry(&ubbd_dev->inflight_reqs,
-				struct ubbd_request, inflight_reqs_node);
-		complete_inflight_req(ubbd_dev, req, ret);
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		ubbd_queue_end_inflight_reqs(&ubbd_dev->queues[i], ret);
 	}
 }
 
 enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved)
 {
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(req);
-	struct ubbd_device *ubbd_dev = ubbd_req->ubbd_dev;
+	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
 
 	if (req->timeout == UINT_MAX)
 		return BLK_EH_RESET_TIMER;
 
-	mutex_lock(&ubbd_dev->req_lock);
+	mutex_lock(&ubbd_q->req_lock);
 	if (!list_empty(&ubbd_req->inflight_reqs_node)) {
-		complete_inflight_req(ubbd_dev, ubbd_req, -ETIMEDOUT);
+		complete_inflight_req(ubbd_q, ubbd_req, -ETIMEDOUT);
 	}
-	mutex_unlock(&ubbd_dev->req_lock);
+	mutex_unlock(&ubbd_q->req_lock);
 
 	return BLK_EH_DONE;
 }

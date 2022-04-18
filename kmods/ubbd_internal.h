@@ -58,6 +58,7 @@ struct ubbd_queue {
 
 	struct mutex   		req_lock;
 	struct inode		*inode;
+	struct work_struct	complete_work;
 };
 
 struct ubbd_device {
@@ -71,6 +72,7 @@ struct ubbd_device {
 
 	spinlock_t		lock;		/* open_count */
 	struct list_head	dev_node;	/* ubbd_dev_list */
+	struct mutex		state_lock;
 
 	/* Block layer tags. */
 	struct blk_mq_tag_set	tag_set;
@@ -80,7 +82,6 @@ struct ubbd_device {
 	uint32_t		num_queues;
 	struct ubbd_queue	*queues;
 	struct workqueue_struct	*task_wq;
-	struct work_struct	complete_work;
 
 	u8			status;
 	struct kref		kref;
@@ -141,7 +142,7 @@ static const struct block_device_operations ubbd_bd_ops = {
 #define UBBD_REQ_INLINE_PI_MAX	4
 
 struct ubbd_request {
-	struct ubbd_device	*ubbd_dev;
+	struct ubbd_queue	*ubbd_q;
 
 	struct ubbd_se		*se;
 	struct ubbd_ce		*ce;

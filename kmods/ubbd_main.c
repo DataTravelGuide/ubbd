@@ -13,9 +13,22 @@ static int ubbd_major;
 static DEFINE_IDA(ubbd_dev_id_ida);
 struct device *ubbd_uio_root_device;
 
+static int ubbd_init_hctx(struct blk_mq_hw_ctx *hctx, void *driver_data,
+			unsigned int hctx_idx)
+{
+	struct ubbd_device *ubbd_dev = hctx->queue->queuedata;
+	struct ubbd_queue *ubbd_q;
+
+	ubbd_q = &ubbd_dev->queues[hctx_idx];
+	hctx->driver_data = ubbd_q;
+
+	return 0;
+}
+
 static const struct blk_mq_ops ubbd_mq_ops = {
 	.queue_rq	= ubbd_queue_rq,
 	.timeout	= ubbd_timeout,
+	.init_hctx	= ubbd_init_hctx,
 };
 
 int ubbd_queue_sb_init(struct ubbd_queue *ubbd_q)
@@ -110,6 +123,7 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 	INIT_LIST_HEAD(&ubbd_q->inflight_reqs);
 	spin_lock_init(&ubbd_q->inflight_reqs_lock);
 	ubbd_q->req_tid = 0;
+	INIT_WORK(&ubbd_q->complete_work, complete_work_fn);
 
 	return 0;
 err:
@@ -172,10 +186,10 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 		goto err_free_dev;
 	}
 
-	INIT_WORK(&ubbd_dev->complete_work, complete_work_fn);
 	ubbd_dev->status = UBBD_DEV_STATUS_INIT;
 
 	spin_lock_init(&ubbd_dev->lock);
+	mutex_init(&ubbd_dev->state_lock);
 	INIT_LIST_HEAD(&ubbd_dev->dev_node);
 	kref_init(&ubbd_dev->kref);
 

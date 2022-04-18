@@ -52,9 +52,9 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	if (nla_put_s32(reply_skb, UBBD_STATUS_DEV_ID,
 				ubbd_dev->dev_id) ||
 		nla_put_s32(reply_skb, UBBD_STATUS_UIO_ID,
-				ubbd_dev->uio_info.uio_dev->minor) ||
+				ubbd_dev->queues[0].uio_info.uio_dev->minor) ||
 		nla_put_u64_64bit(reply_skb, UBBD_STATUS_UIO_MAP_SIZE,
-				ubbd_dev->uio_info.mem[0].size, UBBD_ATTR_PAD) ||
+				ubbd_dev->queues[0].uio_info.mem[0].size, UBBD_ATTR_PAD) ||
 		nla_put_u8(reply_skb, UBBD_STATUS_STATUS,
 				ubbd_dev->status))
 		goto err_cancel;
@@ -240,14 +240,14 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 	}
 	spin_unlock(&ubbd_dev->lock);
 
-	mutex_lock(&ubbd_dev->req_lock);
+	mutex_lock(&ubbd_dev->state_lock);
 	disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
 	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
 
 	if (force) {
 		ubbd_end_inflight_reqs(ubbd_dev, -EIO);
 	}
-	mutex_unlock(&ubbd_dev->req_lock);
+	mutex_unlock(&ubbd_dev->state_lock);
 
 	if (disk_is_running) {
 		del_gendisk(ubbd_dev->disk);
@@ -298,9 +298,9 @@ static int fill_ubbd_status_item(struct ubbd_device *ubbd_dev, struct sk_buff *r
 	if (nla_put_s32(reply_skb, UBBD_STATUS_DEV_ID,
 				ubbd_dev->dev_id) ||
 		nla_put_s32(reply_skb, UBBD_STATUS_UIO_ID,
-				ubbd_dev->uio_info.uio_dev->minor) ||
+				ubbd_dev->queues[0].uio_info.uio_dev->minor) ||
 		nla_put_u64_64bit(reply_skb, UBBD_STATUS_UIO_MAP_SIZE,
-				ubbd_dev->uio_info.mem[0].size, UBBD_ATTR_PAD) ||
+				ubbd_dev->queues[0].uio_info.mem[0].size, UBBD_ATTR_PAD) ||
 		nla_put_u8(reply_skb, UBBD_STATUS_STATUS,
 				ubbd_dev->status))
 		return -EMSGSIZE;
@@ -463,7 +463,7 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 			pr_err("dp_reserve is not valide: %u", config_dp_reserve);
 			goto out;
 		}
-		ubbd_dev->data_pages_reserve = config_dp_reserve * ubbd_dev->data_pages / 100;
+		ubbd_dev->queues[0].data_pages_reserve = config_dp_reserve * ubbd_dev->queues[0].data_pages / 100;
 	}
 
 out:

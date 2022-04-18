@@ -2,16 +2,18 @@
 
 static int ubbd_irqcontrol(struct uio_info *info, s32 irq_on)
 {
-	struct ubbd_device *ubbd_dev = container_of(info, struct ubbd_device, uio_info);
+	struct ubbd_queue *ubbd_q = container_of(info, struct ubbd_queue, uio_info);
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
-	queue_work(ubbd_dev->task_wq, &ubbd_dev->complete_work);
+	queue_work(ubbd_dev->task_wq, &ubbd_q->complete_work);
 
 	return 0;
 }
 
 static void ubbd_vma_open(struct vm_area_struct *vma)
 {
-	struct ubbd_device *ubbd_dev = vma->vm_private_data;
+	struct ubbd_queue *ubbd_q = vma->vm_private_data;
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
 	pr_debug("vma_open\n");
 	ubbd_dev_get(ubbd_dev);
@@ -19,7 +21,8 @@ static void ubbd_vma_open(struct vm_area_struct *vma)
 
 static void ubbd_vma_close(struct vm_area_struct *vma)
 {
-	struct ubbd_device *ubbd_dev = vma->vm_private_data;
+	struct ubbd_queue *ubbd_q = vma->vm_private_data;
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
 	pr_debug("vma_close\n");
 	ubbd_dev_put(ubbd_dev);
@@ -27,8 +30,8 @@ static void ubbd_vma_close(struct vm_area_struct *vma)
 
 static int ubbd_find_mem_index(struct vm_area_struct *vma)
 {
-	struct ubbd_device *ubbd_dev = vma->vm_private_data;
-	struct uio_info *info = &ubbd_dev->uio_info;
+	struct ubbd_queue *ubbd_q = vma->vm_private_data;
+	struct uio_info *info = &ubbd_q->uio_info;
 
 	if (vma->vm_pgoff < MAX_UIO_MAPS) {
 		if (info->mem[vma->vm_pgoff].size == 0)
@@ -38,14 +41,14 @@ static int ubbd_find_mem_index(struct vm_area_struct *vma)
 	return -1;
 }
 
-static struct page *ubbd_try_get_data_page(struct ubbd_device *ubbd_dev, uint32_t dpi)
+static struct page *ubbd_try_get_data_page(struct ubbd_queue *ubbd_q, uint32_t dpi)
 {
 	struct page *page;
 
-	page = xa_load(&ubbd_dev->data_pages_array, dpi);
+	page = xa_load(&ubbd_q->data_pages_array, dpi);
 	if (unlikely(!page)) {
 		pr_debug("Invalid addr to data page mapping (dpi %u) on device %s\n",
-		       dpi, ubbd_dev->name);
+		       dpi, ubbd_q->ubbd_dev->name);
 		return NULL;
 	}
 	
@@ -54,8 +57,8 @@ static struct page *ubbd_try_get_data_page(struct ubbd_device *ubbd_dev, uint32_
 
 static vm_fault_t ubbd_vma_fault(struct vm_fault *vmf)
 {
-	struct ubbd_device *ubbd_dev = vmf->vma->vm_private_data;
-	struct uio_info *info = &ubbd_dev->uio_info;
+	struct ubbd_queue *ubbd_q = vmf->vma->vm_private_data;
+	struct uio_info *info = &ubbd_q->uio_info;
 	struct page *page;
 	unsigned long offset;
 	void *addr;
@@ -66,14 +69,14 @@ static vm_fault_t ubbd_vma_fault(struct vm_fault *vmf)
 
 	offset = (vmf->pgoff - mi) << PAGE_SHIFT;
 
-	if (offset < ubbd_dev->data_off) {
+	if (offset < ubbd_q->data_off) {
 		addr = (void *)(unsigned long)info->mem[mi].addr + offset;
 		page = vmalloc_to_page(addr);
 	} else {
 		uint32_t dpi;
 
-		dpi = (offset - ubbd_dev->data_off) / PAGE_SIZE;
-		page = ubbd_try_get_data_page(ubbd_dev, dpi);
+		dpi = (offset - ubbd_q->data_off) / PAGE_SIZE;
+		page = ubbd_try_get_data_page(ubbd_q, dpi);
 		if (!page)
 			return VM_FAULT_SIGBUS;
 		pr_debug("ubbd uio fault page: %p", page);
@@ -93,14 +96,14 @@ static const struct vm_operations_struct ubbd_vm_ops = {
 
 static int ubbd_uio_mmap(struct uio_info *info, struct vm_area_struct *vma)
 {
-	struct ubbd_device *ubbd_dev = container_of(info, struct ubbd_device, uio_info);
+	struct ubbd_queue *ubbd_q = container_of(info, struct ubbd_queue, uio_info);
 
 	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
 	vma->vm_ops = &ubbd_vm_ops;
 
-	vma->vm_private_data = ubbd_dev;
+	vma->vm_private_data = ubbd_q;
 
-	if (vma_pages(vma) != ubbd_dev->mmap_pages)
+	if (vma_pages(vma) != ubbd_q->mmap_pages)
 		return -EINVAL;
 
 	ubbd_vma_open(vma);
@@ -110,9 +113,9 @@ static int ubbd_uio_mmap(struct uio_info *info, struct vm_area_struct *vma)
 
 static int ubbd_uio_open(struct uio_info *info, struct inode *inode)
 {
-	struct ubbd_device *ubbd_dev = container_of(info, struct ubbd_device, uio_info);
+	struct ubbd_queue *ubbd_q = container_of(info, struct ubbd_queue, uio_info);
 
-	ubbd_dev->inode = inode;
+	ubbd_q->inode = inode;
 	pr_debug("open\n");
 
 	return 0;
