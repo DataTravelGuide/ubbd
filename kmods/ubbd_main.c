@@ -4,6 +4,10 @@
 
 #include "ubbd_internal.h"
 
+LIST_HEAD(ubbd_dev_list);    /* devices */
+int ubbd_total_devs = 0;
+DEFINE_MUTEX(ubbd_dev_list_mutex);
+
 struct workqueue_struct *ubbd_wq;
 static int ubbd_major;
 static DEFINE_IDA(ubbd_dev_id_ida);
@@ -398,6 +402,65 @@ int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev)
 void ubbd_dev_sb_destroy(struct ubbd_device *ubbd_dev)
 {
 	vfree(ubbd_dev->sb_addr);
+}
+
+struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *add_opts)
+{
+	int ret;
+	struct ubbd_device *ubbd_dev;
+
+	ubbd_dev = ubbd_dev_create(add_opts->data_pages);
+	if (!ubbd_dev) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+#ifdef UBBD_FAULT_INJECT
+	if (ubbd_mgmt_need_fault()) {
+		ret = -ENOMEM;
+		goto err_dev_put;
+	}
+#endif
+	ret = ubbd_dev_sb_init(ubbd_dev);
+	if (ret) {
+		pr_err("failed to init dev sb: %d.", ret);
+		goto err_dev_put;
+	}
+
+	ret = ubbd_dev_uio_init(ubbd_dev);
+	if (ret) {
+		pr_debug("failed to init uio: %d.", ret);
+		goto err_dev_put;
+	}
+
+	ret = ubbd_dev_device_setup(ubbd_dev, add_opts->device_size, add_opts->dev_features);
+	if (ret) {
+		ret = -EINVAL;
+		goto err_dev_put;
+	}
+
+	mutex_lock(&ubbd_dev_list_mutex);
+	ubbd_total_devs++;
+	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
+	mutex_unlock(&ubbd_dev_list_mutex);
+
+	return ubbd_dev;
+
+err_dev_put:
+	ubbd_dev_put(ubbd_dev);
+out:
+	return ERR_PTR(ret);
+}
+
+void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev)
+{
+	mutex_lock(&ubbd_dev_list_mutex);
+	ubbd_total_devs--;
+	list_del_init(&ubbd_dev->dev_node);
+	mutex_unlock(&ubbd_dev_list_mutex);
+
+	ubbd_free_disk(ubbd_dev);
+	ubbd_dev_put(ubbd_dev);
 }
 
 void ubbd_dev_get(struct ubbd_device *ubbd_dev)
