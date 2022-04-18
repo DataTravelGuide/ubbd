@@ -161,13 +161,13 @@ static int send_netlink_config(struct ubbd_nl_req *req)
 	if (ret < 0)
 		goto free_msg;
 
-	sock_attr = nla_nest_start(msg, UBBD_ATTR_DEV_CONFIG);
+	sock_attr = nla_nest_start(msg, UBBD_ATTR_DEV_OPTS);
 	if (!sock_attr) {
 		ubbd_dev_err(ubbd_dev, "Couldn't nest config\n");
 		goto free_msg;
 	}
 
-	ret = nla_put_u32(msg, UBBD_DEV_CONFIG_DP_RESERVE, req->req_opts.config_opts.data_pages_reserve);
+	ret = nla_put_u32(msg, UBBD_DEV_OPTS_DP_RESERVE, req->req_opts.config_opts.data_pages_reserve);
 	if (ret < 0)
 		goto free_msg;
 
@@ -326,6 +326,7 @@ int send_netlink_add_dev(struct ubbd_nl_req *req)
 	struct nl_sock *socket;
 	int driver_id;
 	uint64_t dev_features = 0;
+	struct nlattr *dev_opts_attr;
 
 	socket = get_ubbd_socket(&driver_id);
 	if (!socket)
@@ -340,10 +341,6 @@ int send_netlink_add_dev(struct ubbd_nl_req *req)
 	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
 			  0, 0, UBBD_CMD_ADD_DEV, UBBD_NL_VERSION);
 	if (!hdr)
-		goto free_msg;
-
-	ret = nla_put_u64(msg, UBBD_ATTR_DEV_SIZE, ubbd_dev->dev_size);
-	if (ret < 0)
 		goto free_msg;
 
         if (ubbd_dev->dev_features.write_cache)
@@ -361,6 +358,15 @@ int send_netlink_add_dev(struct ubbd_nl_req *req)
         ret = nla_put_u64(msg, UBBD_ATTR_FLAGS, dev_features);
         if (ret < 0)
                 goto free_msg;
+
+	dev_opts_attr = nla_nest_start(msg, UBBD_ATTR_DEV_OPTS);
+	if (!dev_opts_attr)
+		goto free_msg;
+
+	ret = nla_put_u64(msg, UBBD_DEV_OPTS_DEV_SIZE, ubbd_dev->dev_size);
+	if (ret < 0)
+		goto free_msg;
+	nla_nest_end(msg, dev_opts_attr);
 
 	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
