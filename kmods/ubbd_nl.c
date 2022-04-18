@@ -9,11 +9,13 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	struct sk_buff *reply_skb;
 	void *msg_head;
 	size_t msg_size;
+	struct nlattr *dev_info_nest;
 
 	msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
 				  nla_attr_size(sizeof(s32)) +
 				  nla_attr_size(sizeof(s32)) +
-				  nla_attr_size(sizeof(u64)));
+				  nla_attr_size(sizeof(u64)) +
+				  nla_attr_size(sizeof(u8)));
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
@@ -32,13 +34,21 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	if (!msg_head)
 		goto err_free;
 
-	if (nla_put_s32(reply_skb, UBBD_ATTR_DEV_ID,
-		    	ubbd_dev->dev_id) ||
-	    nla_put_s32(reply_skb, UBBD_ATTR_UIO_ID,
-			ubbd_dev->uio_info.uio_dev->minor) ||
-	    nla_put_u64_64bit(reply_skb, UBBD_ATTR_UIO_MAP_SIZE,
-			ubbd_dev->uio_info.mem[0].size, UBBD_ATTR_PAD))
+	dev_info_nest = nla_nest_start(reply_skb, UBBD_ATTR_DEV_INFO);
+	if (!dev_info_nest)
 		goto err_cancel;
+
+	if (nla_put_s32(reply_skb, UBBD_STATUS_DEV_ID,
+				ubbd_dev->dev_id) ||
+		nla_put_s32(reply_skb, UBBD_STATUS_UIO_ID,
+				ubbd_dev->uio_info.uio_dev->minor) ||
+		nla_put_u64_64bit(reply_skb, UBBD_STATUS_UIO_MAP_SIZE,
+				ubbd_dev->uio_info.mem[0].size, UBBD_ATTR_PAD) ||
+		nla_put_u8(reply_skb, UBBD_STATUS_STATUS,
+				ubbd_dev->status))
+		goto err_cancel;
+
+	nla_nest_end(reply_skb, dev_info_nest);
 
 	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0))
 		goto err_cancel;
@@ -569,8 +579,6 @@ static const struct genl_multicast_group ubbd_mcgrps[] = {
 #ifdef	HAVE_GENL_POLICY
 static struct nla_policy ubbd_attr_policy[UBBD_ATTR_MAX+1] = {
 	[UBBD_ATTR_DEV_ID]	= { .type = NLA_S32 },
-	[UBBD_ATTR_UIO_ID]	= { .type = NLA_S32 },
-	[UBBD_ATTR_UIO_MAP_SIZE]	= { .type = NLA_U64 },
 	[UBBD_ATTR_DEV_SIZE]	= { .type = NLA_U64 },
 	[UBBD_ATTR_FLAGS]	= { .type = NLA_U64 },
 	[UBBD_ATTR_DEV_CONFIG]	= { .type = NLA_NESTED },
