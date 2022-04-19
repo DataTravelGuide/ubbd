@@ -384,6 +384,7 @@ int dev_setup(struct ubbd_device *ubbd_dev)
 
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
 		ubbd_q = &ubbd_dev->queues[i];
+		ubbd_q->ubbd_dev = ubbd_dev;
 		pthread_mutex_init(&ubbd_q->req_lock, NULL);
 		ret = queue_setup(ubbd_q);
 		if (ret)
