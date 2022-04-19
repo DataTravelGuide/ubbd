@@ -29,10 +29,6 @@ static inline size_t get_status_msg_size(struct ubbd_device *ubbd_dev)
 	msg_size += nla_total_size(nla_attr_size(sizeof(s32)) +
 				nla_attr_size(sizeof(u8)));
 
-	/* add retval */
-	msg_size += nla_total_size(nla_attr_size(sizeof(s32)));
-
-
 	return msg_size;
 }
 
@@ -46,6 +42,10 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	struct nlattr *dev_info_nest;
 
 	msg_size = get_status_msg_size(ubbd_dev);
+
+	/* add retval */
+	msg_size += nla_total_size(nla_attr_size(sizeof(s32)));
+
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
 		goto err;
@@ -367,9 +367,9 @@ static int fill_ubbd_status_item(struct ubbd_device *ubbd_dev, struct sk_buff *r
 	return 0;
 }
 
-static int fill_ubbd_status(struct ubbd_device *ubbd_dev,
-			struct sk_buff *reply_skb, int dev_id)
+static int fill_ubbd_status(struct sk_buff *reply_skb, int dev_id)
 {
+	struct ubbd_device *ubbd_dev;
 	struct nlattr *dev_list;
 	int ret = 0;
 
@@ -397,26 +397,32 @@ out:
 
 static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 {
-	struct ubbd_device *ubbd_dev;
 	int dev_id = -1;
 	struct sk_buff *reply_skb = NULL;
 	void *msg_head = NULL;
 	size_t msg_size;
 	int ret = 0;
+	struct ubbd_device *ubbd_dev;
 
 	if (info->attrs[UBBD_ATTR_DEV_ID])
 		dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 
-	msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
-			          nla_attr_size(sizeof(s32)) +
-			          nla_attr_size(sizeof(u64)) +
-				  nla_attr_size(sizeof(u8)));
-
 	mutex_lock(&ubbd_dev_list_mutex);
-	/* msg_size for all devs */
-	msg_size *= (dev_id == -1? ubbd_total_devs : 1);
 	/* add size for retval */
-	msg_size += nla_attr_size(sizeof(s32));
+	msg_size = nla_attr_size(sizeof(s32));
+
+	if (dev_id == -1) {
+		list_for_each_entry(ubbd_dev, &ubbd_dev_list, dev_node) {
+			msg_size += get_status_msg_size(ubbd_dev);
+		}
+	} else {
+		ubbd_dev = find_ubbd_dev(dev_id);
+		if (!ubbd_dev) {
+			ret = -ENOENT;
+			goto err;
+		}
+		msg_size += get_status_msg_size(ubbd_dev);
+	}
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
@@ -447,7 +453,7 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 		goto err_free;
 	}
 
-	ret = fill_ubbd_status(ubbd_dev, reply_skb, dev_id);
+	ret = fill_ubbd_status(reply_skb, dev_id);
 	if (ret) {
 		mutex_unlock(&ubbd_dev_list_mutex);
 		goto err_cancel;
