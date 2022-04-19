@@ -14,6 +14,28 @@ static inline int ubbd_nla_parse_nested(struct nlattr *tb[], int maxtype,
 #endif
 }
 
+static inline size_t get_status_msg_size(struct ubbd_device *ubbd_dev)
+{
+	size_t msg_size;
+	size_t uio_info_msg_size;
+
+	uio_info_msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
+					nla_attr_size(sizeof(u64)));
+
+	/* msg size for queues */
+	msg_size = uio_info_msg_size * ubbd_dev->num_queues;
+
+	/* add dev_id and status */
+	msg_size += nla_total_size(nla_attr_size(sizeof(s32)) +
+				nla_attr_size(sizeof(u8)));
+
+	/* add retval */
+	msg_size += nla_total_size(nla_attr_size(sizeof(s32)));
+
+
+	return msg_size;
+}
+
 static int fill_ubbd_status_detail(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb);
 static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 					  struct genl_info *info)
@@ -23,19 +45,16 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	size_t msg_size;
 	struct nlattr *dev_info_nest;
 
-	msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
-				  nla_attr_size(sizeof(s32)) +
-				  nla_attr_size(sizeof(s32)) +
-				  nla_attr_size(sizeof(u64)) +
-				  nla_attr_size(sizeof(u8)));
-
+	msg_size = get_status_msg_size(ubbd_dev);
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
 		goto err;
 #endif
 	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
-	if (!reply_skb)
+	if (!reply_skb) {
+		pr_err("failed to new genlmsg for size: %lu", msg_size);
 		goto err;
+	}
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
@@ -144,6 +163,7 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 err_remove_dev:
 	ubbd_dev_remove_dev(ubbd_dev);
 out:
+	pr_err("handle_cmd_add_dev err: %d", ret);
 	return ret;
 }
 
