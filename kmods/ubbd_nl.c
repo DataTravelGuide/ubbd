@@ -14,6 +14,7 @@ static inline int ubbd_nla_parse_nested(struct nlattr *tb[], int maxtype,
 #endif
 }
 
+static int fill_ubbd_status_detail(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb);
 static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 					  struct genl_info *info)
 {
@@ -49,14 +50,7 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	if (!dev_info_nest)
 		goto err_cancel;
 
-	if (nla_put_s32(reply_skb, UBBD_STATUS_DEV_ID,
-				ubbd_dev->dev_id) ||
-		nla_put_s32(reply_skb, UBBD_STATUS_UIO_ID,
-				ubbd_dev->queues[0].uio_info.uio_dev->minor) ||
-		nla_put_u64_64bit(reply_skb, UBBD_STATUS_UIO_MAP_SIZE,
-				ubbd_dev->queues[0].uio_info.mem[0].size, UBBD_ATTR_PAD) ||
-		nla_put_u8(reply_skb, UBBD_STATUS_STATUS,
-				ubbd_dev->status))
+	if (fill_ubbd_status_detail(ubbd_dev, reply_skb))
 		goto err_cancel;
 
 	nla_nest_end(reply_skb, dev_info_nest);
@@ -283,9 +277,58 @@ out:
 	return ret;
 }
 
+static int fill_uio_info_item(struct uio_info *uio_info, struct sk_buff *reply_skb)
+{
+	struct nlattr *uio_info_item;
+
+	uio_info_item = nla_nest_start(reply_skb, UBBD_UIO_INFO_ITEM);
+	if (nla_put_s32(reply_skb, UBBD_UIO_INFO_UIO_ID,
+				uio_info->uio_dev->minor) ||
+		nla_put_u64_64bit(reply_skb, UBBD_UIO_INFO_UIO_MAP_SIZE,
+				uio_info->mem[0].size, UBBD_ATTR_PAD))
+		return -EMSGSIZE;
+	nla_nest_end(reply_skb, uio_info_item);
+
+	return 0;
+}
+
+static int fill_ubbd_status_uio_info(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb)
+{
+	struct nlattr *uio_info_nest;
+	int i;
+	int ret;
+
+	uio_info_nest = nla_nest_start(reply_skb, UBBD_STATUS_UIO_INFO);
+
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		ret = fill_uio_info_item(&ubbd_dev->queues[i].uio_info, reply_skb);
+		if (ret)
+			return ret;
+	}
+
+	nla_nest_end(reply_skb, uio_info_nest);
+
+	return 0;
+}
+
+static int fill_ubbd_status_detail(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb)
+{
+	if (nla_put_s32(reply_skb, UBBD_STATUS_DEV_ID,
+				ubbd_dev->dev_id) ||
+		nla_put_u8(reply_skb, UBBD_STATUS_STATUS,
+				ubbd_dev->status))
+		return -EMSGSIZE;
+
+	if (fill_ubbd_status_uio_info(ubbd_dev, reply_skb))
+		return -EMSGSIZE;
+
+	return 0;
+}
+
 static int fill_ubbd_status_item(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb)
 {
 	struct nlattr *dev_nest;
+	int ret;
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
@@ -295,15 +338,10 @@ static int fill_ubbd_status_item(struct ubbd_device *ubbd_dev, struct sk_buff *r
 	if (!dev_nest)
 		return -EMSGSIZE;
 
-	if (nla_put_s32(reply_skb, UBBD_STATUS_DEV_ID,
-				ubbd_dev->dev_id) ||
-		nla_put_s32(reply_skb, UBBD_STATUS_UIO_ID,
-				ubbd_dev->queues[0].uio_info.uio_dev->minor) ||
-		nla_put_u64_64bit(reply_skb, UBBD_STATUS_UIO_MAP_SIZE,
-				ubbd_dev->queues[0].uio_info.mem[0].size, UBBD_ATTR_PAD) ||
-		nla_put_u8(reply_skb, UBBD_STATUS_STATUS,
-				ubbd_dev->status))
-		return -EMSGSIZE;
+	ret = fill_ubbd_status_detail(ubbd_dev, reply_skb);
+	if (ret)
+		return ret;
+
 	nla_nest_end(reply_skb, dev_nest);
 
 	return 0;

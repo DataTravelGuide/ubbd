@@ -58,14 +58,6 @@ static char *short_options = "c:t:f:p:i:u:h:s:o:r";
 
 static void usage(int status)
 { 
-	struct ubbd_nl_dev_status *tmp_status;
-	LIST_HEAD(tmp_list);
-
-	ubbd_nl_dev_list(&tmp_list);
-	list_for_each_entry(tmp_status, &tmp_list, node) {
-		ubbd_err("tmp_status: dev_id: %d, uio_id: %d, status: %d\n", tmp_status->dev_id, tmp_status->uio_id, tmp_status->status);
-	}
-
 	if (status != 0)
 		fprintf(stderr, "Try `ubbdadm --help' for more information.\n");
 	else {

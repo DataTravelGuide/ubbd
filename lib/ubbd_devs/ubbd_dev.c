@@ -10,9 +10,9 @@
 #include "ubbd_netlink.h"
 
 
-static bool compr_space_enough(struct ubbd_device *ubbd_dev, uint32_t required)
+static bool compr_space_enough(struct ubbd_queue *ubbd_q, uint32_t required)
 {
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->uio_info.map;
 	uint32_t space_available;
 	uint32_t space_max, space_used;
 
@@ -33,27 +33,28 @@ static bool compr_space_enough(struct ubbd_device *ubbd_dev, uint32_t required)
 	return true;
 }
 
-struct ubbd_ce *get_available_ce(struct ubbd_device *ubbd_dev)
+struct ubbd_ce *get_available_ce(struct ubbd_queue *ubbd_q)
 {
 	/*
 	 * dev->req_lock held
 	 */
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->uio_info.map;
 
-	while (!compr_space_enough(ubbd_dev, sizeof(struct ubbd_ce))) {
-		pthread_mutex_unlock(&ubbd_dev->req_lock);
+	while (!compr_space_enough(ubbd_q, sizeof(struct ubbd_ce))) {
+		pthread_mutex_unlock(&ubbd_q->req_lock);
 		ubbd_err(" compr not enough head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
-		ubbdlib_processing_complete(ubbd_dev);
+		ubbdlib_processing_complete(ubbd_q);
                 usleep(50000);
-		pthread_mutex_lock(&ubbd_dev->req_lock);
+		pthread_mutex_lock(&ubbd_q->req_lock);
 	}
 
-	return device_comp_head(ubbd_dev);
+	return device_comp_head(ubbd_q);
 }
 
-static void wait_for_compr_empty(struct ubbd_device *ubbd_dev)
+static void wait_for_compr_empty(struct ubbd_queue *ubbd_q)
 {
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->uio_info.map;
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
  
          ubbd_info("waiting for ring to clear\n");
          while (sb->compr_head != sb->compr_tail) {
@@ -67,29 +68,29 @@ static void wait_for_compr_empty(struct ubbd_device *ubbd_dev)
          ubbd_info("ring clear\n");
 }
 
-static void handle_cmd(struct ubbd_device *dev, struct ubbd_se *se);
+static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se);
 void *cmd_process(void *arg)
 {
-	struct ubbd_device *ubbd_dev = arg;
+	struct ubbd_queue *ubbd_q = arg;
 	struct ubbd_se *se;
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->uio_info.map;
 	uint32_t op_len = 0;
 
 	struct pollfd pollfds[128];
 	int ret;
 
-	ubbdlib_processing_complete(ubbd_dev);
-	wait_for_compr_empty(ubbd_dev);
+	ubbdlib_processing_complete(ubbd_q);
+	wait_for_compr_empty(ubbd_q);
 
-	ubbd_dev->se_to_handle = sb->cmd_tail;
+	ubbd_q->se_to_handle = sb->cmd_tail;
 	ubbd_dbg("cmd_tail: %u, cmd_head: %u\n", sb->cmd_tail, sb->cmd_head);
 
 	while (1) {
 		while (1) {
-			ubbdlib_processing_start(ubbd_dev);
+			ubbdlib_processing_start(ubbd_q);
 
-			se = device_cmd_to_handle(ubbd_dev);
-			if (se == device_cmd_head(ubbd_dev)) {
+			se = device_cmd_to_handle(ubbd_q);
+			if (se == device_cmd_head(ubbd_q)) {
 				break;
 			}
 			op_len = ubbd_se_hdr_get_len(se->header.len_op);
@@ -97,13 +98,13 @@ void *cmd_process(void *arg)
 			ubbd_dbg("op: %d, length: %u\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op));
 			if (ubbd_se_hdr_get_op(se->header.len_op) != UBBD_OP_PAD)
 				ubbd_dbg("se id: %llu\n", se->priv_data);
-			handle_cmd(ubbd_dev, se);
-			UBBD_UPDATE_CMD_TO_HANDLE(ubbd_dev, sb, op_len);
+			handle_cmd(ubbd_q, se);
+			UBBD_UPDATE_CMD_TO_HANDLE(ubbd_q, sb, op_len);
 			ubbd_dbg("finish handle_cmd\n");
 		}
 
 poll:
-		pollfds[0].fd = ubbd_dev->uio_info.fd;
+		pollfds[0].fd = ubbd_q->uio_info.fd;
 		pollfds[0].events = POLLIN;
 		pollfds[0].revents = 0;
 
@@ -113,7 +114,7 @@ poll:
 			return NULL;
 		}
 
-		if (ubbd_dev->status == UBBD_DEV_USTATUS_STOPPING) {
+		if (ubbd_q->ubbd_dev->status == UBBD_DEV_USTATUS_STOPPING) {
 			ubbd_err("exit cmd_process\n");
 			return NULL;
 		}
@@ -130,9 +131,10 @@ poll:
 
 
 
-static void handle_cmd(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
+static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 {
 	struct ubbd_se_hdr *header = &se->header;
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 	int ret;
 
 	ubbd_dbg("handle_cmd: se: %p\n", se);
@@ -146,15 +148,15 @@ static void handle_cmd(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 		ubbd_dbg("set pad op to done\n");
 		ubbd_se_hdr_flags_set(se, UBBD_SE_HDR_DONE);
 		ret = 0;
-		ubbdlib_processing_complete(ubbd_dev);
+		ubbdlib_processing_complete(ubbd_q);
 		break;
 	case UBBD_OP_WRITE:
 		ubbd_dbg("UBBD_OP_WRITE\n");
-		ret = ubbd_dev->dev_ops->writev(ubbd_dev, se);
+		ret = ubbd_dev->dev_ops->writev(ubbd_q, se);
 		break;
 	case UBBD_OP_READ:
 		ubbd_dbg("UBBD_OP_READ\n");
-		ret = ubbd_dev->dev_ops->readv(ubbd_dev, se);
+		ret = ubbd_dev->dev_ops->readv(ubbd_q, se);
 		break;
 	case UBBD_OP_FLUSH:
 		ubbd_dbg("UBBD_OP_FLUSH\n");
@@ -163,7 +165,7 @@ static void handle_cmd(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 			ubbd_dev_err(ubbd_dev, "flush is not supportted.\n");
 			goto out;
 		}
-		ret = ubbd_dev->dev_ops->flush(ubbd_dev, se);
+		ret = ubbd_dev->dev_ops->flush(ubbd_q, se);
 		break;
 	case UBBD_OP_DISCARD:
 		ubbd_dbg("UBBD_OP_DISCARD\n");
@@ -172,7 +174,7 @@ static void handle_cmd(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 			ubbd_dev_err(ubbd_dev, "discard is not supportted.\n");
 			goto out;
 		}
-		ret = ubbd_dev->dev_ops->discard(ubbd_dev, se);
+		ret = ubbd_dev->dev_ops->discard(ubbd_q, se);
 		break;
 	case UBBD_OP_WRITE_ZEROS:
 		ubbd_dbg("UBBD_OP_WRITE_ZEROS\n");
@@ -181,7 +183,7 @@ static void handle_cmd(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
 			ubbd_dev_err(ubbd_dev, "write_zeros is not supportted.\n");
 			goto out;
 		}
-		ret = ubbd_dev->dev_ops->write_zeros(ubbd_dev, se);
+		ret = ubbd_dev->dev_ops->write_zeros(ubbd_q, se);
 		break;
 	default:
 		ubbd_err("error handle_cmd\n");
@@ -221,7 +223,6 @@ static void ubbd_dev_init(struct ubbd_device *ubbd_dev)
 {
 	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
 	INIT_LIST_HEAD(&ubbd_dev->dev_node);
-	pthread_mutex_init(&ubbd_dev->req_lock, NULL);
 	pthread_mutex_init(&ubbd_dev->lock, NULL);
 }
 
@@ -351,41 +352,77 @@ void ubbd_dev_release(struct ubbd_device *ubbd_dev)
 /*
  * ubbd device add
  */
-int dev_setup(struct ubbd_device *ubbd_dev)
+
+int queue_setup(struct ubbd_queue *ubbd_q)
 {
 	int ret;
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
-	ret = device_open_shm(&ubbd_dev->uio_info);
+	ret = device_open_shm(&ubbd_q->uio_info);
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "failed to open shm: %d\n", ret);
 		goto out;
 	}
 
-	memcpy(ubbd_uio_get_dev_info(ubbd_dev->uio_info.map),
+	memcpy(ubbd_uio_get_dev_info(ubbd_q->uio_info.map),
 			&ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
 
-	ret = pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev);
+	ret = pthread_create(&ubbd_q->cmdproc_thread, NULL, cmd_process, ubbd_q);
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "failed to create cmdproc_thread: %d\n", ret);
 		goto out;
+	}
+out:
+	return ret;
+}
+
+int dev_setup(struct ubbd_device *ubbd_dev)
+{
+	struct ubbd_queue *ubbd_q;
+	int ret;
+	int i;
+
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		ubbd_q = &ubbd_dev->queues[i];
+		pthread_mutex_init(&ubbd_q->req_lock, NULL);
+		ret = queue_setup(ubbd_q);
+		if (ret)
+			goto out;
 	}
 
 out:
 	return ret;
 }
 
+static int stop_queues(struct ubbd_device *ubbd_dev)
+{
+	int i;
+	int ret;
+	struct ubbd_queue *ubbd_q;
+	void *join_retval;
+
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		ubbd_q = &ubbd_dev->queues[i];
+
+		if (ubbd_q->cmdproc_thread) {
+			ret = pthread_join(ubbd_q->cmdproc_thread, &join_retval);
+			if (ret)
+				return ret;
+		}
+		device_close_shm(&ubbd_q->uio_info);
+	}
+
+	return 0;
+}
+
 int dev_stop(struct ubbd_device *ubbd_dev)
 {
-	void *join_retval;
 	int ret;
 
 	ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
-	if (ubbd_dev->cmdproc_thread) {
-		ret = pthread_join(ubbd_dev->cmdproc_thread, &join_retval);
-		if (ret)
-			return ret;
-	}
-	device_close_shm(&ubbd_dev->uio_info);
+	ret = stop_queues(ubbd_dev);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -712,8 +749,9 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	int ret;
 	struct ubbd_dev_info *dev_info;
 	struct ubbd_device *ubbd_dev;
-	struct ubbd_uio_info uio_info = { .uio_id = dev_status->uio_id,
-				.uio_map_size = dev_status->uio_map_size };
+	struct ubbd_uio_info uio_info = { .uio_id = dev_status->uio_infos[0].uio_id,
+				.uio_map_size = dev_status->uio_infos[0].uio_map_size };
+	int i;
 
 	ret = device_open_shm(&uio_info);
 	if (ret)
@@ -721,13 +759,12 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 
 	dev_info = ubbd_uio_get_dev_info(uio_info.map);
 	ubbd_dev = ubbd_dev_create(dev_info);
+	device_close_shm(&uio_info);
 	if (!ubbd_dev) {
 		ret = -ENOMEM;
 		goto err_close;
 	}
 
-	ubbd_dev->dev_id = dev_status->dev_id;
-	memcpy(&ubbd_dev->uio_info, &uio_info, sizeof(uio_info));
 	if (dev_status->status != UBBD_DEV_STATUS_RUNNING) {
 		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
 		goto out;
@@ -737,21 +774,35 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	if (ret)
 		goto release_dev;
 
-	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
+	ubbd_dev->dev_id = dev_status->dev_id;
+	ubbd_dev->num_queues = dev_status->num_queues;
 
-	ret = pthread_create(&ubbd_dev->cmdproc_thread, NULL, cmd_process, ubbd_dev); 
-	if (ret) {
-		ubbd_dev_err(ubbd_dev, "failed to create cmdproc thread.\n");
+	ubbd_dev->queues = calloc(ubbd_dev->num_queues, sizeof(struct ubbd_queue));
+	if (!ubbd_dev->queues) {
+		ubbd_err("failed to alloc queues\n");
+		ret = -ENOMEM;
 		goto close_dev;
 	}
 
-	ubbd_err("version: %d\n", ubbd_dev->uio_info.map->version);
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		ubbd_dev->queues[i].uio_info.uio_id = dev_status->uio_infos[i].uio_id;
+		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->uio_infos[i].uio_map_size;
+	}
+
+	ret = dev_setup(ubbd_dev);
+	if (ret)
+		goto destroy_queues;
+
+	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
 
 out:
 	*ubbd_dev_p = ubbd_dev;
 
 	return 0;
 
+destroy_queues:
+
+	//ubbd_dev_destroy_queues(ubbd_dev);
 close_dev:
 	ubbd_dev_close(ubbd_dev);
 release_dev:
@@ -804,21 +855,21 @@ void ubbd_dev_stop_devs(void)
         }
 }
 
-void ubbd_dev_add_ce(struct ubbd_device *ubbd_dev, uint64_t priv_data,
+void ubbd_dev_add_ce(struct ubbd_queue *ubbd_q, uint64_t priv_data,
 		int result)
 {
 	struct ubbd_ce *ce;
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->uio_info.map;
 
-	pthread_mutex_lock(&ubbd_dev->req_lock);
-	ce = get_available_ce(ubbd_dev);
+	pthread_mutex_lock(&ubbd_q->req_lock);
+	ce = get_available_ce(ubbd_q);
 	memset(ce, 0, sizeof(*ce));
 	ce->priv_data = priv_data;
 	ce->flags = 0;
 
 	ce->result = result;
 	ubbd_dbg("append ce: %llu, result: %d\n", ce->priv_data, ce->result);
-	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_dev, sb, ce);
-	pthread_mutex_unlock(&ubbd_dev->req_lock);
-	ubbdlib_processing_complete(ubbd_dev);
+	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_q, sb, ce);
+	pthread_mutex_unlock(&ubbd_q->req_lock);
+	ubbdlib_processing_complete(ubbd_q);
 }

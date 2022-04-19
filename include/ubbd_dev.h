@@ -57,23 +57,30 @@ struct ubbd_uio_info {
 	struct ubbd_sb *map;
 };
 
-struct ubbd_device {
-	int32_t dev_id;
-	struct list_head dev_node;
-	uint64_t dev_size;
-	enum ubbd_dev_type dev_type;
-	struct ubbd_dev_ops *dev_ops;
-	struct ubbd_dev_info dev_info;
+struct ubbd_queue {
+	struct ubbd_device *ubbd_dev;
 	uint32_t se_to_handle;
 
 	struct ubbd_uio_info uio_info;
 	pthread_t cmdproc_thread;
 
+	pthread_mutex_t req_lock;
+};
+
+struct ubbd_device {
+	int32_t dev_id;
+	struct list_head dev_node;
+	uint64_t dev_size;
+	enum ubbd_dev_type dev_type;
+	struct ubbd_dev_info dev_info;
 	char dev_name[16];
+	struct ubbd_dev_ops *dev_ops;
 
 	enum ubbd_dev_ustatus status;
-	pthread_mutex_t req_lock;
 	pthread_mutex_t lock;
+
+	int num_queues;
+	struct ubbd_queue *queues;
 
 	struct ubbd_dev_features dev_features;
 };
@@ -100,30 +107,29 @@ struct ubbd_null_device {
 	struct ubbd_device ubbd_dev;
 };
 
-
 struct ubbd_dev_ops {
 	int (*open) (struct ubbd_device *ubbd_dev);
 	void (*close) (struct ubbd_device *ubbd_dev);
 	void (*release) (struct ubbd_device *ubbd_dev);
-	int (*writev) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
-	int (*readv) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
-	int (*flush) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
-	int (*discard) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
-	int (*write_zeros) (struct ubbd_device *ubbd_dev, struct ubbd_se *se);
+	int (*writev) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
+	int (*readv) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
+	int (*flush) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
+	int (*discard) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
+	int (*write_zeros) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
 };
 
 
 static inline struct ubbd_ce *
-device_comp_head(struct ubbd_device *dev)
+device_comp_head(struct ubbd_queue *ubbd_q)
 {
-	struct ubbd_sb *sb = dev->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->uio_info.map;
 
 	ubbd_dbg("comp: head: %u\n", sb->compr_head);
 
 	return (struct ubbd_ce *) ((char *) sb + sb->compr_off + sb->compr_head);
 }
 
-struct ubbd_ce *get_available_ce(struct ubbd_device *dev);
+struct ubbd_ce *get_available_ce(struct ubbd_queue *ubbd_q);
 
 #define UBBD_UPDATE_DEV_TAIL(dev, sb, se) \
 do { \
@@ -155,7 +161,7 @@ int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct
 int ubbd_dev_reopen_devs(void);
 void ubbd_dev_stop_devs(void);
 
-void ubbd_dev_add_ce(struct ubbd_device *ubbd_dev, uint64_t priv_data,
+void ubbd_dev_add_ce(struct ubbd_queue *ubbd_q, uint64_t priv_data,
 		int result);
 
 void ubbd_dev_release(struct ubbd_device *ubbd_dev);

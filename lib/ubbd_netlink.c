@@ -19,9 +19,13 @@ static int ubbd_nl_queue_req(struct ubbd_device *ubbd_dev, struct ubbd_nl_req *r
 
 static struct nla_policy ubbd_status_policy[UBBD_STATUS_ATTR_MAX + 1] = {
 	[UBBD_STATUS_DEV_ID] = { .type = NLA_S32 },
-	[UBBD_STATUS_UIO_ID] = { .type = NLA_S32 },
-	[UBBD_STATUS_UIO_MAP_SIZE] = { .type = NLA_U64 },
+	[UBBD_STATUS_UIO_INFO] = { .type = NLA_NESTED },
 	[UBBD_STATUS_STATUS] = { .type = NLA_U8 },
+};
+
+static struct nla_policy ubbd_uio_info_policy[UBBD_UIO_INFO_ATTR_MAX + 1] = {
+	[UBBD_UIO_INFO_UIO_ID] = { .type = NLA_S32 },
+	[UBBD_UIO_INFO_UIO_MAP_SIZE] = { .type = NLA_U64 },
 };
 
 static struct ubbd_nl_req *nl_req_alloc()
@@ -271,7 +275,6 @@ static int send_netlink_add_disk(struct ubbd_nl_req *req)
 		ubbd_info("ret of send auto netlink add: %d\n", ret);
 	} else {
 		ubbd_info("adde done\n");
-		ubbd_info("ubbd_dev: %p, dev_id: %u, uio_id: %d", ubbd_dev, ubbd_dev->dev_id, ubbd_dev->uio_info.uio_id);
 	}
 	return ret;
 
@@ -282,12 +285,15 @@ close_sock:
 	return ret;
 }
 
+static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_p);
 static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 {
 	struct ubbd_device *ubbd_dev = arg;
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
+	struct ubbd_nl_dev_status *dev_status;
 	int ret;
+	int i;
 
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
@@ -297,21 +303,26 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 	}
 
 	if (msg_attr[UBBD_ATTR_DEV_INFO]) {
-		struct nlattr *status[UBBD_STATUS_ATTR_MAX+1];
-
-		ret = nla_parse_nested(status, UBBD_STATUS_ATTR_MAX, msg_attr[UBBD_ATTR_DEV_INFO],
-				       ubbd_status_policy);
-		if (ret) {
-			ubbd_err("failed to parse nested status\n");
-			return -EINVAL;
-		}
-
-		ubbd_dev->dev_id = nla_get_s32(status[UBBD_STATUS_DEV_ID]);
-		ubbd_dev->uio_info.uio_id = nla_get_s32(status[UBBD_STATUS_UIO_ID]);
-		ubbd_dev->uio_info.uio_map_size = nla_get_s32(status[UBBD_STATUS_UIO_MAP_SIZE]);
+		ret = parse_status(msg_attr[UBBD_ATTR_DEV_INFO], &dev_status);
+		if (ret)
+			return ret;
 	} else {
 		ubbd_err("no dev_info replyied in add_dev_don\n");
 		return -EINVAL;
+	}
+
+	ubbd_dev->dev_id = dev_status->dev_id;
+	ubbd_dev->num_queues = dev_status->num_queues;
+
+	ubbd_dev->queues = calloc(ubbd_dev->num_queues, sizeof(struct ubbd_queue));
+	if (!ubbd_dev->queues) {
+		ubbd_err("failed to alloc queues\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		ubbd_dev->queues[i].uio_info.uio_id = dev_status->uio_infos[i].uio_id;
+		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->uio_infos[i].uio_map_size;
 	}
 
 	return NL_OK;
@@ -381,6 +392,67 @@ close_sock:
 	return ret;
 }
 
+static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_p)
+{
+	struct nlattr *status[UBBD_STATUS_ATTR_MAX+1];
+	struct ubbd_nl_dev_status *dev_status;
+	struct nlattr *uio_info_attr;
+	int num_queues = 0;
+	int rem;
+	int ret;
+
+	ret = nla_parse_nested(status, UBBD_STATUS_ATTR_MAX, attr,
+			       ubbd_status_policy);
+	if (ret) {
+		ubbd_err("failed to parse nested status\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	dev_status = calloc(1, sizeof(struct ubbd_nl_dev_status));
+	if (!dev_status) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	INIT_LIST_HEAD(&dev_status->node);
+
+	dev_status->dev_id = nla_get_s32(status[UBBD_STATUS_DEV_ID]);
+	dev_status->status = nla_get_u8(status[UBBD_STATUS_STATUS]);
+	nla_for_each_nested(uio_info_attr, status[UBBD_STATUS_UIO_INFO], rem) {
+		num_queues++;
+	}
+
+	dev_status->num_queues = num_queues;
+	dev_status->uio_infos = calloc(num_queues, sizeof(struct ubbd_nl_uio_info));
+	if (!dev_status->uio_infos) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	num_queues = 0;
+
+	nla_for_each_nested(uio_info_attr, status[UBBD_STATUS_UIO_INFO], rem) {
+		struct nlattr *uio_info[UBBD_UIO_INFO_ATTR_MAX + 1];
+
+		ret = nla_parse_nested(uio_info, UBBD_UIO_INFO_ATTR_MAX,
+				uio_info_attr, ubbd_uio_info_policy);
+		if (ret) {
+			ubbd_err("failed to parse nested uio_info\n");
+			ret = -EINVAL;
+			goto out;
+		}
+		dev_status->uio_infos[num_queues].uio_id = nla_get_s32(uio_info[UBBD_UIO_INFO_UIO_ID]);
+		dev_status->uio_infos[num_queues].uio_map_size = nla_get_s32(uio_info[UBBD_UIO_INFO_UIO_MAP_SIZE]);
+		num_queues++;
+	}
+
+	*status_p = dev_status;
+
+	return 0;
+out:
+	return ret;
+}
+
 static int status_callback(struct nl_msg *msg, void *arg)
 {
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
@@ -404,7 +476,6 @@ static int status_callback(struct nl_msg *msg, void *arg)
 		int rem;
 
 		nla_for_each_nested(attr, msg_attr[UBBD_ATTR_DEV_LIST], rem) {
-			struct nlattr *status[UBBD_STATUS_ATTR_MAX+1];
 			struct ubbd_nl_dev_status *dev_status;
 
 			if (nla_type(attr) != UBBD_STATUS_ITEM) {
@@ -413,24 +484,9 @@ static int status_callback(struct nl_msg *msg, void *arg)
 				goto out;
 			}
 
-			ret = nla_parse_nested(status, UBBD_STATUS_ATTR_MAX, attr,
-					       ubbd_status_policy);
-			if (ret) {
-				ubbd_err("failed to parse nested status\n");
-				ret = -EINVAL;
+			ret = parse_status(attr, &dev_status);
+			if (ret)
 				goto out;
-			}
-
-			dev_status = calloc(1, sizeof(struct ubbd_nl_dev_status));
-			if (!dev_status) {
-				ret = -ENOMEM;
-				goto out;
-			}
-			INIT_LIST_HEAD(&dev_status->node);
-			dev_status->dev_id = nla_get_s32(status[UBBD_STATUS_DEV_ID]);
-			dev_status->uio_id = nla_get_s32(status[UBBD_STATUS_UIO_ID]);
-			dev_status->uio_map_size = nla_get_s32(status[UBBD_STATUS_UIO_MAP_SIZE]);
-			dev_status->status = nla_get_u8(status[UBBD_STATUS_STATUS]);
 
 			list_add_tail(&dev_status->node, dev_list);
 		}
