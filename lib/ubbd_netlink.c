@@ -19,13 +19,13 @@ static int ubbd_nl_queue_req(struct ubbd_device *ubbd_dev, struct ubbd_nl_req *r
 
 static struct nla_policy ubbd_status_policy[UBBD_STATUS_ATTR_MAX + 1] = {
 	[UBBD_STATUS_DEV_ID] = { .type = NLA_S32 },
-	[UBBD_STATUS_UIO_INFO] = { .type = NLA_NESTED },
+	[UBBD_STATUS_QUEUE_INFO] = { .type = NLA_NESTED },
 	[UBBD_STATUS_STATUS] = { .type = NLA_U8 },
 };
 
-static struct nla_policy ubbd_uio_info_policy[UBBD_UIO_INFO_ATTR_MAX + 1] = {
-	[UBBD_UIO_INFO_UIO_ID] = { .type = NLA_S32 },
-	[UBBD_UIO_INFO_UIO_MAP_SIZE] = { .type = NLA_U64 },
+static struct nla_policy ubbd_uio_info_policy[UBBD_QUEUE_INFO_ATTR_MAX + 1] = {
+	[UBBD_QUEUE_INFO_UIO_ID] = { .type = NLA_S32 },
+	[UBBD_QUEUE_INFO_UIO_MAP_SIZE] = { .type = NLA_U64 },
 };
 
 static struct ubbd_nl_req *nl_req_alloc()
@@ -419,7 +419,7 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 
 	dev_status->dev_id = nla_get_s32(status[UBBD_STATUS_DEV_ID]);
 	dev_status->status = nla_get_u8(status[UBBD_STATUS_STATUS]);
-	nla_for_each_nested(uio_info_attr, status[UBBD_STATUS_UIO_INFO], rem) {
+	nla_for_each_nested(uio_info_attr, status[UBBD_STATUS_QUEUE_INFO], rem) {
 		num_queues++;
 	}
 
@@ -431,18 +431,18 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 	}
 	num_queues = 0;
 
-	nla_for_each_nested(uio_info_attr, status[UBBD_STATUS_UIO_INFO], rem) {
-		struct nlattr *uio_info[UBBD_UIO_INFO_ATTR_MAX + 1];
+	nla_for_each_nested(uio_info_attr, status[UBBD_STATUS_QUEUE_INFO], rem) {
+		struct nlattr *uio_info[UBBD_QUEUE_INFO_ATTR_MAX + 1];
 
-		ret = nla_parse_nested(uio_info, UBBD_UIO_INFO_ATTR_MAX,
+		ret = nla_parse_nested(uio_info, UBBD_QUEUE_INFO_ATTR_MAX,
 				uio_info_attr, ubbd_uio_info_policy);
 		if (ret) {
 			ubbd_err("failed to parse nested uio_info\n");
 			ret = -EINVAL;
 			goto out;
 		}
-		dev_status->uio_infos[num_queues].uio_id = nla_get_s32(uio_info[UBBD_UIO_INFO_UIO_ID]);
-		dev_status->uio_infos[num_queues].uio_map_size = nla_get_s32(uio_info[UBBD_UIO_INFO_UIO_MAP_SIZE]);
+		dev_status->uio_infos[num_queues].uio_id = nla_get_s32(uio_info[UBBD_QUEUE_INFO_UIO_ID]);
+		dev_status->uio_infos[num_queues].uio_map_size = nla_get_s32(uio_info[UBBD_QUEUE_INFO_UIO_MAP_SIZE]);
 		num_queues++;
 	}
 

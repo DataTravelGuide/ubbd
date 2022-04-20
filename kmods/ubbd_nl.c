@@ -301,10 +301,10 @@ static int fill_uio_info_item(struct uio_info *uio_info, struct sk_buff *reply_s
 {
 	struct nlattr *uio_info_item;
 
-	uio_info_item = nla_nest_start(reply_skb, UBBD_UIO_INFO_ITEM);
-	if (nla_put_s32(reply_skb, UBBD_UIO_INFO_UIO_ID,
+	uio_info_item = nla_nest_start(reply_skb, UBBD_QUEUE_INFO_ITEM);
+	if (nla_put_s32(reply_skb, UBBD_QUEUE_INFO_UIO_ID,
 				uio_info->uio_dev->minor) ||
-		nla_put_u64_64bit(reply_skb, UBBD_UIO_INFO_UIO_MAP_SIZE,
+		nla_put_u64_64bit(reply_skb, UBBD_QUEUE_INFO_UIO_MAP_SIZE,
 				uio_info->mem[0].size, UBBD_ATTR_PAD))
 		return -EMSGSIZE;
 	nla_nest_end(reply_skb, uio_info_item);
@@ -318,7 +318,7 @@ static int fill_ubbd_status_uio_info(struct ubbd_device *ubbd_dev, struct sk_buf
 	int i;
 	int ret;
 
-	uio_info_nest = nla_nest_start(reply_skb, UBBD_STATUS_UIO_INFO);
+	uio_info_nest = nla_nest_start(reply_skb, UBBD_STATUS_QUEUE_INFO);
 
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
 		ret = fill_uio_info_item(&ubbd_dev->queues[i].uio_info, reply_skb);
