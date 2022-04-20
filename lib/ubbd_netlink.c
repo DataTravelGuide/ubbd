@@ -23,7 +23,7 @@ static struct nla_policy ubbd_status_policy[UBBD_STATUS_ATTR_MAX + 1] = {
 	[UBBD_STATUS_STATUS] = { .type = NLA_U8 },
 };
 
-static struct nla_policy ubbd_uio_info_policy[UBBD_QUEUE_INFO_ATTR_MAX + 1] = {
+static struct nla_policy ubbd_queue_info_policy[UBBD_QUEUE_INFO_ATTR_MAX + 1] = {
 	[UBBD_QUEUE_INFO_UIO_ID] = { .type = NLA_S32 },
 	[UBBD_QUEUE_INFO_UIO_MAP_SIZE] = { .type = NLA_U64 },
 };
@@ -321,8 +321,8 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 	}
 
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
-		ubbd_dev->queues[i].uio_info.uio_id = dev_status->uio_infos[i].uio_id;
-		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->uio_infos[i].uio_map_size;
+		ubbd_dev->queues[i].uio_info.uio_id = dev_status->queue_infos[i].uio_id;
+		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->queue_infos[i].uio_map_size;
 	}
 
 	return NL_OK;
@@ -396,7 +396,7 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 {
 	struct nlattr *status[UBBD_STATUS_ATTR_MAX+1];
 	struct ubbd_nl_dev_status *dev_status;
-	struct nlattr *uio_info_attr;
+	struct nlattr *queue_info_attr;
 	int num_queues = 0;
 	int rem;
 	int ret;
@@ -419,30 +419,31 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 
 	dev_status->dev_id = nla_get_s32(status[UBBD_STATUS_DEV_ID]);
 	dev_status->status = nla_get_u8(status[UBBD_STATUS_STATUS]);
-	nla_for_each_nested(uio_info_attr, status[UBBD_STATUS_QUEUE_INFO], rem) {
+	nla_for_each_nested(queue_info_attr, status[UBBD_STATUS_QUEUE_INFO], rem) {
 		num_queues++;
 	}
 
 	dev_status->num_queues = num_queues;
-	dev_status->uio_infos = calloc(num_queues, sizeof(struct ubbd_nl_uio_info));
-	if (!dev_status->uio_infos) {
+	dev_status->queue_infos = calloc(num_queues, sizeof(struct ubbd_nl_queue_info));
+	if (!dev_status->queue_infos) {
 		ret = -ENOMEM;
 		goto out;
 	}
 	num_queues = 0;
 
-	nla_for_each_nested(uio_info_attr, status[UBBD_STATUS_QUEUE_INFO], rem) {
-		struct nlattr *uio_info[UBBD_QUEUE_INFO_ATTR_MAX + 1];
+	nla_for_each_nested(queue_info_attr, status[UBBD_STATUS_QUEUE_INFO], rem) {
+		struct nlattr *queue_info[UBBD_QUEUE_INFO_ATTR_MAX + 1];
 
-		ret = nla_parse_nested(uio_info, UBBD_QUEUE_INFO_ATTR_MAX,
-				uio_info_attr, ubbd_uio_info_policy);
+		ret = nla_parse_nested(queue_info, UBBD_QUEUE_INFO_ATTR_MAX,
+				queue_info_attr, ubbd_queue_info_policy);
 		if (ret) {
-			ubbd_err("failed to parse nested uio_info\n");
+			ubbd_err("failed to parse nested queue_info\n");
 			ret = -EINVAL;
 			goto out;
 		}
-		dev_status->uio_infos[num_queues].uio_id = nla_get_s32(uio_info[UBBD_QUEUE_INFO_UIO_ID]);
-		dev_status->uio_infos[num_queues].uio_map_size = nla_get_s32(uio_info[UBBD_QUEUE_INFO_UIO_MAP_SIZE]);
+		dev_status->queue_infos[num_queues].uio_id = nla_get_s32(queue_info[UBBD_QUEUE_INFO_UIO_ID]);
+		dev_status->queue_infos[num_queues].uio_map_size = nla_get_s32(queue_info[UBBD_QUEUE_INFO_UIO_MAP_SIZE]);
+		nla_memcpy(&dev_status->queue_infos[num_queues].cpumask, queue_info[UBBD_QUEUE_INFO_CPUMASK], sizeof(struct cpumask));
 		num_queues++;
 	}
 

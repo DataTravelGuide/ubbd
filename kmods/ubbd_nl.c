@@ -17,13 +17,14 @@ static inline int ubbd_nla_parse_nested(struct nlattr *tb[], int maxtype,
 static inline size_t get_status_msg_size(struct ubbd_device *ubbd_dev)
 {
 	size_t msg_size;
-	size_t uio_info_msg_size;
+	size_t queue_info_msg_size;
 
-	uio_info_msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
-					nla_attr_size(sizeof(u64)));
+	queue_info_msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
+					nla_attr_size(sizeof(u64)) +
+					nla_attr_size(sizeof(struct cpumask)));
 
 	/* msg size for queues */
-	msg_size = uio_info_msg_size * ubbd_dev->num_queues;
+	msg_size = queue_info_msg_size * ubbd_dev->num_queues;
 
 	/* add dev_id and status */
 	msg_size += nla_total_size(nla_attr_size(sizeof(s32)) +
@@ -297,36 +298,38 @@ out:
 	return ret;
 }
 
-static int fill_uio_info_item(struct uio_info *uio_info, struct sk_buff *reply_skb)
+static int fill_queue_info_item(struct ubbd_queue *ubbd_q, struct sk_buff *reply_skb)
 {
-	struct nlattr *uio_info_item;
+	struct nlattr *queue_info_item;
 
-	uio_info_item = nla_nest_start(reply_skb, UBBD_QUEUE_INFO_ITEM);
+	queue_info_item = nla_nest_start(reply_skb, UBBD_QUEUE_INFO_ITEM);
 	if (nla_put_s32(reply_skb, UBBD_QUEUE_INFO_UIO_ID,
-				uio_info->uio_dev->minor) ||
+				ubbd_q->uio_info.uio_dev->minor) ||
 		nla_put_u64_64bit(reply_skb, UBBD_QUEUE_INFO_UIO_MAP_SIZE,
-				uio_info->mem[0].size, UBBD_ATTR_PAD))
+				ubbd_q->uio_info.mem[0].size, UBBD_ATTR_PAD) ||
+		nla_put(reply_skb, UBBD_QUEUE_INFO_CPUMASK,
+			sizeof(struct cpumask), &ubbd_q->cpumask))
 		return -EMSGSIZE;
-	nla_nest_end(reply_skb, uio_info_item);
+	nla_nest_end(reply_skb, queue_info_item);
 
 	return 0;
 }
 
-static int fill_ubbd_status_uio_info(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb)
+static int fill_ubbd_status_queue_info(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb)
 {
-	struct nlattr *uio_info_nest;
+	struct nlattr *queue_info_nest;
 	int i;
 	int ret;
 
-	uio_info_nest = nla_nest_start(reply_skb, UBBD_STATUS_QUEUE_INFO);
+	queue_info_nest = nla_nest_start(reply_skb, UBBD_STATUS_QUEUE_INFO);
 
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
-		ret = fill_uio_info_item(&ubbd_dev->queues[i].uio_info, reply_skb);
+		ret = fill_queue_info_item(&ubbd_dev->queues[i], reply_skb);
 		if (ret)
 			return ret;
 	}
 
-	nla_nest_end(reply_skb, uio_info_nest);
+	nla_nest_end(reply_skb, queue_info_nest);
 
 	return 0;
 }
@@ -339,7 +342,7 @@ static int fill_ubbd_status_detail(struct ubbd_device *ubbd_dev, struct sk_buff 
 				ubbd_dev->status))
 		return -EMSGSIZE;
 
-	if (fill_ubbd_status_uio_info(ubbd_dev, reply_skb))
+	if (fill_ubbd_status_queue_info(ubbd_dev, reply_skb))
 		return -EMSGSIZE;
 
 	return 0;

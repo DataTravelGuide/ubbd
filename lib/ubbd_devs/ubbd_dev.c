@@ -751,8 +751,8 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	int ret;
 	struct ubbd_dev_info *dev_info;
 	struct ubbd_device *ubbd_dev;
-	struct ubbd_uio_info uio_info = { .uio_id = dev_status->uio_infos[0].uio_id,
-				.uio_map_size = dev_status->uio_infos[0].uio_map_size };
+	struct ubbd_uio_info uio_info = { .uio_id = dev_status->queue_infos[0].uio_id,
+				.uio_map_size = dev_status->queue_infos[0].uio_map_size };
 	int i;
 
 	ret = device_open_shm(&uio_info);
@@ -787,8 +787,8 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	}
 
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
-		ubbd_dev->queues[i].uio_info.uio_id = dev_status->uio_infos[i].uio_id;
-		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->uio_infos[i].uio_map_size;
+		ubbd_dev->queues[i].uio_info.uio_id = dev_status->queue_infos[i].uio_id;
+		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->queue_infos[i].uio_map_size;
 	}
 
 	ret = dev_setup(ubbd_dev);

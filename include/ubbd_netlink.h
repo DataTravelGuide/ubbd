@@ -29,7 +29,7 @@ struct ubbd_nl_req {
 	struct list_head node;
 };
 
-struct ubbd_nl_uio_info {
+struct ubbd_nl_queue_info {
 	int32_t	uio_id;
 	uint64_t uio_map_size;
 };
@@ -39,7 +39,7 @@ struct ubbd_nl_dev_status {
 	int32_t	dev_id;
 	uint8_t	status;
 	int	num_queues;
-	struct ubbd_nl_uio_info *uio_infos;
+	struct ubbd_nl_queue_info *queue_infos;
 };
 
 int ubbd_nl_req_add_dev(struct ubbd_device *ubbd_dev, struct context *ctx);
