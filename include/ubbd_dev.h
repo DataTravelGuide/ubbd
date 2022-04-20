@@ -65,6 +65,8 @@ struct ubbd_queue {
 	pthread_t cmdproc_thread;
 
 	pthread_mutex_t req_lock;
+
+	cpu_set_t cpuset;
 };
 
 struct ubbd_device {

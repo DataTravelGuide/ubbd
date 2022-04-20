@@ -59,6 +59,7 @@ struct ubbd_queue {
 	struct mutex   		req_lock;
 	struct inode		*inode;
 	struct work_struct	complete_work;
+	cpumask_t		cpumask;
 };
 
 struct ubbd_device {

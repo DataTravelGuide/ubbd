@@ -124,6 +124,7 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 	spin_lock_init(&ubbd_q->inflight_reqs_lock);
 	ubbd_q->req_tid = 0;
 	INIT_WORK(&ubbd_q->complete_work, complete_work_fn);
+	cpumask_clear(&ubbd_q->cpumask);
 
 	return 0;
 err:
@@ -241,7 +242,7 @@ struct ubbd_device *ubbd_dev_create(u32 data_pages)
 
 	sprintf(ubbd_dev->name, UBBD_DRV_NAME "%d", ubbd_dev->dev_id);
 
-	ret = ubbd_dev_create_queues(ubbd_dev, 16, data_pages);
+	ret = ubbd_dev_create_queues(ubbd_dev, 8, data_pages);
 	if (ret)
 		goto err_remove_id;
 
@@ -264,6 +265,19 @@ void ubbd_dev_destroy(struct ubbd_device *ubbd_dev)
 	ida_simple_remove(&ubbd_dev_id_ida, ubbd_dev->dev_id);
 	__ubbd_dev_free(ubbd_dev);
 	module_put(THIS_MODULE);
+}
+
+static void ubbd_init_queue_cpumask(struct ubbd_device *ubbd_dev, struct blk_mq_tag_set *tag_set)
+{
+	struct ubbd_queue *ubbd_q;
+	int cpu;
+	unsigned int *map = tag_set->map[HCTX_TYPE_DEFAULT].mq_map;
+
+	for_each_present_cpu(cpu) {
+		ubbd_q = &ubbd_dev->queues[map[cpu]];
+		cpumask_set_cpu(cpu, &ubbd_q->cpumask);
+		pr_err("set cpu %d to queue %d", cpu, map[cpu]);
+	}
 }
 
 #ifdef HAVE_ALLOC_DISK
@@ -323,6 +337,8 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
                 err = PTR_ERR(q);
 		goto out_tag_set;
 	}
+
+	ubbd_init_queue_cpumask(ubbd_dev, &ubbd_dev->tag_set);
  
 	blk_queue_flag_set(QUEUE_FLAG_NONROT, q);
 
@@ -406,6 +422,8 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 		goto out_tag_set;
 	}
 	q = disk->queue;
+
+	ubbd_init_queue_cpumask(ubbd_dev, &ubbd_dev->tag_set);
 
         snprintf(disk->disk_name, sizeof(disk->disk_name), UBBD_DRV_NAME "%d",
                  ubbd_dev->dev_id);
