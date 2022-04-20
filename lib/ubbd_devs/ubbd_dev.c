@@ -425,6 +425,7 @@ int dev_stop(struct ubbd_device *ubbd_dev)
 	if (ret)
 		return ret;
 
+	free(ubbd_dev->queues);
 	return 0;
 }
 

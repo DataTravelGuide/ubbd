@@ -561,13 +561,14 @@ out:
        return;
 }
 
-static struct ubbd_request *find_inflight_req(struct ubbd_queue *ubbd_q, u64 req_tid)
+static struct ubbd_request *fetch_inflight_req(struct ubbd_queue *ubbd_q, u64 req_tid)
 {
 	struct ubbd_request *req;
 	bool found = false;
 
 	list_for_each_entry(req, &ubbd_q->inflight_reqs, inflight_reqs_node) {
 		if (req->req_tid == req_tid) {
+			list_del_init(&req->inflight_reqs_node);
 			found = true;
 			break;
 		}
@@ -580,8 +581,10 @@ static struct ubbd_request *find_inflight_req(struct ubbd_queue *ubbd_q, u64 req
 
 static void complete_inflight_req(struct ubbd_queue *ubbd_q, struct ubbd_request *req, int ret)
 {
+	if (!list_empty(&req->inflight_reqs_node)) {
+		list_del_init(&req->inflight_reqs_node);
+	}
 	ubbd_se_hdr_flags_set(req->se, UBBD_SE_HDR_DONE);
-	list_del_init(&req->inflight_reqs_node);
 	ubbd_req_release(req);
 	blk_mq_end_request(req->req, errno_to_blk_status(ret));
 	advance_cmd_ring(ubbd_q);
@@ -595,21 +598,23 @@ void complete_work_fn(struct work_struct *work)
 	struct ubbd_request *req;
 
 again:
-	mutex_lock(&ubbd_q->req_lock);
+	mutex_lock(&ubbd_dev->state_lock);
 	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
-		mutex_unlock(&ubbd_q->req_lock);
+		mutex_unlock(&ubbd_dev->state_lock);
 		return;
 	}
 
+	mutex_lock(&ubbd_q->req_lock);
 	ce = get_complete_entry(ubbd_q);
 	if (!ce) {
 		mutex_unlock(&ubbd_q->req_lock);
+		mutex_unlock(&ubbd_dev->state_lock);
 		return;
 	}
 
 	ubbd_flush_dcache_range(ce, sizeof(*ce));
-	req = find_inflight_req(ubbd_q, ce->priv_data);
-	WARN_ON(!req);
+	req = fetch_inflight_req(ubbd_q, ce->priv_data);
+	mutex_unlock(&ubbd_dev->state_lock);
 	if (!req) {
 		goto advance_compr;
 	}
