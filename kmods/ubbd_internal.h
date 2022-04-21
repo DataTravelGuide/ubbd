@@ -57,6 +57,9 @@ struct ubbd_queue {
 	size_t			mmap_pages;
 
 	struct mutex   		req_lock;
+	spinlock_t 		state_lock;
+	u8			status;
+
 	struct inode		*inode;
 	struct work_struct	complete_work;
 	cpumask_t		cpumask;

@@ -120,6 +120,7 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 
 
 	mutex_init(&ubbd_q->req_lock);
+	spin_lock_init(&ubbd_q->state_lock);
 	INIT_LIST_HEAD(&ubbd_q->inflight_reqs);
 	spin_lock_init(&ubbd_q->inflight_reqs_lock);
 	ubbd_q->req_tid = 0;
