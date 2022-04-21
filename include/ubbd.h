@@ -44,6 +44,8 @@ struct ubbd_sb {
 
 } __attribute__((packed)) __attribute__((__aligned__(ALIGN_SIZE)));
 
+#define UBBD_SB_FLAG_NEED_WAKEUP	1
+
 
 enum ubbd_op {
 	UBBD_OP_PAD = 0,

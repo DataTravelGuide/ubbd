@@ -497,6 +497,15 @@ end_request:
 	return;
 }
 
+static void ubbd_wakeup_sq_thread(struct ubbd_device *ubbd_dev)
+{
+	struct ubbd_sb *sb = ubbd_dev->sb_addr;
+
+	if (sb->flags & UBBD_SB_FLAG_NEED_WAKEUP) {
+		uio_event_notify(&ubbd_dev->uio_info);
+	}
+}
+
 void submit_req(struct ubbd_request *ubbd_req)
 {
 	struct ubbd_device *ubbd_dev = ubbd_req->ubbd_dev;
@@ -522,6 +531,7 @@ void submit_req(struct ubbd_request *ubbd_req)
 	mutex_unlock(&ubbd_dev->req_lock);
 
 	//uio_event_notify(&ubbd_dev->uio_info);
+	ubbd_wakeup_sq_thread(ubbd_dev);
 
 	return;
 
