@@ -1,4 +1,5 @@
 #include "ubbd_internal.h"
+#include <linux/delay.h>
 
 struct ubbd_se *get_submit_entry(struct ubbd_queue *ubbd_q)
 {
@@ -456,6 +457,8 @@ void ubbd_queue_workfn(struct work_struct *work)
 	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
 	int ret = 0;
 
+	pr_err("start run queue workfn %x", ubbd_q->flags);
+	BUG_ON(ubbd_q->flags & UBBD_QUEUE_FLAGS_EMPTY);
 	mutex_lock(&ubbd_q->req_lock);
 	ret = queue_req_prepare(ubbd_req);
 	if (ret)

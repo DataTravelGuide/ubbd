@@ -66,6 +66,7 @@ struct ubbd_queue {
 };
 
 #define UBBD_QUEUE_FLAGS_REMOVING	1
+#define UBBD_QUEUE_FLAGS_EMPTY		1 << 1
 
 struct ubbd_device {
 	int			dev_id;		/* blkdev unique id */

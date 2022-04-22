@@ -280,6 +280,8 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 		spin_unlock(&ubbd_q->state_lock);
 
 		flush_workqueue(ubbd_dev->task_wq);
+		ubbd_q->flags |= UBBD_QUEUE_FLAGS_EMPTY;
+		pr_err("finish flush workqueue");
 		if (force) {
 			ubbd_end_inflight_reqs(ubbd_dev, -EIO);
 		}
