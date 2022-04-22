@@ -58,12 +58,14 @@ struct ubbd_queue {
 
 	struct mutex   		req_lock;
 	spinlock_t 		state_lock;
-	u8			status;
+	u32			flags;
 
 	struct inode		*inode;
 	struct work_struct	complete_work;
 	cpumask_t		cpumask;
 };
+
+#define UBBD_QUEUE_FLAGS_REMOVING	1
 
 struct ubbd_device {
 	int			dev_id;		/* blkdev unique id */

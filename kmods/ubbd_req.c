@@ -520,15 +520,14 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		return BLK_STS_IOERR;
 	}
 
+	INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
         spin_lock(&ubbd_q->state_lock);
-        if (ubbd_q->status == UBBD_DEV_STATUS_REMOVING) {
+        if (ubbd_q->flags & UBBD_QUEUE_FLAGS_REMOVING) {
                 spin_unlock(&ubbd_q->state_lock);
                 return BLK_STS_IOERR;
         }
+	queue_work_on(smp_processor_id(), ubbd_q->ubbd_dev->task_wq, &ubbd_req->work);
         spin_unlock(&ubbd_q->state_lock);
-
-	INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
-	queue_work_on(smp_processor_id(), ubbd_wq, &ubbd_req->work);
 
 	return BLK_STS_OK;
 }

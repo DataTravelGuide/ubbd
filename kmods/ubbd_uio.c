@@ -6,13 +6,12 @@ static int ubbd_irqcontrol(struct uio_info *info, s32 irq_on)
 	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
         spin_lock(&ubbd_q->state_lock);
-        if (ubbd_q->status == UBBD_DEV_STATUS_REMOVING) {
+        if (ubbd_q->flags & UBBD_QUEUE_FLAGS_REMOVING) {
                 spin_unlock(&ubbd_q->state_lock);
                 return 0;
         }
-        spin_unlock(&ubbd_q->state_lock);
-
 	queue_work(ubbd_dev->task_wq, &ubbd_q->complete_work);
+        spin_unlock(&ubbd_q->state_lock);
 
 	return 0;
 }
