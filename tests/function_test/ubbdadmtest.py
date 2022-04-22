@@ -41,7 +41,7 @@ class Ubbdadmtest(Test):
         self.log.info("ubbdd killer stopped")
 
     def start_fio(self, ubbd_dev):
-        cmd = str("fio --name test --rw randrw --bs %s --ioengine libaio --filename %s --numjobs 1 --iodepth 128 --eta-newline 1 " % (self.fio_block_size, ubbd_dev))
+        cmd = str("fio --name test --rw randrw --bs %s --ioengine libaio --filename %s --numjobs 16 --iodepth 128 --eta-newline 1 " % (self.fio_block_size, ubbd_dev))
         if (self.fio_iops_limit != 0):
             cmd = str("%s --rate_iops %s" % (cmd, self.fio_iops_limit))
         if (self.fio_direct):
