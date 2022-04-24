@@ -275,13 +275,15 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 		struct ubbd_queue *ubbd_q;
 
 		ubbd_q = &ubbd_dev->queues[i];
-		spin_lock(&ubbd_q->state_lock);
-		ubbd_q->flags |= UBBD_QUEUE_FLAGS_REMOVING;
-		spin_unlock(&ubbd_q->state_lock);
-
+		set_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags);
+		/*
+		 * flush the task_wq, to avoid race with complete_work.
+		 *
+		 * after the flush_workqueue, all other work will return
+		 * directly as UBBD_QUEUE_FLAGS_REMOVING is already set.
+		 * Then we can end the inflight requests safely.
+		 * */
 		flush_workqueue(ubbd_dev->task_wq);
-		ubbd_q->flags |= UBBD_QUEUE_FLAGS_EMPTY;
-		pr_err("finish flush workqueue");
 		if (force) {
 			ubbd_end_inflight_reqs(ubbd_dev, -EIO);
 		}

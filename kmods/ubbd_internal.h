@@ -58,7 +58,7 @@ struct ubbd_queue {
 
 	struct mutex   		req_lock;
 	spinlock_t 		state_lock;
-	u32			flags;
+	unsigned long		flags;
 
 	struct inode		*inode;
 	struct work_struct	complete_work;
@@ -66,7 +66,6 @@ struct ubbd_queue {
 };
 
 #define UBBD_QUEUE_FLAGS_REMOVING	1
-#define UBBD_QUEUE_FLAGS_EMPTY		1 << 1
 
 struct ubbd_device {
 	int			dev_id;		/* blkdev unique id */

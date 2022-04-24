@@ -183,11 +183,6 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 	if (!ubbd_dev)
 		goto err;
 
-	ubbd_dev->task_wq = alloc_workqueue("ubbd-tasks", WQ_MEM_RECLAIM, 0);
-	if (!ubbd_dev->task_wq) {
-		goto err_free_dev;
-	}
-
 	ubbd_dev->status = UBBD_DEV_STATUS_INIT;
 
 	spin_lock_init(&ubbd_dev->lock);
@@ -197,15 +192,12 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 
 	return ubbd_dev;
 
-err_free_dev:
-	kfree(ubbd_dev);
 err:
 	return NULL;
 }
 
 static void __ubbd_dev_free(struct ubbd_device *ubbd_dev)
 {
-	destroy_workqueue(ubbd_dev->task_wq);
 	kfree(ubbd_dev);
 }
 
@@ -247,12 +239,18 @@ struct ubbd_device *ubbd_dev_create(u32 data_pages)
 	if (ret)
 		goto err_remove_id;
 
+	ubbd_dev->task_wq = alloc_workqueue("ubbd-tasks", WQ_MEM_RECLAIM, 0);
+	if (!ubbd_dev->task_wq) {
+		goto err_destroy_queues;
+	}
 
 	__module_get(THIS_MODULE);
 
 	pr_debug("%s ubbd_dev %p dev_id %d\n", __func__, ubbd_dev, ubbd_dev->dev_id);
 	return ubbd_dev;
 
+err_destroy_queues:
+	ubbd_dev_destroy_queues(ubbd_dev);
 err_remove_id:
 	ida_simple_remove(&ubbd_dev_id_ida, ubbd_dev->dev_id);
 fail_ubbd_dev:
@@ -262,6 +260,7 @@ fail_ubbd_dev:
 
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev)
 {
+	destroy_workqueue(ubbd_dev->task_wq);
 	ubbd_dev_destroy_queues(ubbd_dev);
 	ida_simple_remove(&ubbd_dev_id_ida, ubbd_dev->dev_id);
 	__ubbd_dev_free(ubbd_dev);
@@ -277,7 +276,6 @@ static void ubbd_init_queue_cpumask(struct ubbd_device *ubbd_dev, struct blk_mq_
 	for_each_present_cpu(cpu) {
 		ubbd_q = &ubbd_dev->queues[map[cpu]];
 		cpumask_set_cpu(cpu, &ubbd_q->cpumask);
-		pr_err("set cpu %d to queue %d", cpu, map[cpu]);
 	}
 }
 
