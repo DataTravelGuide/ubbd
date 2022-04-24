@@ -242,8 +242,6 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 	u64 remove_flags;
 	bool force = false;
 	int ret = 0;
-	int i;
-	bool disk_is_running = false;
 
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 	remove_flags = nla_get_u64(info->attrs[UBBD_ATTR_FLAGS]);
@@ -266,32 +264,7 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 	}
 	spin_unlock(&ubbd_dev->lock);
 
-	mutex_lock(&ubbd_dev->state_lock);
-	disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
-	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
-	mutex_unlock(&ubbd_dev->state_lock);
-
-	for (i = 0; i < ubbd_dev->num_queues; i++) {
-		struct ubbd_queue *ubbd_q;
-
-		ubbd_q = &ubbd_dev->queues[i];
-		set_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags);
-		/*
-		 * flush the task_wq, to avoid race with complete_work.
-		 *
-		 * after the flush_workqueue, all other work will return
-		 * directly as UBBD_QUEUE_FLAGS_REMOVING is already set.
-		 * Then we can end the inflight requests safely.
-		 * */
-		flush_workqueue(ubbd_dev->task_wq);
-		if (force) {
-			ubbd_end_inflight_reqs(ubbd_dev, -EIO);
-		}
-	}
-
-	if (disk_is_running) {
-		del_gendisk(ubbd_dev->disk);
-	}
+	ubbd_dev_remove_disk(ubbd_dev, force);
 
 out:
 	return ret;

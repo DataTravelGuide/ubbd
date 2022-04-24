@@ -500,6 +500,14 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	struct request *req = bd->rq;
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(bd->rq);
 
+	/*
+	 * If queue is removing, return directly. This would happen
+	 * in force unmapping.
+	 * */
+	if (test_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags)) {
+		return BLK_STS_IOERR;
+	}
+
 	memset(ubbd_req, 0, sizeof(struct ubbd_request));
 	INIT_LIST_HEAD(&ubbd_req->inflight_reqs_node);
 
@@ -660,15 +668,13 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved)
 {
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(req);
 	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
+	bool dev_is_running;
 
 	if (req->timeout == UINT_MAX)
 		return BLK_EH_RESET_TIMER;
 
-	mutex_lock(&ubbd_q->req_lock);
-	if (!list_empty(&ubbd_req->inflight_reqs_node)) {
-		complete_inflight_req(ubbd_q, ubbd_req, -ETIMEDOUT);
-	}
-	mutex_unlock(&ubbd_q->req_lock);
+	ubbd_dev_stop_disk(ubbd_dev, &dev_is_running, true);
 
 	return BLK_EH_DONE;
 }
