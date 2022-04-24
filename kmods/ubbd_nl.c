@@ -19,10 +19,13 @@ static inline size_t get_queue_msg_size(struct ubbd_queue *ubbd_q)
 	size_t msg_size;
 	size_t cpulist_size;
 
-	/* UIO_ID and UIO_MAP_SIZE */
-	msg_size = nla_attr_size(sizeof(s32)) + nla_attr_size(sizeof(u64));
+	/* size for UBBD_QUEUE_INFO_ITEM */
+	msg_size = nla_attr_size(sizeof(s32));
 
-	/* CPULIST */
+	/* UIO_ID and UIO_MAP_SIZE and UBBD_QUEUE_INFO_CPU_LIST nest start */
+	msg_size += nla_attr_size(sizeof(s32)) + nla_attr_size(sizeof(u64) + nla_attr_size(sizeof(s32)));
+
+	/* size for each cpu  */
 	cpulist_size = nla_attr_size(sizeof(u32)) * cpumask_weight(&ubbd_q->cpumask);
 
 	return msg_size + cpulist_size;
@@ -33,8 +36,8 @@ static inline size_t get_status_msg_size(struct ubbd_device *ubbd_dev)
 	size_t msg_size;
 	int i;
 
-	/* add dev_id and status */
-	msg_size = nla_attr_size(sizeof(s32)) + nla_attr_size(sizeof(u8));
+	/* add dev_id and status and UBBD_STATUS_QUEUE_INFO nest_start*/
+	msg_size = nla_attr_size(sizeof(s32)) + nla_attr_size(sizeof(u8) + nla_attr_size(sizeof(s32)));
 
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
 		msg_size += get_queue_msg_size(&ubbd_dev->queues[i]);
@@ -55,6 +58,8 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	msg_size = get_status_msg_size(ubbd_dev);
 
 	/* add retval */
+	msg_size += nla_total_size(nla_attr_size(sizeof(s32)));
+	/*add UBBD_ATTR_DEV_INFO */
 	msg_size += nla_total_size(nla_attr_size(sizeof(s32)));
 
 #ifdef UBBD_FAULT_INJECT
@@ -399,6 +404,8 @@ static int fill_ubbd_status(struct sk_buff *reply_skb, int dev_id)
 	}
 	nla_nest_end(reply_skb, dev_list);
 out:
+	if (ret)
+		pr_err("error in fill_ubbd_status: %d", ret);
 	return ret;
 }
 
@@ -416,11 +423,15 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 
 	mutex_lock(&ubbd_dev_list_mutex);
 	/* add size for retval */
-	msg_size = nla_attr_size(sizeof(s32));
+	msg_size = nla_total_size(nla_attr_size(sizeof(s32)));
+	/* add UBBD_ATTR_DEV_LIST */
+	msg_size += nla_total_size(nla_attr_size(sizeof(s32)));
 
 	if (dev_id == -1) {
 		list_for_each_entry(ubbd_dev, &ubbd_dev_list, dev_node) {
 			msg_size += get_status_msg_size(ubbd_dev);
+			/* add UBBD_STATUS_ITEM */
+			msg_size += nla_attr_size(sizeof(s32));
 		}
 	} else {
 		ubbd_dev = find_ubbd_dev(dev_id);
@@ -429,6 +440,8 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 			goto err;
 		}
 		msg_size += get_status_msg_size(ubbd_dev);
+		/* add UBBD_STATUS_ITEM */
+		msg_size += nla_attr_size(sizeof(s32));
 	}
 
 #ifdef UBBD_FAULT_INJECT
@@ -468,6 +481,7 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 
 	mutex_unlock(&ubbd_dev_list_mutex);
 	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0)) {
+		pr_err("error in put retval.");
 		ret = -EMSGSIZE;
 		goto err_cancel;
 	}
@@ -486,6 +500,7 @@ err_cancel:
 err_free:
 	nlmsg_free(reply_skb);
 err:
+	pr_err("ret of handle_cmd_status: %d", ret);
 	return ret;
 }
 
