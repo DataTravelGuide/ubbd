@@ -190,7 +190,7 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved);
 struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *);
 void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev);
 void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force);
-void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool *dev_is_running, bool force);
+void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool force);
 int ubbd_add_disk(struct ubbd_device *ubbd_dev);
 int ubbd_queue_uio_init(struct ubbd_queue *ubbd_q);
 void ubbd_queue_uio_destroy(struct ubbd_queue *ubbd_q);

@@ -560,14 +560,9 @@ void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev)
 	ubbd_dev_put(ubbd_dev);
 }
 
-void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool *disk_is_running, bool force)
+void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool force)
 {
 	int i;
-
-	mutex_lock(&ubbd_dev->state_lock);
-	*disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
-	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
-	mutex_unlock(&ubbd_dev->state_lock);
 
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
 		struct ubbd_queue *ubbd_q;
@@ -586,18 +581,18 @@ void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool *disk_is_running, boo
 			ubbd_end_inflight_reqs(ubbd_dev, -EIO);
 		}
 	}
-
-	if (force) {
-		blk_mq_freeze_queue(ubbd_dev->disk->queue);
-		blk_set_queue_dying(ubbd_dev->disk->queue);
-	}
 }
 
 void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force)
 {
 	bool disk_is_running;
 
-	ubbd_dev_stop_disk(ubbd_dev, &disk_is_running, force);
+	mutex_lock(&ubbd_dev->state_lock);
+	disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
+	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
+	mutex_unlock(&ubbd_dev->state_lock);
+
+	ubbd_dev_stop_disk(ubbd_dev, force);
 
 	if (disk_is_running) {
 		del_gendisk(ubbd_dev->disk);

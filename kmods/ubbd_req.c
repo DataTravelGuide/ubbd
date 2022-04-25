@@ -669,12 +669,11 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved)
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(req);
 	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
 	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
-	bool dev_is_running;
 
 	if (req->timeout == UINT_MAX)
 		return BLK_EH_RESET_TIMER;
 
-	ubbd_dev_stop_disk(ubbd_dev, &dev_is_running, true);
+	ubbd_dev_stop_disk(ubbd_dev, true);
 
 	return BLK_EH_DONE;
 }

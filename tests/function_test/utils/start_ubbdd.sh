@@ -1,5 +1,6 @@
 timeout=$1
 valgrind=$2
+downtime=$3
 
 while true; do
 	if [ $valgrind -eq 1 ]; then
@@ -7,5 +8,5 @@ while true; do
 	else
 		timeout ${timeout} ./ubbdd/ubbdd
 	fi
-	sleep 1
+	sleep ${downtime}
 done
