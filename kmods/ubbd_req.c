@@ -673,6 +673,7 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved)
 	if (req->timeout == UINT_MAX)
 		return BLK_EH_RESET_TIMER;
 
+	pr_err("ubbd timeouted.");
 	ubbd_dev_stop_disk(ubbd_dev, true);
 
 	return BLK_EH_DONE;
