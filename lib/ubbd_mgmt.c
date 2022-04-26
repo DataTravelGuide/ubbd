@@ -174,7 +174,7 @@ static int mgmt_map_finish(struct context *ctx, int ret)
 	int fd = rsp_data->fd;
 	struct ubbd_mgmt_rsp mgmt_rsp = {0};
 
-	ubbd_info("write rsp to fd: %d, ret: %d\n", fd, ret);
+	ubbd_info("write rsp to fd: %d, ret: %d, id: %d\n", fd, ret, rsp_data->ubbd_dev->dev_id);
 	mgmt_rsp.ret = ret;
 	if (!ret) {
 		sprintf(mgmt_rsp.u.add.path, "/dev/ubbd%d", 
@@ -182,6 +182,7 @@ static int mgmt_map_finish(struct context *ctx, int ret)
 	}
 	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
 	close(fd);
+	ubbd_dev_put(rsp_data->ubbd_dev);
 
 	return 0;
 }
@@ -196,6 +197,7 @@ static int mgmt_generic_finish(struct context *ctx, int ret)
 	mgmt_rsp.ret = ret;
 	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
 	close(fd);
+	ubbd_dev_put(rsp_data->ubbd_dev);
 
 	return 0;
 }
@@ -205,6 +207,10 @@ static struct context *mgmt_ctx_alloc(struct ubbd_device *ubbd_dev,
 {
 	struct context *ctx;
 	struct mgmt_ctx_data *ctx_data;
+
+	if (!ubbd_dev_get(ubbd_dev)) {
+		return NULL;
+	}
 
 	ctx = context_alloc(sizeof(struct mgmt_ctx_data));
 	if (!ctx) {

@@ -222,6 +222,7 @@ struct ubbd_device *find_ubbd_dev(int dev_id)
 static void ubbd_dev_init(struct ubbd_device *ubbd_dev)
 {
 	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
+	ubbd_atomic_set(&ubbd_dev->ref_count, 1);
 	INIT_LIST_HEAD(&ubbd_dev->dev_node);
 	pthread_mutex_init(&ubbd_dev->lock, NULL);
 }
@@ -346,7 +347,7 @@ void ubbd_dev_release(struct ubbd_device *ubbd_dev)
 	list_del_init(&ubbd_dev->dev_node);
 	pthread_mutex_unlock(&ubbd_dev_list_mutex);
 
-	ubbd_dev->dev_ops->release(ubbd_dev);
+	ubbd_dev_put(ubbd_dev);
 }
 
 /*
@@ -878,4 +879,20 @@ void ubbd_dev_add_ce(struct ubbd_queue *ubbd_q, uint64_t priv_data,
 	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_q, sb, ce);
 	pthread_mutex_unlock(&ubbd_q->req_lock);
 	ubbdlib_processing_complete(ubbd_q);
+}
+
+bool ubbd_dev_get(struct ubbd_device *ubbd_dev)
+{
+	if (!ubbd_atomic_add_unless(&ubbd_dev->ref_count, 1, 0)) {
+		ubbd_err("use-after-free for ubbd device\n");
+		return false;
+	}
+
+	return true;
+}
+
+void ubbd_dev_put(struct ubbd_device *ubbd_dev)
+{
+	if (ubbd_atomic_dec_and_test(&ubbd_dev->ref_count))
+		ubbd_dev->dev_ops->release(ubbd_dev);
 }

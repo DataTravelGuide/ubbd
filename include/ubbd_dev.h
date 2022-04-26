@@ -85,6 +85,8 @@ struct ubbd_device {
 	struct ubbd_queue *queues;
 
 	struct ubbd_dev_features dev_features;
+
+	ubbd_atomic	ref_count;
 };
 
 struct ubbd_file_device {
@@ -149,6 +151,9 @@ do { \
 do { \
         dev->se_to_handle = (dev->se_to_handle + len) % sb->cmdr_size; \
 } while (0)
+
+bool ubbd_dev_get(struct ubbd_device *ubbd_dev);
+void ubbd_dev_put(struct ubbd_device *ubbd_dev);
 
 struct ubbd_device *find_ubbd_dev(int dev_id);
 struct ubbd_rbd_device *create_rbd_dev(void);
