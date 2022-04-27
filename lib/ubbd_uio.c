@@ -106,10 +106,11 @@ void ubbdlib_processing_complete(struct ubbd_queue *ubbd_q)
 struct ubbd_se *device_cmd_head(struct ubbd_queue *ubbd_q)
 {
         struct ubbd_sb *sb = ubbd_q->uio_info.map;
+	uint32_t cmd_head = ubbd_smp_load_acquire(&sb->cmd_head);
 
 	ubbd_dbg("cmd: head: %u tail: %u\n", sb->cmd_head, sb->cmd_tail);
 
-        return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_head);
+        return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + cmd_head);
 }
 
 struct ubbd_se *device_cmd_tail(struct ubbd_queue *ubbd_q)

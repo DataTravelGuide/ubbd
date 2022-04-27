@@ -218,4 +218,22 @@ static inline long ubbd_atomic64_cmpxchg(ubbd_atomic64 *a, long old, long new)
 	return atomic_cmpxchg(a, old, new);
 }
 
+/* Memory Barrier */
+
+#include <stdatomic.h>
+
+#define UBBD_WRITE_ONCE(var, val)				\
+	atomic_store_explicit((_Atomic __typeof__(var) *)&(var),	\
+			      (val), memory_order_relaxed)
+#define UBBD_READ_ONCE(var)					\
+	atomic_load_explicit((_Atomic __typeof__(var) *)&(var),	\
+			     memory_order_relaxed)
+
+#define ubbd_smp_store_release(p, v)			\
+	atomic_store_explicit((_Atomic __typeof__(*(p)) *)(p), (v), \
+			      memory_order_release)
+#define ubbd_smp_load_acquire(p)				\
+	atomic_load_explicit((_Atomic __typeof__(*(p)) *)(p),	\
+			     memory_order_acquire)
+
 #endif
