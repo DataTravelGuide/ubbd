@@ -143,6 +143,7 @@ enum ubbd_genl_attr {
  * remove related flags
  */
 #define UBBD_ATTR_FLAGS_REMOVE_FORCE	1 << 0
+#define UBBD_SB_FLAG_NEED_WAKEUP	1 << 1
 
 /*
  * add related flags

@@ -77,6 +77,7 @@ void *cmd_process(void *arg)
 	uint32_t op_len = 0;
 
 	struct pollfd pollfds[128];
+	int polling_times = 0;
 	int ret;
 
 	ubbdlib_processing_complete(ubbd_q);
@@ -86,13 +87,19 @@ void *cmd_process(void *arg)
 	ubbd_dbg("cmd_tail: %u, cmd_head: %u\n", sb->cmd_tail, sb->cmd_head);
 
 	while (1) {
-		while (1) {
-			ubbdlib_processing_start(ubbd_q);
+		while (ubbd_q->ubbd_dev->status != UBBD_DEV_USTATUS_STOPPING) {
+			//ubbdlib_processing_start(ubbd_q);
 
 			se = device_cmd_to_handle(ubbd_q);
 			if (se == device_cmd_head(ubbd_q)) {
-				break;
+				if (++polling_times < 100) {
+					usleep(1);
+					continue;
+				} else {
+					break;
+				}
 			}
+			polling_times = 0;
 			op_len = ubbd_se_hdr_get_len(se->header.len_op);
 			ubbd_dbg("len_op: %x\n", se->header.len_op);
 			ubbd_dbg("op: %d, length: %u\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op));
@@ -108,6 +115,7 @@ poll:
 		pollfds[0].events = POLLIN;
 		pollfds[0].revents = 0;
 
+		sb->flags |= UBBD_SB_FLAG_NEED_WAKEUP;
 		ret = poll(pollfds, 1, 60);
 		if (ret == -1) {
 			ubbd_err("poll() returned %d, exiting\n", ret);
@@ -123,6 +131,8 @@ poll:
 		if (!pollfds[0].revents) {
 			goto poll;
 		}
+		sb->flags &= ~UBBD_SB_FLAG_NEED_WAKEUP;
+		polling_times = 0;
 
 	}
 

@@ -444,6 +444,16 @@ static void queue_req_data_init(struct ubbd_request *ubbd_req)
 	}
 }
 
+static void ubbd_wakeup_sq_thread(struct ubbd_queue *ubbd_q)
+{
+	struct ubbd_sb *sb = ubbd_q->sb_addr;
+
+	if (sb->flags & UBBD_SB_FLAG_NEED_WAKEUP) {
+		pr_err("wakeup");
+		uio_event_notify(&ubbd_q->uio_info);
+	}
+}
+
 void ubbd_queue_workfn(struct work_struct *work)
 {
 	struct ubbd_request *ubbd_req =
@@ -480,7 +490,8 @@ void ubbd_queue_workfn(struct work_struct *work)
 	ubbd_flush_dcache_range(ubbd_q->sb_addr, sizeof(*ubbd_q->sb_addr));
 	mutex_unlock(&ubbd_q->req_lock);
 
-	uio_event_notify(&ubbd_q->uio_info);
+	//uio_event_notify(&ubbd_q->uio_info);
+	ubbd_wakeup_sq_thread(ubbd_q);
 
 	return;
 
