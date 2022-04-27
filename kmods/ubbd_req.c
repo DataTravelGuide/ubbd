@@ -534,7 +534,7 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	}
 
 	INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
-	queue_work_on(smp_processor_id(), ubbd_q->ubbd_dev->task_wq, &ubbd_req->work);
+	queue_work_on(current->on_cpu, ubbd_q->ubbd_dev->task_wq, &ubbd_req->work);
 
 	return BLK_STS_OK;
 }
