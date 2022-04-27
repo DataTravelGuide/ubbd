@@ -28,6 +28,7 @@ enum ubbd_dev_ustatus {
 
 struct ubbd_dev_info {
 	enum ubbd_dev_type type;
+	uint32_t num_queues;
 	union {
 		struct {
 			char path[PATH_MAX];
