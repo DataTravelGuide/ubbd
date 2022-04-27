@@ -92,8 +92,8 @@ void *cmd_process(void *arg)
 
 			se = device_cmd_to_handle(ubbd_q);
 			if (se == device_cmd_head(ubbd_q)) {
-				if (++polling_times < 1000) {
-					usleep(1);
+				if (++polling_times < 50) {
+					usleep(2);
 					continue;
 				} else {
 					break;
@@ -116,8 +116,7 @@ poll:
 		pollfds[0].revents = 0;
 
 		sb->flags |= UBBD_SB_FLAG_NEED_WAKEUP;
-		//ubbdlib_processing_start(ubbd_q);
-		ret = poll(pollfds, 1, 60);
+		ret = poll(pollfds, 1, 1000);
 		if (ret == -1) {
 			ubbd_err("poll() returned %d, exiting\n", ret);
 			return NULL;
@@ -133,6 +132,7 @@ poll:
 			ubbd_err("goto poll\n");
 			goto poll;
 		}
+		ubbdlib_processing_start(ubbd_q);
 		sb->flags &= ~UBBD_SB_FLAG_NEED_WAKEUP;
 		polling_times = 0;
 

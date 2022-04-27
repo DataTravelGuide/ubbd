@@ -487,7 +487,7 @@ void ubbd_queue_workfn(struct work_struct *work)
 			ubbd_get_cmd_size(ubbd_req),
 			ubbd_q->sb_addr->cmdr_size);
 
-	ubbd_flush_dcache_range(ubbd_q->sb_addr, sizeof(*ubbd_q->sb_addr));
+	//ubbd_flush_dcache_range(ubbd_q->sb_addr, sizeof(*ubbd_q->sb_addr));
 	mutex_unlock(&ubbd_q->req_lock);
 
 	//uio_event_notify(&ubbd_q->uio_info);
