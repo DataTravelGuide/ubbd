@@ -79,6 +79,9 @@ void *cmd_process(void *arg)
 	struct pollfd pollfds[128];
 	int polling_times = 0;
 	int ret;
+	struct timeval before_tv, after_tv;
+	uint64_t handle_cmd_time = 0;
+	uint64_t handle_cmd_count = 0;
 
 	ubbdlib_processing_complete(ubbd_q);
 	wait_for_compr_empty(ubbd_q);
@@ -92,8 +95,8 @@ void *cmd_process(void *arg)
 
 			se = device_cmd_to_handle(ubbd_q);
 			if (se == device_cmd_head(ubbd_q)) {
-				if (++polling_times < 50) {
-					usleep(2);
+				if (++polling_times < 5) {
+					usleep(1);
 					continue;
 				} else {
 					break;
@@ -105,7 +108,11 @@ void *cmd_process(void *arg)
 			ubbd_dbg("op: %d, length: %u\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op));
 			if (ubbd_se_hdr_get_op(se->header.len_op) != UBBD_OP_PAD)
 				ubbd_dbg("se id: %llu\n", se->priv_data);
+			gettimeofday(&before_tv,NULL);
 			handle_cmd(ubbd_q, se);
+			gettimeofday(&after_tv,NULL);
+			handle_cmd_time += (after_tv.tv_sec*1000000 + after_tv.tv_usec) - (before_tv.tv_sec*1000000 + before_tv.tv_usec);
+			handle_cmd_count++;
 			UBBD_UPDATE_CMD_TO_HANDLE(ubbd_q, sb, op_len);
 			ubbd_dbg("finish handle_cmd\n");
 		}
@@ -127,7 +134,7 @@ poll:
 			return NULL;
 		}
 
-		ubbd_err("poll cmd: %d\n", ret);
+		ubbd_err("poll cmd: %d, handle_cmd_time: %lu, handle_cmd_count: %lu, avg: %lu\n", ret, handle_cmd_time, handle_cmd_count, handle_cmd_count == 0? 0:(handle_cmd_time / handle_cmd_count));
 		if (!pollfds[0].revents) {
 			ubbd_err("goto poll\n");
 			goto poll;
