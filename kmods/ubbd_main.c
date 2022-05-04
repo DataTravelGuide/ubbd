@@ -3,6 +3,7 @@
  */
 
 #include "ubbd_internal.h"
+#include <linux/blkdev.h>
 
 LIST_HEAD(ubbd_dev_list);    /* devices */
 int ubbd_total_devs = 0;
@@ -183,11 +184,6 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 	if (!ubbd_dev)
 		goto err;
 
-	ubbd_dev->task_wq = alloc_workqueue("ubbd-tasks", WQ_MEM_RECLAIM, 0);
-	if (!ubbd_dev->task_wq) {
-		goto err_free_dev;
-	}
-
 	ubbd_dev->status = UBBD_DEV_STATUS_INIT;
 
 	spin_lock_init(&ubbd_dev->lock);
@@ -197,15 +193,12 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 
 	return ubbd_dev;
 
-err_free_dev:
-	kfree(ubbd_dev);
 err:
 	return NULL;
 }
 
 static void __ubbd_dev_free(struct ubbd_device *ubbd_dev)
 {
-	destroy_workqueue(ubbd_dev->task_wq);
 	kfree(ubbd_dev);
 }
 
@@ -243,16 +236,22 @@ struct ubbd_device *ubbd_dev_create(u32 data_pages)
 
 	sprintf(ubbd_dev->name, UBBD_DRV_NAME "%d", ubbd_dev->dev_id);
 
-	ret = ubbd_dev_create_queues(ubbd_dev, 8, data_pages);
+	ret = ubbd_dev_create_queues(ubbd_dev, 1, data_pages);
 	if (ret)
 		goto err_remove_id;
 
+	ubbd_dev->task_wq = alloc_workqueue("ubbd-tasks", WQ_MEM_RECLAIM, 0);
+	if (!ubbd_dev->task_wq) {
+		goto err_destroy_queues;
+	}
 
 	__module_get(THIS_MODULE);
 
 	pr_debug("%s ubbd_dev %p dev_id %d\n", __func__, ubbd_dev, ubbd_dev->dev_id);
 	return ubbd_dev;
 
+err_destroy_queues:
+	ubbd_dev_destroy_queues(ubbd_dev);
 err_remove_id:
 	ida_simple_remove(&ubbd_dev_id_ida, ubbd_dev->dev_id);
 fail_ubbd_dev:
@@ -262,6 +261,7 @@ fail_ubbd_dev:
 
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev)
 {
+	destroy_workqueue(ubbd_dev->task_wq);
 	ubbd_dev_destroy_queues(ubbd_dev);
 	ida_simple_remove(&ubbd_dev_id_ida, ubbd_dev->dev_id);
 	__ubbd_dev_free(ubbd_dev);
@@ -277,7 +277,6 @@ static void ubbd_init_queue_cpumask(struct ubbd_device *ubbd_dev, struct blk_mq_
 	for_each_present_cpu(cpu) {
 		ubbd_q = &ubbd_dev->queues[map[cpu]];
 		cpumask_set_cpu(cpu, &ubbd_q->cpumask);
-		pr_err("set cpu %d to queue %d", cpu, map[cpu]);
 	}
 }
 
@@ -559,6 +558,45 @@ void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev)
 
 	ubbd_free_disk(ubbd_dev);
 	ubbd_dev_put(ubbd_dev);
+}
+
+void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool force)
+{
+	int i;
+
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		struct ubbd_queue *ubbd_q;
+
+		ubbd_q = &ubbd_dev->queues[i];
+		set_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags);
+		/*
+		 * flush the task_wq, to avoid race with complete_work.
+		 *
+		 * after the flush_workqueue, all other work will return
+		 * directly as UBBD_QUEUE_FLAGS_REMOVING is already set.
+		 * Then we can end the inflight requests safely.
+		 * */
+		flush_workqueue(ubbd_dev->task_wq);
+		if (force) {
+			ubbd_end_inflight_reqs(ubbd_dev, -EIO);
+		}
+	}
+}
+
+void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force)
+{
+	bool disk_is_running;
+
+	mutex_lock(&ubbd_dev->state_lock);
+	disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
+	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
+	mutex_unlock(&ubbd_dev->state_lock);
+
+	ubbd_dev_stop_disk(ubbd_dev, force);
+
+	if (disk_is_running) {
+		del_gendisk(ubbd_dev->disk);
+	}
 }
 
 void ubbd_dev_get(struct ubbd_device *ubbd_dev)

@@ -1,4 +1,5 @@
 #include "ubbd_internal.h"
+#include <linux/delay.h>
 
 struct ubbd_se *get_submit_entry(struct ubbd_queue *ubbd_q)
 {
@@ -368,17 +369,11 @@ static inline size_t ubbd_get_cmd_size(struct ubbd_request *ubbd_req)
 static int queue_req_prepare(struct ubbd_request *ubbd_req)
 {
 	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
-	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 	size_t command_size;
 	int ret;
 
 	ubbd_req->pi_cnt = ubbd_req_segments(ubbd_req);
 	command_size = ubbd_get_cmd_size(ubbd_req);
-
-	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
-		ret = -EIO;
-		goto err;
-	}
 
 	if (!submit_ring_space_enough(ubbd_q, command_size)) {
 		pr_debug("cmd ring space is not enough");
@@ -456,10 +451,21 @@ void ubbd_queue_workfn(struct work_struct *work)
 	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
 	int ret = 0;
 
+	/*
+	 * If queue is removing, return directly. This would happen
+	 * in force unmapping.
+	 * */
+	if (test_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags)) {
+		ret = -EIO;
+		goto end_request;
+	}
+
 	mutex_lock(&ubbd_q->req_lock);
 	ret = queue_req_prepare(ubbd_req);
-	if (ret)
+	if (ret) {
+		mutex_unlock(&ubbd_q->req_lock);
 		goto end_request;
+	}
 
 	queue_req_se_init(ubbd_req);
 	queue_req_data_init(ubbd_req);
@@ -479,7 +485,6 @@ void ubbd_queue_workfn(struct work_struct *work)
 	return;
 
 end_request:
-	mutex_unlock(&ubbd_q->req_lock);
 	if (ret == -ENOMEM)
 		blk_mq_requeue_request(ubbd_req->req, true);
 	else
@@ -494,6 +499,14 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	struct ubbd_queue *ubbd_q = hctx->driver_data;
 	struct request *req = bd->rq;
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(bd->rq);
+
+	/*
+	 * If queue is removing, return directly. This would happen
+	 * in force unmapping.
+	 * */
+	if (test_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags)) {
+		return BLK_STS_IOERR;
+	}
 
 	memset(ubbd_req, 0, sizeof(struct ubbd_request));
 	INIT_LIST_HEAD(&ubbd_req->inflight_reqs_node);
@@ -521,13 +534,7 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	}
 
 	INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
-        spin_lock(&ubbd_q->state_lock);
-        if (ubbd_q->flags & UBBD_QUEUE_FLAGS_REMOVING) {
-                spin_unlock(&ubbd_q->state_lock);
-                return BLK_STS_IOERR;
-        }
 	queue_work_on(smp_processor_id(), ubbd_q->ubbd_dev->task_wq, &ubbd_req->work);
-        spin_unlock(&ubbd_q->state_lock);
 
 	return BLK_STS_OK;
 }
@@ -599,15 +606,18 @@ static void complete_inflight_req(struct ubbd_queue *ubbd_q, struct ubbd_request
 void complete_work_fn(struct work_struct *work)
 {
 	struct ubbd_queue *ubbd_q = container_of(work, struct ubbd_queue, complete_work);
-	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 	struct ubbd_ce *ce;
 	struct ubbd_request *req;
 
-again:
-	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
+	/*
+	 * If queue is removing, return directly. This would happen
+	 * in force unmapping. inflight request would be ended by unmapping
+	 * */
+	if (test_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags)) {
 		return;
 	}
 
+again:
 	mutex_lock(&ubbd_q->req_lock);
 	ce = get_complete_entry(ubbd_q);
 	if (!ce) {
@@ -658,15 +668,13 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved)
 {
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(req);
 	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
 	if (req->timeout == UINT_MAX)
 		return BLK_EH_RESET_TIMER;
 
-	mutex_lock(&ubbd_q->req_lock);
-	if (!list_empty(&ubbd_req->inflight_reqs_node)) {
-		complete_inflight_req(ubbd_q, ubbd_req, -ETIMEDOUT);
-	}
-	mutex_unlock(&ubbd_q->req_lock);
+	pr_err("ubbd timeouted.");
+	ubbd_dev_stop_disk(ubbd_dev, true);
 
 	return BLK_EH_DONE;
 }
