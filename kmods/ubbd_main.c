@@ -16,7 +16,7 @@ struct device *ubbd_uio_root_device;
 static int ubbd_init_hctx(struct blk_mq_hw_ctx *hctx, void *driver_data,
 			unsigned int hctx_idx)
 {
-	struct ubbd_device *ubbd_dev = hctx->queue->queuedata;
+	struct ubbd_device *ubbd_dev = driver_data;
 	struct ubbd_queue *ubbd_q;
 
 	ubbd_q = &ubbd_dev->queues[hctx_idx];
@@ -300,6 +300,7 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	ubbd_dev->tag_set.nr_hw_queues = ubbd_dev->num_queues;
 	ubbd_dev->tag_set.cmd_size = sizeof(struct ubbd_request);
 	ubbd_dev->tag_set.timeout = UINT_MAX;
+	ubbd_dev->tag_set.driver_data = ubbd_dev;
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
@@ -381,6 +382,7 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	ubbd_dev->tag_set.nr_hw_queues = ubbd_dev->num_queues;
 	ubbd_dev->tag_set.cmd_size = sizeof(struct ubbd_request);
 	ubbd_dev->tag_set.timeout = UINT_MAX;
+	ubbd_dev->tag_set.driver_data = ubbd_dev;
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
