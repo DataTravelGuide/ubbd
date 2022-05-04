@@ -78,9 +78,15 @@ struct ubbd_device {
 	struct kref		kref;
 };
 
-static LIST_HEAD(ubbd_dev_list);    /* devices */
-static DEFINE_MUTEX(ubbd_dev_list_mutex);
+struct ubbd_dev_add_opts {
+	u32	data_pages;
+	u64	device_size;
+	u64	dev_features;
+};
 
+extern struct list_head ubbd_dev_list;
+extern int ubbd_total_devs;
+extern struct mutex ubbd_dev_list_mutex;
 
 static inline int ubbd_dev_id_to_minor(int dev_id)
 {
@@ -166,14 +172,9 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		const struct blk_mq_queue_data *bd);
 void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret);
 enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved);
-struct ubbd_device *ubbd_dev_create(u32 data_pages);
-void ubbd_dev_destroy(struct ubbd_device *ubbd_dev);
-void ubbd_free_disk(struct ubbd_device *ubbd_dev);
+struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *);
+void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev);
 int ubbd_add_disk(struct ubbd_device *ubbd_dev);
-int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
-			u64 device_size, u64 dev_features);
-int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev);
-void ubbd_dev_sb_destroy(struct ubbd_device *ubbd_dev);
 int ubbd_dev_uio_init(struct ubbd_device *ubbd_dev);
 void ubbd_dev_uio_destroy(struct ubbd_device *ubbd_dev);
 

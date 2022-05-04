@@ -1,7 +1,6 @@
 /* netlink */
 
 #include "ubbd_internal.h"
-static int ubbd_total_devs = 0;
 
 static inline int ubbd_nla_parse_nested(struct nlattr *tb[], int maxtype,
 				 const struct nlattr *nla,
@@ -90,9 +89,7 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev = NULL;
 	struct nlattr *dev_opts[UBBD_DEV_OPTS_MAX + 1];
-	u64 dev_features;
-	u64 device_size;
-	u32 data_pages;
+	struct ubbd_dev_add_opts add_opts;
 	int ret = 0;
 
 	if (!info->attrs[UBBD_ATTR_DEV_OPTS] ||
@@ -101,7 +98,7 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
-	dev_features = nla_get_u64(info->attrs[UBBD_ATTR_FLAGS]);
+	add_opts.dev_features = nla_get_u64(info->attrs[UBBD_ATTR_FLAGS]);
 
 	ret = ubbd_nla_parse_nested(dev_opts, UBBD_DEV_OPTS_MAX,
 			info->attrs[UBBD_ATTR_DEV_OPTS],
@@ -117,12 +114,12 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 		ret = -EINVAL;
 		goto out;
 	}
-	device_size = nla_get_u64(dev_opts[UBBD_DEV_OPTS_DEV_SIZE]);
+	add_opts.device_size = nla_get_u64(dev_opts[UBBD_DEV_OPTS_DEV_SIZE]);
 
 	if (dev_opts[UBBD_DEV_OPTS_DATA_PAGES])
-		data_pages = nla_get_u32(dev_opts[UBBD_DEV_OPTS_DATA_PAGES]);
+		add_opts.data_pages = nla_get_u32(dev_opts[UBBD_DEV_OPTS_DATA_PAGES]);
 	else
-		data_pages = UBBD_UIO_DATA_PAGES;
+		add_opts.data_pages = UBBD_UIO_DATA_PAGES;
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
@@ -130,64 +127,28 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 #endif
-	ubbd_dev = ubbd_dev_create(data_pages);
-	if (!ubbd_dev) {
-		ret = -ENOMEM;
+	ubbd_dev = ubbd_dev_add_dev(&add_opts);
+	if (IS_ERR_OR_NULL(ubbd_dev)) {
+		ret = PTR_ERR(ubbd_dev);
 		goto out;
 	}
 
 #ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		ret = -ENOMEM;
-		goto err_dev_put;
-	}
-#endif
-	ret = ubbd_dev_sb_init(ubbd_dev);
-	if (ret) {
-		pr_err("failed to init dev sb: %d.", ret);
-		goto err_dev_put;
-	}
-
-	ret = ubbd_dev_uio_init(ubbd_dev);
-	if (ret) {
-		pr_debug("failed to init uio: %d.", ret);
-		goto err_dev_put;
-	}
-
-	ret = ubbd_dev_device_setup(ubbd_dev, device_size, dev_features);
-	if (ret) {
-		ret = -EINVAL;
-		goto err_dev_put;
-	}
-
-	mutex_lock(&ubbd_dev_list_mutex);
-	ubbd_total_devs++;
-	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
-	mutex_unlock(&ubbd_dev_list_mutex);
-
-#ifdef UBBD_FAULT_INJECT
-	if (ubbd_mgmt_need_fault()) {
-		ret = -ENOMEM;
-		goto err_free_disk;
+		goto err_remove_dev;
 	}
 #endif
 	ret = ubbd_nl_reply_add_dev_done(ubbd_dev, info);
 	if (ret)
-		goto err_free_disk;
+		goto err_remove_dev;
 
 	ubbd_dev->status = UBBD_DEV_STATUS_PREPARED;
 
 	return 0;
 
-err_free_disk:
-	mutex_lock(&ubbd_dev_list_mutex);
-	ubbd_total_devs--;
-	list_del_init(&ubbd_dev->dev_node);
-	mutex_unlock(&ubbd_dev_list_mutex);
-
-	ubbd_free_disk(ubbd_dev);
-err_dev_put:
-	ubbd_dev_put(ubbd_dev);
+err_remove_dev:
+	ubbd_dev_remove_dev(ubbd_dev);
 out:
 	return ret;
 }
@@ -303,10 +264,8 @@ static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 	int ret = 0;
 
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
-	mutex_lock(&ubbd_dev_list_mutex);
-	ubbd_dev = __find_ubbd_dev(dev_id);
+	ubbd_dev = find_ubbd_dev(dev_id);
 	if (!ubbd_dev) {
-		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -315,16 +274,11 @@ static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 			ubbd_dev->status != UBBD_DEV_STATUS_PREPARED) {
 		pr_err("remove dev is not allowed in current status: %d.",
 				ubbd_dev->status);
-		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -EINVAL;
 		goto out;
 	}
 
-	list_del_init(&ubbd_dev->dev_node);
-	mutex_unlock(&ubbd_dev_list_mutex);
-
-	ubbd_free_disk(ubbd_dev);
-	ubbd_dev_put(ubbd_dev);
+	ubbd_dev_remove_dev(ubbd_dev);
 out:
 	return ret;
 }
