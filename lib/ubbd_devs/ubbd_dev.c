@@ -428,11 +428,15 @@ int dev_stop(struct ubbd_device *ubbd_dev)
 	int ret;
 
 	ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
+	if (!ubbd_dev->queues)
+		return 0;
+
 	ret = stop_queues(ubbd_dev);
 	if (ret)
 		return ret;
 
 	free(ubbd_dev->queues);
+
 	return 0;
 }
 
