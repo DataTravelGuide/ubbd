@@ -130,10 +130,9 @@ enum ubbd_genl_cmd {
 
 enum ubbd_genl_attr {
 	UBBD_ATTR_PAD,
-	UBBD_ATTR_DEV_SIZE,
 	UBBD_ATTR_DEV_ID,
-	UBBD_ATTR_UIO_ID,
-	UBBD_ATTR_UIO_MAP_SIZE,
+	UBBD_ATTR_DEV_INFO,
+	UBBD_ATTR_DEV_SIZE,
 	UBBD_ATTR_DEV_LIST,
 	UBBD_ATTR_FLAGS,
 	UBBD_ATTR_RETVAL,
@@ -162,13 +161,9 @@ enum ubbd_genl_attr {
  *
  * [UBBD_ATTR_DEV_LIST]
  * 	[UBBD_STATUS_ITEM]
- * 		[UBBD_STATUS_DEV_ID]
- * 		[UBBD_STATUS_UIO_ID]
- * 		[UBBD_STATUS_STATUS]
+ * 		...
  * 	[UBBD_STATUS_ITEM]
- * 		[UBBD_STATUS_DEV_ID]
- * 		[UBBD_STATUS_UIO_ID]
- * 		[UBBD_STATUS_STATUS]
+ * 		...
  */
 enum {
 	UBBD_STATUS_ITEM,
@@ -176,6 +171,9 @@ enum {
 };
 #define UBBD_STATUS_ITEM_MAX (__UBBD_STATUS_ITEM_MAX - 1)
 
+/*
+ * Fromat of nested UBBD_STATUS_ITEM and UBBD_ATTR_DEV_INFO
+ */
 enum {
 	UBBD_STATUS_DEV_ID,
 	UBBD_STATUS_UIO_ID,

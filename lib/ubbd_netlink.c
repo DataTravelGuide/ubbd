@@ -296,9 +296,23 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 		return ret;
 	}
 
-	ubbd_dev->dev_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_DEV_ID]));
-	ubbd_dev->uio_info.uio_id = (int32_t)(nla_get_s32(msg_attr[UBBD_ATTR_UIO_ID]));
-	ubbd_dev->uio_info.uio_map_size = (uint64_t)(nla_get_u64(msg_attr[UBBD_ATTR_UIO_MAP_SIZE]));
+	if (msg_attr[UBBD_ATTR_DEV_INFO]) {
+		struct nlattr *status[UBBD_STATUS_ATTR_MAX+1];
+
+		ret = nla_parse_nested(status, UBBD_STATUS_ATTR_MAX, msg_attr[UBBD_ATTR_DEV_INFO],
+				       ubbd_status_policy);
+		if (ret) {
+			ubbd_err("failed to parse nested status\n");
+			return -EINVAL;
+		}
+
+		ubbd_dev->dev_id = nla_get_s32(status[UBBD_STATUS_DEV_ID]);
+		ubbd_dev->uio_info.uio_id = nla_get_s32(status[UBBD_STATUS_UIO_ID]);
+		ubbd_dev->uio_info.uio_map_size = nla_get_s32(status[UBBD_STATUS_UIO_MAP_SIZE]);
+	} else {
+		ubbd_err("no dev_info replyied in add_dev_don\n");
+		return -EINVAL;
+	}
 
 	return NL_OK;
 }
