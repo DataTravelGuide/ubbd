@@ -406,6 +406,9 @@ static int stop_queues(struct ubbd_device *ubbd_dev)
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
 		ubbd_q = &ubbd_dev->queues[i];
 
+		if (!ubbd_q) 
+			continue;
+
 		if (ubbd_q->cmdproc_thread) {
 			ret = pthread_join(ubbd_q->cmdproc_thread, &join_retval);
 			if (ret)
@@ -768,6 +771,9 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 		goto err_close;
 	}
 
+	ubbd_dev->dev_id = dev_status->dev_id;
+	ubbd_dev->num_queues = dev_status->num_queues;
+
 	if (dev_status->status != UBBD_DEV_STATUS_RUNNING) {
 		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
 		goto out;
@@ -776,9 +782,6 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	ret = ubbd_dev_open(ubbd_dev);
 	if (ret)
 		goto release_dev;
-
-	ubbd_dev->dev_id = dev_status->dev_id;
-	ubbd_dev->num_queues = dev_status->num_queues;
 
 	ubbd_dev->queues = calloc(ubbd_dev->num_queues, sizeof(struct ubbd_queue));
 	if (!ubbd_dev->queues) {
@@ -805,8 +808,7 @@ out:
 	return 0;
 
 destroy_queues:
-
-	//ubbd_dev_destroy_queues(ubbd_dev);
+	free(ubbd_dev->queues);
 close_dev:
 	ubbd_dev_close(ubbd_dev);
 release_dev:
@@ -827,7 +829,7 @@ int ubbd_dev_reopen_devs(void)
 	ret = ubbd_nl_dev_list(&tmp_list);
 	list_for_each_entry_safe(tmp_status, next_status, &tmp_list, node) {
 		list_del(&tmp_status->node);
-		ubbd_err("tmp_status: %p\n", tmp_status);
+		ubbd_err("tmp_status: %p, id: %d\n", tmp_status, tmp_status->dev_id);
 		ret = reopen_dev(tmp_status, &ubbd_dev);
 		ubbd_err("ubbd_Dev: %p, status: %d\n", ubbd_dev, tmp_status->status);
 		if (ret)
