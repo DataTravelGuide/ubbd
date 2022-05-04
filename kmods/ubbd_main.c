@@ -215,12 +215,12 @@ static void ubbd_page_release(struct ubbd_queue *ubbd_q)
 	xas_unlock(&xas);
 }
 
-struct ubbd_device *ubbd_dev_create(u32 data_pages)
+struct ubbd_device *ubbd_dev_create(struct ubbd_dev_add_opts *add_opts)
 {
 	struct ubbd_device *ubbd_dev;
 	int ret;
 
-	ubbd_dev = __ubbd_dev_create(data_pages);
+	ubbd_dev = __ubbd_dev_create(add_opts->data_pages);
 	if (!ubbd_dev)
 		return NULL;
 
@@ -236,7 +236,7 @@ struct ubbd_device *ubbd_dev_create(u32 data_pages)
 
 	sprintf(ubbd_dev->name, UBBD_DRV_NAME "%d", ubbd_dev->dev_id);
 
-	ret = ubbd_dev_create_queues(ubbd_dev, 1, data_pages);
+	ret = ubbd_dev_create_queues(ubbd_dev, add_opts->num_queues, add_opts->data_pages);
 	if (ret)
 		goto err_remove_id;
 
@@ -518,7 +518,7 @@ struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *add_opts)
 	int ret;
 	struct ubbd_device *ubbd_dev;
 
-	ubbd_dev = ubbd_dev_create(add_opts->data_pages);
+	ubbd_dev = ubbd_dev_create(add_opts);
 	if (!ubbd_dev) {
 		ret = -ENOMEM;
 		goto out;

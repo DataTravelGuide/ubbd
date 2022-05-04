@@ -118,7 +118,7 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev = NULL;
 	struct nlattr *dev_opts[UBBD_DEV_OPTS_MAX + 1];
-	struct ubbd_dev_add_opts add_opts;
+	struct ubbd_dev_add_opts add_opts = {0};
 	int ret = 0;
 
 	if (!info->attrs[UBBD_ATTR_DEV_OPTS] ||
@@ -139,11 +139,16 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	if (!dev_opts[UBBD_DEV_OPTS_DEV_SIZE]) {
-		pr_err("dev_size is not found in dev options");
+		pr_err("dev_size or dev_queues is not found in dev options");
 		ret = -EINVAL;
 		goto out;
 	}
 	add_opts.device_size = nla_get_u64(dev_opts[UBBD_DEV_OPTS_DEV_SIZE]);
+	if (dev_opts[UBBD_DEV_OPTS_DEV_QUEUES])
+		add_opts.num_queues = nla_get_u32(dev_opts[UBBD_DEV_OPTS_DEV_QUEUES]);
+
+	if (!add_opts.num_queues)
+		add_opts.num_queues = nr_cpu_ids;
 
 	if (dev_opts[UBBD_DEV_OPTS_DATA_PAGES])
 		add_opts.data_pages = nla_get_u32(dev_opts[UBBD_DEV_OPTS_DATA_PAGES]);

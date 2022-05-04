@@ -380,6 +380,11 @@ int send_netlink_add_dev(struct ubbd_nl_req *req)
 	ret = nla_put_u64(msg, UBBD_DEV_OPTS_DEV_SIZE, ubbd_dev->dev_size);
 	if (ret < 0)
 		goto free_msg;
+
+	ret = nla_put_u32(msg, UBBD_DEV_OPTS_DEV_QUEUES, ubbd_dev->num_queues);
+	if (ret < 0)
+		goto free_msg;
+
 	nla_nest_end(msg, dev_opts_attr);
 
 	ret = nl_send_sync(socket, msg);

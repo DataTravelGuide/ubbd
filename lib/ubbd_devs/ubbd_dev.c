@@ -311,6 +311,7 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 	}
 
 	ubbd_dev_init(ubbd_dev);
+	ubbd_dev->num_queues = info->num_queues;
 	memcpy(&ubbd_dev->dev_info, info, sizeof(*info));
 
 	pthread_mutex_lock(&ubbd_dev_list_mutex);
@@ -384,6 +385,7 @@ int dev_setup(struct ubbd_device *ubbd_dev)
 	int ret;
 	int i;
 
+	ubbd_dev_info(ubbd_dev, "setup queues: %u\n", ubbd_dev->num_queues);
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
 		ubbd_q = &ubbd_dev->queues[i];
 		ubbd_q->ubbd_dev = ubbd_dev;

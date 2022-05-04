@@ -97,6 +97,7 @@ struct ubbd_dev_add_opts {
 	u32	data_pages;
 	u64	device_size;
 	u64	dev_features;
+	u32	num_queues;
 };
 
 extern struct list_head ubbd_dev_list;
