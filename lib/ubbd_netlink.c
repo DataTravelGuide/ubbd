@@ -382,7 +382,7 @@ int send_netlink_add_dev(struct ubbd_nl_req *req)
 	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
 	if (ret < 0)
-		ubbd_err("Could not send netlink cmd %d\n", UBBD_CMD_ADD_DEV);
+		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_ADD_DEV, ret);
 	return ret;
 
 free_msg:
