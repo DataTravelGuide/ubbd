@@ -372,6 +372,7 @@ int queue_setup(struct ubbd_queue *ubbd_q)
 		ubbd_dev_err(ubbd_dev, "failed to create cmdproc_thread: %d\n", ret);
 		goto out;
 	}
+	pthread_setaffinity_np(ubbd_q->cmdproc_thread, CPU_SETSIZE, &ubbd_q->cpuset);
 out:
 	return ret;
 }
@@ -789,6 +790,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
 		ubbd_dev->queues[i].uio_info.uio_id = dev_status->queue_infos[i].uio_id;
 		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->queue_infos[i].uio_map_size;
+		memcpy(&ubbd_dev->queues[i].cpuset, &dev_status->queue_infos[i].cpuset, sizeof(cpu_set_t));
 	}
 
 	ret = dev_setup(ubbd_dev);

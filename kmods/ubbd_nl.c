@@ -14,23 +14,33 @@ static inline int ubbd_nla_parse_nested(struct nlattr *tb[], int maxtype,
 #endif
 }
 
+static inline size_t get_queue_msg_size(struct ubbd_queue *ubbd_q)
+{
+	size_t msg_size;
+	size_t cpulist_size;
+
+	/* UIO_ID and UIO_MAP_SIZE */
+	msg_size = nla_attr_size(sizeof(s32)) + nla_attr_size(sizeof(u64));
+
+	/* CPULIST */
+	cpulist_size = nla_attr_size(sizeof(u32)) * cpumask_weight(&ubbd_q->cpumask);
+
+	return msg_size + cpulist_size;
+}
+
 static inline size_t get_status_msg_size(struct ubbd_device *ubbd_dev)
 {
 	size_t msg_size;
-	size_t queue_info_msg_size;
-
-	queue_info_msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
-					nla_attr_size(sizeof(u64)) +
-					nla_attr_size(sizeof(struct cpumask)));
-
-	/* msg size for queues */
-	msg_size = queue_info_msg_size * ubbd_dev->num_queues;
+	int i;
 
 	/* add dev_id and status */
-	msg_size += nla_total_size(nla_attr_size(sizeof(s32)) +
-				nla_attr_size(sizeof(u8)));
+	msg_size = nla_attr_size(sizeof(s32)) + nla_attr_size(sizeof(u8));
 
-	return msg_size;
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		msg_size += get_queue_msg_size(&ubbd_dev->queues[i]);
+	}
+
+	return nla_total_size(msg_size);
 }
 
 static int fill_ubbd_status_detail(struct ubbd_device *ubbd_dev, struct sk_buff *reply_skb);
@@ -301,15 +311,21 @@ out:
 static int fill_queue_info_item(struct ubbd_queue *ubbd_q, struct sk_buff *reply_skb)
 {
 	struct nlattr *queue_info_item;
+	struct nlattr *cpu_list;
+	int c;
 
 	queue_info_item = nla_nest_start(reply_skb, UBBD_QUEUE_INFO_ITEM);
 	if (nla_put_s32(reply_skb, UBBD_QUEUE_INFO_UIO_ID,
 				ubbd_q->uio_info.uio_dev->minor) ||
 		nla_put_u64_64bit(reply_skb, UBBD_QUEUE_INFO_UIO_MAP_SIZE,
-				ubbd_q->uio_info.mem[0].size, UBBD_ATTR_PAD) ||
-		nla_put(reply_skb, UBBD_QUEUE_INFO_CPUMASK,
-			sizeof(struct cpumask), &ubbd_q->cpumask))
+				ubbd_q->uio_info.mem[0].size, UBBD_ATTR_PAD))
 		return -EMSGSIZE;
+
+	cpu_list = nla_nest_start(reply_skb, UBBD_QUEUE_INFO_CPU_LIST);
+	for_each_cpu(c, &ubbd_q->cpumask) {
+		nla_put_s32(reply_skb, UBBD_QUEUE_INFO_CPU_ID, c);
+	}
+	nla_nest_end(reply_skb, cpu_list);
 	nla_nest_end(reply_skb, queue_info_item);
 
 	return 0;

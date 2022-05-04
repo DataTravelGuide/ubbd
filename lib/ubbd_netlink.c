@@ -1,8 +1,10 @@
+#define _GNU_SOURCE
 #include <libnl3/netlink/genl/genl.h>
 #include <libnl3/netlink/genl/mngt.h>
 #include <libnl3/netlink/genl/ctrl.h>
 #include <libnl3/netlink/errno.h>
 #include <pthread.h>
+#include <sched.h>
 
 #include "utils.h"
 #include "ubbd_netlink.h"
@@ -323,6 +325,7 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
 		ubbd_dev->queues[i].uio_info.uio_id = dev_status->queue_infos[i].uio_id;
 		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->queue_infos[i].uio_map_size;
+		memcpy(&ubbd_dev->queues[i].cpuset, &dev_status->queue_infos[i].cpuset, sizeof(cpu_set_t));
 	}
 
 	return NL_OK;
@@ -392,6 +395,23 @@ close_sock:
 	return ret;
 }
 
+static int parse_queue_info_cpu_list(cpu_set_t *cpuset, struct nlattr *attr)
+{
+	int rem;
+	int c;
+	struct nlattr *cpu_list_attr;
+
+	nla_for_each_nested(cpu_list_attr, attr, rem) {
+		c = nla_get_s32(&cpu_list_attr[UBBD_QUEUE_INFO_CPU_ID]);
+		ubbd_err("get cpu: %d\n", c);
+		CPU_SET(c, cpuset);
+	}
+	ubbd_err("after cpulist \n");
+
+	return 0;
+}
+
+
 static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_p)
 {
 	struct nlattr *status[UBBD_STATUS_ATTR_MAX+1];
@@ -443,7 +463,14 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 		}
 		dev_status->queue_infos[num_queues].uio_id = nla_get_s32(queue_info[UBBD_QUEUE_INFO_UIO_ID]);
 		dev_status->queue_infos[num_queues].uio_map_size = nla_get_s32(queue_info[UBBD_QUEUE_INFO_UIO_MAP_SIZE]);
-		nla_memcpy(&dev_status->queue_infos[num_queues].cpumask, queue_info[UBBD_QUEUE_INFO_CPUMASK], sizeof(struct cpumask));
+
+		ret = parse_queue_info_cpu_list(&dev_status->queue_infos[num_queues].cpuset, queue_info[UBBD_QUEUE_INFO_CPU_LIST]);
+		if (ret) {
+			ubbd_err("failed to parse nested cpu_list\n");
+			ret = -EINVAL;
+			goto out;
+		}
+
 		num_queues++;
 	}
 

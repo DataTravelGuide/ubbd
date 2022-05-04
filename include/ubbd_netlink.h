@@ -32,6 +32,7 @@ struct ubbd_nl_req {
 struct ubbd_nl_queue_info {
 	int32_t	uio_id;
 	uint64_t uio_map_size;
+	cpu_set_t cpuset;
 };
 
 struct ubbd_nl_dev_status {
