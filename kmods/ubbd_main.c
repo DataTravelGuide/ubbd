@@ -578,7 +578,7 @@ void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool force)
 		 * */
 		flush_workqueue(ubbd_dev->task_wq);
 		if (force) {
-			ubbd_end_inflight_reqs(ubbd_dev, -EIO);
+			ubbd_queue_end_inflight_reqs(ubbd_q, -EIO);
 		}
 	}
 }

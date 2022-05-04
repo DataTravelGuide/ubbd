@@ -187,6 +187,7 @@ void complete_work_fn(struct work_struct *work);
 blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		const struct blk_mq_queue_data *bd);
 void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret);
+void ubbd_queue_end_inflight_reqs(struct ubbd_queue *ubbd_q, int ret);
 enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved);
 struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *);
 void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev);
