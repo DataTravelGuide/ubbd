@@ -3,6 +3,18 @@
 #include "ubbd_internal.h"
 static int ubbd_total_devs = 0;
 
+static inline int ubbd_nla_parse_nested(struct nlattr *tb[], int maxtype,
+				 const struct nlattr *nla,
+				 const struct nla_policy *policy,
+				 struct netlink_ext_ack *extack)
+{
+#ifdef HAVE_NLA_PARSE_NESTED_DEPRECATED
+	return nla_parse_nested_deprecated(tb, maxtype, nla, policy, extack);
+#else
+	return nla_parse_nested(tb, maxtype, nla, policy, extack);
+#endif
+}
+
 static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 					  struct genl_info *info)
 {
@@ -68,25 +80,47 @@ err:
 	return -EMSGSIZE;
 }
 
+static struct nla_policy ubbd_dev_opts_attr_policy[UBBD_DEV_OPTS_MAX+1] = {
+	[UBBD_DEV_OPTS_DP_RESERVE]	= { .type = NLA_U32 },
+	[UBBD_DEV_OPTS_DEV_SIZE]		= { .type = NLA_U64 },
+	[UBBD_DEV_OPTS_DATA_PAGES]		= { .type = NLA_U32 },
+};
+
 static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev = NULL;
+	struct nlattr *dev_opts[UBBD_DEV_OPTS_MAX + 1];
 	u64 dev_features;
 	u64 device_size;
 	u32 data_pages;
-	int ret;
+	int ret = 0;
 
-	if (!info->attrs[UBBD_ATTR_DEV_SIZE] ||
+	if (!info->attrs[UBBD_ATTR_DEV_OPTS] ||
 			!info->attrs[UBBD_ATTR_FLAGS]) {
 		ret = -EINVAL;
 		goto out;
 	}
 
-	device_size = nla_get_u64(info->attrs[UBBD_ATTR_DEV_SIZE]);
 	dev_features = nla_get_u64(info->attrs[UBBD_ATTR_FLAGS]);
 
-	if (info->attrs[UBBD_ATTR_DATA_PAGES])
-		data_pages = nla_get_u32(info->attrs[UBBD_ATTR_DATA_PAGES]);
+	ret = ubbd_nla_parse_nested(dev_opts, UBBD_DEV_OPTS_MAX,
+			info->attrs[UBBD_ATTR_DEV_OPTS],
+			ubbd_dev_opts_attr_policy,
+			info->extack);
+	if (ret) {
+		pr_err("failed to parse config");
+		goto out;
+	}
+
+	if (!dev_opts[UBBD_DEV_OPTS_DEV_SIZE]) {
+		pr_err("dev_size is not found in dev options");
+		ret = -EINVAL;
+		goto out;
+	}
+	device_size = nla_get_u64(dev_opts[UBBD_DEV_OPTS_DEV_SIZE]);
+
+	if (dev_opts[UBBD_DEV_OPTS_DATA_PAGES])
+		data_pages = nla_get_u32(dev_opts[UBBD_DEV_OPTS_DATA_PAGES]);
 	else
 		data_pages = UBBD_UIO_DATA_PAGES;
 
@@ -430,20 +464,16 @@ err:
 	return ret;
 }
 
-static struct nla_policy ubbd_dev_config_attr_policy[UBBD_DEV_CONFIG_MAX+1] = {
-	[UBBD_DEV_CONFIG_DP_RESERVE]	= { .type = NLA_U32 },
-};
-
 static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev;
-	struct nlattr *config[UBBD_DEV_CONFIG_MAX + 1];
+	struct nlattr *config[UBBD_DEV_OPTS_MAX + 1];
 	int dev_id;
 	u32 config_dp_reserve;
 	int ret = 0;
 
 	if (!info->attrs[UBBD_ATTR_DEV_ID] ||
-			!info->attrs[UBBD_ATTR_DEV_CONFIG]) {
+			!info->attrs[UBBD_ATTR_DEV_OPTS]) {
 		ret = -EINVAL;
 		goto out;
 	}
@@ -463,24 +493,17 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
-#ifdef HAVE_NLA_PARSE_NESTED_DEPRECATED
-	ret = nla_parse_nested_deprecated(config, UBBD_DEV_CONFIG_MAX,
-			info->attrs[UBBD_ATTR_DEV_CONFIG],
-			ubbd_dev_config_attr_policy,
+	ret = ubbd_nla_parse_nested(config, UBBD_DEV_OPTS_MAX,
+			info->attrs[UBBD_ATTR_DEV_OPTS],
+			ubbd_dev_opts_attr_policy,
 			info->extack);
-#else
-	ret = nla_parse_nested(config, UBBD_DEV_CONFIG_MAX,
-			info->attrs[UBBD_ATTR_DEV_CONFIG],
-			ubbd_dev_config_attr_policy,
-			info->extack);
-#endif
 	if (ret) {
 		pr_err("failed to parse config");
 		goto out;
 	}
 
-	if (config[UBBD_DEV_CONFIG_DP_RESERVE]) {
-		config_dp_reserve = nla_get_u32(config[UBBD_DEV_CONFIG_DP_RESERVE]);
+	if (config[UBBD_DEV_OPTS_DP_RESERVE]) {
+		config_dp_reserve = nla_get_u32(config[UBBD_DEV_OPTS_DP_RESERVE]);
 		if (config_dp_reserve > 100) {
 			ret = -EINVAL;
 			pr_err("dp_reserve is not valide: %u", config_dp_reserve);
@@ -579,9 +602,8 @@ static const struct genl_multicast_group ubbd_mcgrps[] = {
 #ifdef	HAVE_GENL_POLICY
 static struct nla_policy ubbd_attr_policy[UBBD_ATTR_MAX+1] = {
 	[UBBD_ATTR_DEV_ID]	= { .type = NLA_S32 },
-	[UBBD_ATTR_DEV_SIZE]	= { .type = NLA_U64 },
 	[UBBD_ATTR_FLAGS]	= { .type = NLA_U64 },
-	[UBBD_ATTR_DEV_CONFIG]	= { .type = NLA_NESTED },
+	[UBBD_ATTR_DEV_OPTS]	= { .type = NLA_NESTED },
 };
 #endif
 
