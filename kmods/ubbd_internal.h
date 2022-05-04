@@ -33,28 +33,13 @@
 
 extern struct workqueue_struct *ubbd_wq;
 
-struct ubbd_device {
-	int			dev_id;		/* blkdev unique id */
+struct ubbd_queue {
+	struct ubbd_device	*ubbd_dev;
 
-	int			major;		/* blkdev assigned major */
-	int			minor;
-	struct gendisk		*disk;		/* blkdev's gendisk and rq */
-
-	char			name[DEV_NAME_LEN]; /* blkdev name, e.g. ubbd3 */
-
-	spinlock_t		lock;		/* open_count */
-	struct mutex   		req_lock;
-	struct inode		*inode;
-	struct list_head	dev_node;	/* ubbd_dev_list */
-
-	/* Block layer tags. */
-	struct blk_mq_tag_set	tag_set;
-
+	int			index;
 	struct list_head	inflight_reqs;
 	spinlock_t		inflight_reqs_lock;
 	u64			req_tid;
-
-	unsigned long		open_count;	/* protected by lock */
 
 	struct uio_info		uio_info;
 	struct xarray		data_pages_array;
@@ -71,16 +56,53 @@ struct ubbd_device {
 	uint32_t		max_blocks;
 	size_t			mmap_pages;
 
-	struct workqueue_struct	*task_wq;
+	struct mutex   		req_lock;
+	spinlock_t 		state_lock;
+	unsigned long		flags;
+
+	struct inode		*inode;
 	struct work_struct	complete_work;
+	cpumask_t		cpumask;
+};
+
+#define UBBD_QUEUE_FLAGS_REMOVING	1
+
+struct ubbd_device {
+	int			dev_id;		/* blkdev unique id */
+
+	int			major;		/* blkdev assigned major */
+	int			minor;
+	struct gendisk		*disk;		/* blkdev's gendisk and rq */
+
+	char			name[DEV_NAME_LEN]; /* blkdev name, e.g. ubbd3 */
+
+	spinlock_t		lock;		/* open_count */
+	struct list_head	dev_node;	/* ubbd_dev_list */
+	struct mutex		state_lock;
+
+	/* Block layer tags. */
+	struct blk_mq_tag_set	tag_set;
+
+	unsigned long		open_count;	/* protected by lock */
+
+	uint32_t		num_queues;
+	struct ubbd_queue	*queues;
+	struct workqueue_struct	*task_wq;
 
 	u8			status;
 	struct kref		kref;
 };
 
-static LIST_HEAD(ubbd_dev_list);    /* devices */
-static DEFINE_MUTEX(ubbd_dev_list_mutex);
+struct ubbd_dev_add_opts {
+	u32	data_pages;
+	u64	device_size;
+	u64	dev_features;
+	u32	num_queues;
+};
 
+extern struct list_head ubbd_dev_list;
+extern int ubbd_total_devs;
+extern struct mutex ubbd_dev_list_mutex;
 
 static inline int ubbd_dev_id_to_minor(int dev_id)
 {
@@ -127,7 +149,7 @@ static const struct block_device_operations ubbd_bd_ops = {
 #define UBBD_REQ_INLINE_PI_MAX	4
 
 struct ubbd_request {
-	struct ubbd_device	*ubbd_dev;
+	struct ubbd_queue	*ubbd_q;
 
 	struct ubbd_se		*se;
 	struct ubbd_ce		*ce;
@@ -165,17 +187,15 @@ void complete_work_fn(struct work_struct *work);
 blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		const struct blk_mq_queue_data *bd);
 void ubbd_end_inflight_reqs(struct ubbd_device *ubbd_dev, int ret);
+void ubbd_queue_end_inflight_reqs(struct ubbd_queue *ubbd_q, int ret);
 enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved);
-struct ubbd_device *ubbd_dev_create(u32 data_pages);
-void ubbd_dev_destroy(struct ubbd_device *ubbd_dev);
-void ubbd_free_disk(struct ubbd_device *ubbd_dev);
+struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *);
+void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev);
+void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force);
+void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool force);
 int ubbd_add_disk(struct ubbd_device *ubbd_dev);
-int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
-			u64 device_size, u64 dev_features);
-int ubbd_dev_sb_init(struct ubbd_device *ubbd_dev);
-void ubbd_dev_sb_destroy(struct ubbd_device *ubbd_dev);
-int ubbd_dev_uio_init(struct ubbd_device *ubbd_dev);
-void ubbd_dev_uio_destroy(struct ubbd_device *ubbd_dev);
+int ubbd_queue_uio_init(struct ubbd_queue *ubbd_q);
+void ubbd_queue_uio_destroy(struct ubbd_queue *ubbd_q);
 
 #undef UBBD_FAULT_INJECT
 

@@ -50,22 +50,15 @@ static struct option const long_options[] =
 	{"image", required_argument, NULL, 'i'},
 	{"ubbdid", required_argument, NULL, 'u'},
 	{"data-pages-reserve", required_argument, NULL, 'r'},
+	{"num-queues", required_argument, NULL, 'q'},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:t:f:p:i:u:h:s:o:r";
+static char *short_options = "c:t:f:p:i:u:h:s:o:r:q";
 
 static void usage(int status)
 { 
-	struct ubbd_nl_dev_status *tmp_status;
-	LIST_HEAD(tmp_list);
-
-	ubbd_nl_dev_list(&tmp_list);
-	list_for_each_entry(tmp_status, &tmp_list, node) {
-		ubbd_err("tmp_status: dev_id: %d, uio_id: %d, status: %d\n", tmp_status->dev_id, tmp_status->uio_id, tmp_status->status);
-	}
-
 	if (status != 0)
 		fprintf(stderr, "Try `ubbdadm --help' for more information.\n");
 	else {
@@ -77,7 +70,7 @@ static void usage(int status)
 	exit(status);
 }
 
-static int do_file_map(char *filepath, uint64_t devsize)
+static int do_file_map(char *filepath, uint64_t devsize, uint32_t num_queues)
 {
 	struct ubbd_mgmt_request req = {0};
 	struct ubbd_mgmt_rsp rsp = {0};
@@ -85,6 +78,7 @@ static int do_file_map(char *filepath, uint64_t devsize)
 	int ret;
 
 	req.cmd = UBBD_MGMT_CMD_MAP;
+	req.u.add.info.num_queues = num_queues;
 	req.u.add.info.type = UBBD_DEV_TYPE_FILE;
 	strcpy(req.u.add.info.file.path, filepath);
 	req.u.add.info.file.size = devsize;
@@ -105,7 +99,7 @@ static int do_file_map(char *filepath, uint64_t devsize)
 	return 0;
 }
 
-static int do_rbd_map(char *pool, char *image)
+static int do_rbd_map(char *pool, char *image, uint32_t num_queues)
 {
 	struct ubbd_mgmt_request req = {0};
 	struct ubbd_mgmt_rsp rsp = {0};
@@ -113,6 +107,7 @@ static int do_rbd_map(char *pool, char *image)
 	int ret;
 
 	req.cmd = UBBD_MGMT_CMD_MAP;
+	req.u.add.info.num_queues = num_queues;
 	req.u.add.info.type = UBBD_DEV_TYPE_RBD;
 	strcpy(req.u.add.info.rbd.pool, pool);
 	strcpy(req.u.add.info.rbd.image, image);
@@ -130,7 +125,7 @@ static int do_rbd_map(char *pool, char *image)
 	return 0;
 }
 
-static int do_null_map(uint64_t dev_size)
+static int do_null_map(uint64_t dev_size, uint32_t num_queues)
 {
 	struct ubbd_mgmt_request req = {0};
 	struct ubbd_mgmt_rsp rsp = {0};
@@ -138,6 +133,7 @@ static int do_null_map(uint64_t dev_size)
 	int ret;
 
 	req.cmd = UBBD_MGMT_CMD_MAP;
+	req.u.add.info.num_queues = num_queues;
 	req.u.add.info.type = UBBD_DEV_TYPE_NULL;
 	req.u.add.info.null.size = dev_size;
 	ret = ubbdd_request(&fd, &req);
@@ -203,6 +199,7 @@ int main(int argc, char **argv)
 	int data_pages_reserve;
 	bool force = false;
 	int ret = 0;
+	uint32_t num_queues = 0;
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
@@ -235,6 +232,9 @@ int main(int argc, char **argv)
 		case 'r':
 			data_pages_reserve = atoi(optarg);
 			break;
+		case 'q':
+			num_queues = atoi(optarg);
+			break;
 		case 'h':
 			usage(0);
 		}
@@ -248,13 +248,13 @@ int main(int argc, char **argv)
 	if (command == UBBD_MGMT_CMD_MAP) {
 		switch (type) {
 		case UBBD_DEV_TYPE_FILE:
-			ret = do_file_map(filepath, dev_size);
+			ret = do_file_map(filepath, dev_size, num_queues);
 			break;
 		case UBBD_DEV_TYPE_RBD:
-			ret = do_rbd_map(pool, image);
+			ret = do_rbd_map(pool, image, num_queues);
 			break;
 		case UBBD_DEV_TYPE_NULL:
-			ret = do_null_map(dev_size);
+			ret = do_null_map(dev_size, num_queues);
 			break;
 		default:
 			printf("error type: %d\n", type);

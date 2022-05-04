@@ -26,23 +26,23 @@ static void null_dev_release(struct ubbd_device *ubbd_dev)
 	free(null_dev);
 }
 
-static int null_dev_writev(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
+static int null_dev_writev(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 {
-	ubbd_dev_add_ce(ubbd_dev, se->priv_data, 0);
+	ubbd_dev_add_ce(ubbd_q, se->priv_data, 0);
 
 	return 0;
 }
 
-static int null_dev_readv(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
+static int null_dev_readv(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 {
-	ubbd_dev_add_ce(ubbd_dev, se->priv_data, 0);
+	ubbd_dev_add_ce(ubbd_q, se->priv_data, 0);
 
 	return 0;
 }
 
-static int null_dev_flush(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
+static int null_dev_flush(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 {
-	ubbd_dev_add_ce(ubbd_dev, se->priv_data, 0);
+	ubbd_dev_add_ce(ubbd_q, se->priv_data, 0);
 
 	return 0;
 }
