@@ -520,6 +520,13 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		return BLK_STS_IOERR;
 	}
 
+        spin_lock(&ubbd_q->state_lock);
+        if (ubbd_q->status == UBBD_DEV_STATUS_REMOVING) {
+                spin_unlock(&ubbd_q->state_lock);
+                return BLK_STS_IOERR;
+        }
+        spin_unlock(&ubbd_q->state_lock);
+
 	INIT_WORK(&ubbd_req->work, ubbd_queue_workfn);
 	queue_work_on(smp_processor_id(), ubbd_wq, &ubbd_req->work);
 
@@ -598,9 +605,7 @@ void complete_work_fn(struct work_struct *work)
 	struct ubbd_request *req;
 
 again:
-	mutex_lock(&ubbd_dev->state_lock);
 	if (ubbd_dev->status == UBBD_DEV_STATUS_REMOVING) {
-		mutex_unlock(&ubbd_dev->state_lock);
 		return;
 	}
 
@@ -608,13 +613,11 @@ again:
 	ce = get_complete_entry(ubbd_q);
 	if (!ce) {
 		mutex_unlock(&ubbd_q->req_lock);
-		mutex_unlock(&ubbd_dev->state_lock);
 		return;
 	}
 
 	ubbd_flush_dcache_range(ce, sizeof(*ce));
 	req = fetch_inflight_req(ubbd_q, ce->priv_data);
-	mutex_unlock(&ubbd_dev->state_lock);
 	if (!req) {
 		goto advance_compr;
 	}
