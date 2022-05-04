@@ -241,7 +241,7 @@ struct ubbd_device *ubbd_dev_create(u32 data_pages)
 
 	sprintf(ubbd_dev->name, UBBD_DRV_NAME "%d", ubbd_dev->dev_id);
 
-	ret = ubbd_dev_create_queues(ubbd_dev, 8, data_pages);
+	ret = ubbd_dev_create_queues(ubbd_dev, 16, data_pages);
 	if (ret)
 		goto err_remove_id;
 
