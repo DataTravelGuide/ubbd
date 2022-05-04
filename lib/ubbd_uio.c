@@ -70,14 +70,14 @@ err_fail:
 }
 
 
-void ubbdlib_processing_start(struct ubbd_device *ubbd_dev)
+void ubbdlib_processing_start(struct ubbd_queue *ubbd_q)
 {
 	int r;
 	uint32_t buf;
 
 	/* Clear the event on the fd */
 	do {
-		r = read(ubbd_dev->uio_info.fd, &buf, 4);
+		r = read(ubbd_q->uio_info.fd, &buf, 4);
 	} while (r == -1 && errno == EINTR);
 	if (r == -1 && errno != EAGAIN) {
 		ubbd_err("failed to read device /dev/%s, %d\n",
@@ -86,73 +86,56 @@ void ubbdlib_processing_start(struct ubbd_device *ubbd_dev)
 	}
 }
 
-void ubbdlib_processing_complete(struct ubbd_device *ubbd_dev)
+void ubbdlib_processing_complete(struct ubbd_queue *ubbd_q)
 {
 	int r;
 	uint32_t buf = 0;
 
 	/* Tell the kernel there are completed commands */
 	do {
-		r = write(ubbd_dev->uio_info.fd, &buf, 4);
+		r = write(ubbd_q->uio_info.fd, &buf, 4);
 	} while (r == -1 && errno == EINTR);
 	if (r == -1 && errno != EAGAIN) {
-		ubbd_err("failed to write device /dev/%s, %d\n",
-			 ubbd_dev->dev_name, errno);
+		ubbd_err("failed to write uio device, %d\n",
+			 errno);
 		exit(-errno);
 	}
 }
 
 
-struct ubbd_se *device_cmd_head(struct ubbd_device *dev)
+struct ubbd_se *device_cmd_head(struct ubbd_queue *ubbd_q)
 {
-        struct ubbd_sb *sb = dev->uio_info.map;
+        struct ubbd_sb *sb = ubbd_q->uio_info.map;
 
 	ubbd_dbg("cmd: head: %u tail: %u\n", sb->cmd_head, sb->cmd_tail);
 
         return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_head);
 }
 
-struct ubbd_se *device_cmd_tail(struct ubbd_device *dev)
+struct ubbd_se *device_cmd_tail(struct ubbd_queue *ubbd_q)
 {
-	struct ubbd_sb *sb = dev->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->uio_info.map;
 
 	ubbd_dbg("cmd: tail: %u\n", sb->cmd_tail);
 
 	return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_tail);
 }
 
-struct ubbd_se *device_cmd_to_handle(struct ubbd_device *dev)
+struct ubbd_se *device_cmd_to_handle(struct ubbd_queue *ubbd_q)
 {
-	struct ubbd_sb *sb = dev->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->uio_info.map;
 
-	ubbd_dbg("cmd: handled: %u\n", dev->se_to_handle);
+	ubbd_dbg("cmd: handled: %u\n", ubbd_q->se_to_handle);
 
-	return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + dev->se_to_handle);
+	return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + ubbd_q->se_to_handle);
 }
 
-struct ubbd_se *get_oldest_se(struct ubbd_device *ubbd_dev)
+struct ubbd_se *get_oldest_se(struct ubbd_queue *ubbd_q)
 {
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->uio_info.map;
 
 	if (sb->cmd_tail == sb->cmd_head)
 		return NULL;
 
 	return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_tail);
-}
-
-void ubbd_uio_advance_cmd_ring(struct ubbd_device *ubbd_dev)
-{
-	struct ubbd_se *se;
-	struct ubbd_sb *sb = ubbd_dev->uio_info.map;
-
-again:
-	se = get_oldest_se(ubbd_dev);
-	if (!se)
-		return;
-
-	if (se->header.flags) {
-		UBBD_UPDATE_DEV_TAIL(ubbd_dev, sb, se);
-		goto again;
-	}
-	return;
 }
