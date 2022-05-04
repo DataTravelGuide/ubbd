@@ -4,15 +4,13 @@
 static int ubbd_total_devs = 0;
 
 static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
-					  u64 priv_data,
 					  struct genl_info *info)
 {
 	struct sk_buff *reply_skb;
 	void *msg_head;
 	size_t msg_size;
 
-	msg_size = nla_total_size(nla_attr_size(sizeof(u64)) +
-				  nla_attr_size(sizeof(s32)) +
+	msg_size = nla_total_size(nla_attr_size(sizeof(s32)) +
 				  nla_attr_size(sizeof(s32)) +
 				  nla_attr_size(sizeof(s32)) +
 				  nla_attr_size(sizeof(u64)));
@@ -34,9 +32,7 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	if (!msg_head)
 		goto err_free;
 
-	if (nla_put_u64_64bit(reply_skb, UBBD_ATTR_PRIV_DATA,
-				priv_data, UBBD_ATTR_PAD) ||
-	    nla_put_s32(reply_skb, UBBD_ATTR_DEV_ID,
+	if (nla_put_s32(reply_skb, UBBD_ATTR_DEV_ID,
 		    	ubbd_dev->dev_id) ||
 	    nla_put_s32(reply_skb, UBBD_ATTR_UIO_ID,
 			ubbd_dev->uio_info.uio_dev->minor) ||
@@ -66,19 +62,16 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ubbd_device *ubbd_dev = NULL;
 	u64 dev_features;
-	u64 priv_data;
 	u64 device_size;
 	u32 data_pages;
 	int ret;
 
-	if (!info->attrs[UBBD_ATTR_PRIV_DATA] ||
-			!info->attrs[UBBD_ATTR_DEV_SIZE] ||
+	if (!info->attrs[UBBD_ATTR_DEV_SIZE] ||
 			!info->attrs[UBBD_ATTR_FLAGS]) {
 		ret = -EINVAL;
 		goto out;
 	}
 
-	priv_data = nla_get_u64(info->attrs[UBBD_ATTR_PRIV_DATA]);
 	device_size = nla_get_u64(info->attrs[UBBD_ATTR_DEV_SIZE]);
 	dev_features = nla_get_u64(info->attrs[UBBD_ATTR_FLAGS]);
 
@@ -134,7 +127,7 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 		goto err_free_disk;
 	}
 #endif
-	ret = ubbd_nl_reply_add_dev_done(ubbd_dev, priv_data, info);
+	ret = ubbd_nl_reply_add_dev_done(ubbd_dev, info);
 	if (ret)
 		goto err_free_disk;
 
@@ -575,7 +568,6 @@ static const struct genl_multicast_group ubbd_mcgrps[] = {
 
 #ifdef	HAVE_GENL_POLICY
 static struct nla_policy ubbd_attr_policy[UBBD_ATTR_MAX+1] = {
-	[UBBD_ATTR_PRIV_DATA]	= { .type = NLA_U64 },
 	[UBBD_ATTR_DEV_ID]	= { .type = NLA_S32 },
 	[UBBD_ATTR_UIO_ID]	= { .type = NLA_S32 },
 	[UBBD_ATTR_UIO_MAP_SIZE]	= { .type = NLA_U64 },
