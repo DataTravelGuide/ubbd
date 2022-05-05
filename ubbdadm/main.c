@@ -48,6 +48,7 @@ static struct option const long_options[] =
 	{"force", no_argument, NULL, 'o'},
 	{"pool", required_argument, NULL, 'p'},
 	{"image", required_argument, NULL, 'i'},
+	{"ceph-conf", required_argument, NULL, 'e'},
 	{"ubbdid", required_argument, NULL, 'u'},
 	{"data-pages-reserve", required_argument, NULL, 'r'},
 	{"num-queues", required_argument, NULL, 'q'},
@@ -55,7 +56,7 @@ static struct option const long_options[] =
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:t:f:p:i:u:h:s:o:r:q";
+static char *short_options = "c:t:f:p:i:u:h:s:o:r:q:e";
 
 static void usage(int status)
 { 
@@ -130,7 +131,7 @@ static int do_file_map(char *filepath, uint64_t devsize, uint32_t num_queues)
 	return map_request_and_wait(&req);
 }
 
-static int do_rbd_map(char *pool, char *image, uint32_t num_queues)
+static int do_rbd_map(char *pool, char *image, char *ceph_conf, uint32_t num_queues)
 {
 	struct ubbd_mgmt_request req = {0};
 
@@ -139,6 +140,7 @@ static int do_rbd_map(char *pool, char *image, uint32_t num_queues)
 	req.u.add.info.type = UBBD_DEV_TYPE_RBD;
 	strcpy(req.u.add.info.rbd.pool, pool);
 	strcpy(req.u.add.info.rbd.image, image);
+	strcpy(req.u.add.info.rbd.ceph_conf, ceph_conf);
 
 	return map_request_and_wait(&req);
 }
@@ -182,7 +184,7 @@ int main(int argc, char **argv)
 	int ch, longindex;
 	enum ubbd_mgmt_cmd command;
 	enum ubbd_dev_type type;
-	char *filepath, *pool, *image;
+	char *filepath, *pool, *image, *ceph_conf;
 	uint64_t dev_size;
 	int ubbdid;
 	int data_pages_reserve;
@@ -215,6 +217,9 @@ int main(int argc, char **argv)
 		case 'i':
 			image = optarg;
 			break;
+		case 'e':
+			ceph_conf = optarg;
+			break;
 		case 'u':
 			ubbdid = atoi(optarg);
 			break;
@@ -240,7 +245,7 @@ int main(int argc, char **argv)
 			ret = do_file_map(filepath, dev_size, num_queues);
 			break;
 		case UBBD_DEV_TYPE_RBD:
-			ret = do_rbd_map(pool, image, num_queues);
+			ret = do_rbd_map(pool, image, ceph_conf, num_queues);
 			break;
 		case UBBD_DEV_TYPE_NULL:
 			ret = do_null_map(dev_size, num_queues);

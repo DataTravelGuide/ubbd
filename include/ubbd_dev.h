@@ -37,6 +37,7 @@ struct ubbd_dev_info {
 		struct {
 			char pool[POOL_MAX];
 			char image[IMAGE_MAX];
+			char ceph_conf[PATH_MAX];
 		} rbd;
 		struct {
 			uint64_t size;
