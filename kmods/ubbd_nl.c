@@ -68,7 +68,7 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 #endif
 	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
 	if (!reply_skb) {
-		pr_err("failed to new genlmsg for size: %lu", msg_size);
+		ubbd_dev_err(ubbd_dev, "failed to new genlmsg for size: %lu", msg_size);
 		goto err;
 	}
 
@@ -134,12 +134,12 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 			ubbd_dev_opts_attr_policy,
 			info->extack);
 	if (ret) {
-		pr_err("failed to parse config");
+		ubbd_err("failed to parse config");
 		goto out;
 	}
 
 	if (!dev_opts[UBBD_DEV_OPTS_DEV_SIZE]) {
-		pr_err("dev_size or dev_queues is not found in dev options");
+		ubbd_err("dev_size or dev_queues is not found in dev options");
 		ret = -EINVAL;
 		goto out;
 	}
@@ -184,7 +184,7 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 err_remove_dev:
 	ubbd_dev_remove_dev(ubbd_dev);
 out:
-	pr_err("handle_cmd_add_dev err: %d", ret);
+	ubbd_err("handle_cmd_add_dev err: %d", ret);
 	return ret;
 }
 
@@ -226,13 +226,13 @@ static int handle_cmd_add_disk(struct sk_buff *skb, struct genl_info *info)
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 	ubbd_dev = find_ubbd_dev(dev_id);
 	if (!ubbd_dev) {
-		pr_err("cant find dev: %d", dev_id);
+		ubbd_err("cant find dev: %d", dev_id);
 		ret = -ENOENT;
 		goto out;
 	}
 	if (ubbd_dev->status != UBBD_DEV_STATUS_PREPARED) {
 		ret = -EINVAL;
-		pr_err("add_disk expected status is UBBD_DEV_STATUS_PREPARED, \
+		ubbd_dev_err(ubbd_dev, "add_disk expected status is UBBD_DEV_STATUS_PREPARED, \
 				but current status is: %d.", ubbd_dev->status);
 		goto out;
 	}
@@ -263,7 +263,7 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 
 	if (remove_flags & UBBD_ATTR_FLAGS_REMOVE_FORCE) {
 		force = true;
-		pr_debug("force remove ubbd%d", dev_id);
+		ubbd_dev_info(ubbd_dev, "force remove ubbd%d", dev_id);
 	}
 
 	spin_lock(&ubbd_dev->lock);
@@ -295,7 +295,7 @@ static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 
 	if (ubbd_dev->status != UBBD_DEV_STATUS_REMOVING &&
 			ubbd_dev->status != UBBD_DEV_STATUS_PREPARED) {
-		pr_err("remove dev is not allowed in current status: %d.",
+		ubbd_dev_err(ubbd_dev, "remove dev is not allowed in current status: %d.",
 				ubbd_dev->status);
 		ret = -EINVAL;
 		goto out;
@@ -410,7 +410,7 @@ static int fill_ubbd_status(struct sk_buff *reply_skb, int dev_id)
 	nla_nest_end(reply_skb, dev_list);
 out:
 	if (ret)
-		pr_err("error in fill_ubbd_status: %d", ret);
+		ubbd_err("error in fill_ubbd_status: %d", ret);
 	return ret;
 }
 
@@ -486,7 +486,7 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 
 	mutex_unlock(&ubbd_dev_list_mutex);
 	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0)) {
-		pr_err("error in put retval.");
+		ubbd_err("error in put retval.");
 		ret = -EMSGSIZE;
 		goto err_cancel;
 	}
@@ -505,7 +505,7 @@ err_cancel:
 err_free:
 	nlmsg_free(reply_skb);
 err:
-	pr_err("ret of handle_cmd_status: %d", ret);
+	ubbd_err("ret of handle_cmd_status: %d", ret);
 	return ret;
 }
 
@@ -526,13 +526,13 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 	dev_id = nla_get_s32(info->attrs[UBBD_ATTR_DEV_ID]);
 	ubbd_dev = find_ubbd_dev(dev_id);
 	if (!ubbd_dev) {
-		pr_err("cant find dev: %d", dev_id);
+		ubbd_err("cant find dev: %d", dev_id);
 		ret = -ENOENT;
 		goto out;
 	}
 
 	if (ubbd_dev->status != UBBD_DEV_STATUS_RUNNING) {
-		pr_err("config cmd expected ubbd dev status is running, \
+		ubbd_dev_err(ubbd_dev, "config cmd expected ubbd dev status is running, \
 				but current status is: %d.", ubbd_dev->status);
 		ret = -EINVAL;
 		goto out;
@@ -543,7 +543,7 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 			ubbd_dev_opts_attr_policy,
 			info->extack);
 	if (ret) {
-		pr_err("failed to parse config");
+		ubbd_dev_err(ubbd_dev, "failed to parse config");
 		goto out;
 	}
 
@@ -551,7 +551,7 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 		config_dp_reserve = nla_get_u32(config[UBBD_DEV_OPTS_DP_RESERVE]);
 		if (config_dp_reserve > 100) {
 			ret = -EINVAL;
-			pr_err("dp_reserve is not valide: %u", config_dp_reserve);
+			ubbd_dev_err(ubbd_dev, "dp_reserve is not valide: %u", config_dp_reserve);
 			goto out;
 		}
 		ubbd_dev->queues[0].data_pages_reserve = config_dp_reserve * ubbd_dev->queues[0].data_pages / 100;

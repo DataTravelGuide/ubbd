@@ -217,4 +217,23 @@ static inline bool ubbd_mgmt_need_fault(void)
 
 #endif /* UBBD_FAULT_INJECT */
 
+#define ubbd_err(fmt, ...)						\
+	pr_err("ubbd: " fmt, ##__VA_ARGS__)
+#define ubbd_info(fmt, ...)						\
+	pr_info("ubbd: " fmt, ##__VA_ARGS__)
+#define ubbd_debug(fmt, ...)						\
+	pr_debug("ubbd: " fmt, ##__VA_ARGS__)
+
+#define ubbd_dev_err(dev, fmt, ...)					\
+	ubbd_err("ubbd%d: " fmt,					\
+		 dev->dev_id, ##__VA_ARGS__)
+
+#define ubbd_dev_info(dev, fmt, ...)					\
+	ubbd_info("ubbd%d: " fmt,					\
+		 dev->dev_id, ##__VA_ARGS__)
+
+#define ubbd_dev_debug(dev, fmt, ...)					\
+	ubbd_debug("ubbd%d: " fmt,					\
+		 dev->dev_id, ##__VA_ARGS__)
+
 #endif /* UBBD_INTERNAL_H */

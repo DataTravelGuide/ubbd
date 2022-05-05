@@ -5,7 +5,7 @@ struct ubbd_se *get_submit_entry(struct ubbd_queue *ubbd_q)
 {
 	struct ubbd_se *se;
 
-	pr_debug("get se head : %u", ubbd_q->sb_addr->cmd_head);
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "get se head : %u", ubbd_q->sb_addr->cmd_head);
 	se = (struct ubbd_se *)(ubbd_q->cmdr + ubbd_q->sb_addr->cmd_head);
 
 	return se;
@@ -16,7 +16,7 @@ struct ubbd_se *get_oldest_se(struct ubbd_queue *ubbd_q)
 	if (ubbd_q->sb_addr->cmd_tail == ubbd_q->sb_addr->cmd_head)
 		return NULL;
 
-	pr_debug("get tail se: %u", ubbd_q->sb_addr->cmd_tail);
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "get tail se: %u", ubbd_q->sb_addr->cmd_tail);
 	return (struct ubbd_se *)(ubbd_q->cmdr + ubbd_q->sb_addr->cmd_tail);
 }
 
@@ -25,7 +25,7 @@ struct ubbd_ce *get_complete_entry(struct ubbd_queue *ubbd_q)
 	if (ubbd_q->sb_addr->compr_tail == ubbd_q->sb_addr->compr_head)
 		return NULL;
 
-	pr_debug("get complete entry: %u, head: %u", ubbd_q->sb_addr->compr_tail, ubbd_q->sb_addr->compr_head);
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "get complete entry: %u, head: %u", ubbd_q->sb_addr->compr_tail, ubbd_q->sb_addr->compr_head);
 	return (struct ubbd_ce *)(ubbd_q->compr + ubbd_q->sb_addr->compr_tail);
 }
 
@@ -39,7 +39,6 @@ static uint32_t ubbd_req_get_pi(struct ubbd_request *req, uint32_t bvec_index)
 
 static void ubbd_req_set_pi(struct ubbd_request *req, uint32_t index, int value)
 {
-	pr_debug("set pi: req: %p, bvec_index: %u, page_index: %d", req, index, value);
 	if (index < UBBD_REQ_INLINE_PI_MAX)
 		req->inline_pi[index] = value;
 	else
@@ -60,7 +59,7 @@ static struct page *ubbd_alloc_page(struct ubbd_queue *ubbd_q)
 		return NULL;
 	}
 
-	pr_debug("alloc page: %p", page);
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "alloc page: %p", page);
 	ubbd_q->data_pages_allocated++;
 
 	return page;
@@ -68,7 +67,7 @@ static struct page *ubbd_alloc_page(struct ubbd_queue *ubbd_q)
 
 static void __ubbd_release_page(struct ubbd_queue *ubbd_q, struct page *page)
 {
-	pr_debug("release page: %p", page);
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "release page: %p", page);
 	__free_page(page);
 	ubbd_q->data_pages_allocated--;
 }
@@ -79,7 +78,7 @@ static void ubbd_release_page(struct ubbd_queue *ubbd_q,
 	struct page *page = NULL;
 	int page_index = ubbd_req_get_pi(ubbd_req, bvec_index);
 
-	pr_debug("release page: %u, req: %p, bvec_index: %u ",
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "release page: %u, req: %p, bvec_index: %u ",
 			page_index, ubbd_req, bvec_index);
 
 	clear_bit(page_index, ubbd_q->data_bitmap);
@@ -130,13 +129,13 @@ next_bio:
 		if (!page) {
 			page = ubbd_alloc_page(ubbd_q);
 			if (!page) {
-				pr_err("failed to alloc page.");
+				ubbd_dev_err(ubbd_q->ubbd_dev, "failed to alloc page.");
 				ret = -ENOMEM;
 				goto out;
 			}
 			ret = ubbd_xa_store_page(ubbd_q, page_index, page);
 			if (ret) {
-				pr_err("xa_store failed.");
+				ubbd_dev_err(ubbd_q->ubbd_dev, "xa_store failed.");
 				__ubbd_release_page(ubbd_q, page);
 				goto out;
 			}
@@ -153,7 +152,7 @@ next_bio:
 
 out:
 	if (ret) {
-		pr_err("ret is %d, bvec_index: %d", ret, bvec_index);
+		ubbd_dev_err(ubbd_q->ubbd_dev, "ret is %d, bvec_index: %d", ret, bvec_index);
 		while (bvec_index > 0) {
 			ubbd_release_page(ubbd_q, req, --bvec_index);
 		}
@@ -174,7 +173,6 @@ next:
 	bio_for_each_segment(bv, bio, iter) {
 		page_index = ubbd_req_get_pi(ubbd_req, bvec_index);
 
-		pr_debug("bvec_index: %u, page_index: %u", bvec_index, page_index);
 		se->iov[bvec_index].iov_base = (void *)((page_index * PAGE_SIZE) + ubbd_req->ubbd_q->data_off + bv.bv_offset);
 		se->iov[bvec_index].iov_len = bv.bv_len;
 		bvec_index++;
@@ -376,7 +374,7 @@ static int queue_req_prepare(struct ubbd_request *ubbd_req)
 	command_size = ubbd_get_cmd_size(ubbd_req);
 
 	if (!submit_ring_space_enough(ubbd_q, command_size)) {
-		pr_debug("cmd ring space is not enough");
+		ubbd_dev_debug(ubbd_q->ubbd_dev, "cmd ring space is not enough");
 		ret = -ENOMEM;
 		goto err;
 	}
@@ -384,7 +382,7 @@ static int queue_req_prepare(struct ubbd_request *ubbd_req)
 	if (ubbd_req->pi_cnt > UBBD_REQ_INLINE_PI_MAX) {
 		ret = ubbd_req_pi_alloc(ubbd_req);
 		if (ret) {
-			pr_err("pi kcalloc failed");
+			ubbd_dev_err(ubbd_q->ubbd_dev, "pi kcalloc failed");
 			goto err;
 		}
 
@@ -393,7 +391,7 @@ static int queue_req_prepare(struct ubbd_request *ubbd_req)
 	if (ubbd_req->pi_cnt) {
 		ret = ubbd_get_data_pages(ubbd_q, ubbd_req);
 		if (ret) {
-			pr_err("get data page failed");
+			ubbd_dev_err(ubbd_q->ubbd_dev, "get data page failed");
 			goto err_free_pi;
 		}
 	}
@@ -673,7 +671,7 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved)
 	if (req->timeout == UINT_MAX)
 		return BLK_EH_RESET_TIMER;
 
-	pr_err("ubbd timeouted.");
+	ubbd_dev_err(ubbd_dev, "ubbd timeouted.");
 	ubbd_dev_stop_disk(ubbd_dev, true);
 
 	return BLK_EH_DONE;

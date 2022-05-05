@@ -60,7 +60,7 @@ int ubbd_queue_sb_init(struct ubbd_queue *ubbd_q)
 	sb->cmdr_size = CMDR_SIZE;
 	sb->compr_off = COMPR_OFF;
 	sb->compr_size = COMPR_SIZE;
-	pr_debug("info_off: %u, info_size: %u, cmdr_off: %u, cmdr_size: %u, \
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "info_off: %u, info_size: %u, cmdr_off: %u, cmdr_size: %u, \
 			compr_off: %u, compr_size: %u, data_off: %lu",
 			sb->info_off, sb->info_size, sb->cmdr_off,
 			sb->cmdr_size, sb->compr_off, sb->compr_size,
@@ -109,13 +109,13 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 
 	ret = ubbd_queue_sb_init(ubbd_q);
 	if (ret) {
-		pr_err("failed to init dev sb: %d.", ret);
+		ubbd_dev_err(ubbd_q->ubbd_dev, "failed to init dev sb: %d.", ret);
 		goto err;
 	}
 
 	ret = ubbd_queue_uio_init(ubbd_q);
 	if (ret) {
-		pr_debug("failed to init uio: %d.", ret);
+		ubbd_dev_err(ubbd_q->ubbd_dev, "failed to init uio: %d.", ret);
 		goto err;
 	}
 
@@ -247,7 +247,8 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_add_opts *add_opts)
 
 	__module_get(THIS_MODULE);
 
-	pr_debug("%s ubbd_dev %p dev_id %d\n", __func__, ubbd_dev, ubbd_dev->dev_id);
+	ubbd_dev_debug(ubbd_dev, "dev is created.");
+
 	return ubbd_dev;
 
 err_destroy_queues:

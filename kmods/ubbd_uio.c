@@ -15,7 +15,7 @@ static void ubbd_vma_open(struct vm_area_struct *vma)
 	struct ubbd_queue *ubbd_q = vma->vm_private_data;
 	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
-	pr_debug("vma_open\n");
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "vma_open\n");
 	ubbd_dev_get(ubbd_dev);
 }
 
@@ -24,7 +24,7 @@ static void ubbd_vma_close(struct vm_area_struct *vma)
 	struct ubbd_queue *ubbd_q = vma->vm_private_data;
 	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
-	pr_debug("vma_close\n");
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "vma_close\n");
 	ubbd_dev_put(ubbd_dev);
 }
 
@@ -47,7 +47,7 @@ static struct page *ubbd_try_get_data_page(struct ubbd_queue *ubbd_q, uint32_t d
 
 	page = xa_load(&ubbd_q->data_pages_array, dpi);
 	if (unlikely(!page)) {
-		pr_debug("Invalid addr to data page mapping (dpi %u) on device %s\n",
+		ubbd_dev_debug(ubbd_q->ubbd_dev, "Invalid addr to data page mapping (dpi %u) on device %s\n",
 		       dpi, ubbd_q->ubbd_dev->name);
 		return NULL;
 	}
@@ -79,11 +79,11 @@ static vm_fault_t ubbd_vma_fault(struct vm_fault *vmf)
 		page = ubbd_try_get_data_page(ubbd_q, dpi);
 		if (!page)
 			return VM_FAULT_SIGBUS;
-		pr_debug("ubbd uio fault page: %p", page);
+		ubbd_dev_debug(ubbd_q->ubbd_dev, "ubbd uio fault page: %p", page);
 	}
 
 	get_page(page);
-	pr_debug("ubbd uio fault return page: %p", page);
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "ubbd uio fault return page: %p", page);
 	vmf->page = page;
 	return 0;
 }
@@ -116,14 +116,16 @@ static int ubbd_uio_open(struct uio_info *info, struct inode *inode)
 	struct ubbd_queue *ubbd_q = container_of(info, struct ubbd_queue, uio_info);
 
 	ubbd_q->inode = inode;
-	pr_debug("open\n");
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "uio open\n");
 
 	return 0;
 }
 
 static int ubbd_uio_release(struct uio_info *info, struct inode *inode)
 {
-	pr_debug("close\n");
+	struct ubbd_queue *ubbd_q = container_of(info, struct ubbd_queue, uio_info);
+
+	ubbd_dev_debug(ubbd_q->ubbd_dev, "uio close\n");
 
 	return 0;
 }
