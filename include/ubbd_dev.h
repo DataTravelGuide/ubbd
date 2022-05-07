@@ -176,7 +176,7 @@ void ubbd_dev_release(struct ubbd_device *ubbd_dev);
 
 void *cmd_process(void *arg);
 
-struct ubbd_dev_ops rbd_dev_ops;
-struct ubbd_dev_ops file_dev_ops;
-struct ubbd_dev_ops null_dev_ops;
+extern struct ubbd_dev_ops rbd_dev_ops;
+extern struct ubbd_dev_ops file_dev_ops;
+extern struct ubbd_dev_ops null_dev_ops;
 #endif	/* UBBD_DEV_H */

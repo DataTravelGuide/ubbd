@@ -600,7 +600,52 @@ static const struct genl_small_ops ubbd_genl_ops[] = {
 		.doit	= handle_cmd_config,
 	},
 };
-#else
+
+#else /* #ifdef HAVE_GENL_SMALL_OPS */
+
+#ifdef HAVE_GENL_VALIDATE
+
+static const struct genl_ops ubbd_genl_ops[] = {
+	{
+		.cmd	= UBBD_CMD_ADD_DEV,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags	= GENL_ADMIN_PERM,
+		.doit	= handle_cmd_add_dev,
+	},
+	{
+		.cmd	= UBBD_CMD_ADD_DISK,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags	= GENL_ADMIN_PERM,
+		.doit	= handle_cmd_add_disk,
+	},
+	{
+		.cmd	= UBBD_CMD_REMOVE_DISK,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags	= GENL_ADMIN_PERM,
+		.doit	= handle_cmd_remove_disk,
+	},
+	{
+		.cmd	= UBBD_CMD_REMOVE_DEV,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags	= GENL_ADMIN_PERM,
+		.doit	= handle_cmd_remove_dev,
+	},
+	{
+		.cmd	= UBBD_CMD_STATUS,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags	= GENL_ADMIN_PERM,
+		.doit	= handle_cmd_status,
+	},
+	{
+		.cmd	= UBBD_CMD_CONFIG,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags	= GENL_ADMIN_PERM,
+		.doit	= handle_cmd_config,
+	},
+};
+
+#else /* #ifdef HAVE_GENL_VALIDATE */
+
 static const struct genl_ops ubbd_genl_ops[] = {
 	{
 		.cmd	= UBBD_CMD_ADD_DEV,
@@ -633,7 +678,10 @@ static const struct genl_ops ubbd_genl_ops[] = {
 		.doit	= handle_cmd_config,
 	},
 };
-#endif
+
+#endif /* #ifdef HAVE_GENL_VALIDATE */
+
+#endif /* #ifdef HAVE_GENL_SMALL_OPS */
 
 /* multicast group */
 enum ubbd_multicast_groups {
