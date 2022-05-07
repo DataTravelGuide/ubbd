@@ -307,8 +307,10 @@ static int rbd_dev_write_zeros(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 	return ret;
 }
 #else
-static int rbd_dev_write_zeros(struct ubbd_device *ubbd_dev, struct ubbd_se *se)
+static int rbd_dev_write_zeros(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 {
+	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
+
 	ubbd_dev_err(ubbd_dev, "write_zeros is not supported");
 
 	return -1;
