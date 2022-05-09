@@ -53,6 +53,7 @@ int ubbd_queue_sb_init(struct ubbd_queue *ubbd_q)
 	ubbd_q->mmap_pages = (ubbd_q->data_pages + (RING_SIZE >> PAGE_SHIFT));
 
 	/* Initialise the sb of the ring buffer */
+	sb->magic = UBBD_MAGIC;
 	sb->version = UBBD_SB_VERSION;
 	sb->info_off = UBBD_INFO_OFF;
 	sb->info_size = UBBD_INFO_SIZE;

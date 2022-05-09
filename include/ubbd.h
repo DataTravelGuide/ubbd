@@ -22,10 +22,10 @@
 #define CMDR_OFF (COMPR_OFF + COMPR_SIZE)
 #define CMDR_SIZE (RING_SIZE - CMDR_OFF)
 
-#define UBBD_MAGIC	0x676896C596EF
+#define UBBD_MAGIC	0x676896C596EFULL
 
 struct ubbd_sb {
-	__u8  magic[8];
+	__u64  magic;
 	__u16 version;
 	__u16 flags;
 

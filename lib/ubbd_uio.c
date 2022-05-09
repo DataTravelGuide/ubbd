@@ -10,6 +10,11 @@ struct ubbd_dev_info *ubbd_uio_get_dev_info(void *map)
 {
 	struct ubbd_sb *sb = map;
 
+	if (sb->magic != UBBD_MAGIC) {
+		ubbd_err("invalid magic: %llx (expected: %llx)\n", sb->magic, UBBD_MAGIC);
+		return NULL;
+	}
+
 	ubbd_dbg("info_off: %u\n", sb->info_off);
 
 	return (struct ubbd_dev_info *)((char *)map + sb->info_off);
