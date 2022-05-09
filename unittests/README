@@ -1,0 +1,6 @@
+1. install cmocka module:
+apt install libcmocka-dev valgrind lcov
+
+2. bash run_test.sh
+
+3. check the coverage in result/index.html

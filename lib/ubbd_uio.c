@@ -21,25 +21,30 @@ struct ubbd_dev_info *ubbd_uio_get_dev_info(void *map)
 }
 
 
-int device_close_shm(struct ubbd_uio_info *uio_info)
+int ubbd_close_uio(struct ubbd_uio_info *uio_info)
 {
 	int ret;
+	int retval = 0;
 
 	ret = munmap(uio_info->map, uio_info->uio_map_size);
 	if (ret != 0) {
 		ubbd_err("could not unmap device: %d\n", errno);
+		retval = ret;
 	}
 
 	ret = close(uio_info->fd);
 	if (ret != 0) {
 		ubbd_err("could not close device fd for: %d\n", errno);
+		if (!retval) {
+			retval = ret;
+		}
 	}
 
-	return ret;
+	return retval;
 }
 
 
-int device_open_shm(struct ubbd_uio_info *uio_info)
+int ubbd_open_uio(struct ubbd_uio_info *uio_info)
 {
 	char *mmap_name;
 
@@ -75,7 +80,7 @@ err_fail:
 }
 
 
-void ubbdlib_processing_start(struct ubbd_queue *ubbd_q)
+int ubbd_processing_start(struct ubbd_queue *ubbd_q)
 {
 	int r;
 	uint32_t buf;
@@ -84,14 +89,17 @@ void ubbdlib_processing_start(struct ubbd_queue *ubbd_q)
 	do {
 		r = read(ubbd_q->uio_info.fd, &buf, 4);
 	} while (r == -1 && errno == EINTR);
+
 	if (r == -1 && errno != EAGAIN) {
-		ubbd_err("failed to read device /dev/%s, %d\n",
-			 "uio0", errno);
-		exit(-errno);
+		ubbd_err("failed to read device /dev/uio%d: %d\n",
+			 ubbd_q->uio_info.uio_id, errno);
+		return -errno;
 	}
+
+	return 0;
 }
 
-void ubbdlib_processing_complete(struct ubbd_queue *ubbd_q)
+int ubbd_processing_complete(struct ubbd_queue *ubbd_q)
 {
 	int r;
 	uint32_t buf = 0;
@@ -100,15 +108,17 @@ void ubbdlib_processing_complete(struct ubbd_queue *ubbd_q)
 	do {
 		r = write(ubbd_q->uio_info.fd, &buf, 4);
 	} while (r == -1 && errno == EINTR);
+
 	if (r == -1 && errno != EAGAIN) {
-		ubbd_err("failed to write uio device, %d\n",
-			 errno);
-		exit(-errno);
+		ubbd_err("failed to write uio device /dev/uio%d: %d\n",
+			 ubbd_q->uio_info.uio_id, errno);
+		return -errno;
 	}
+
+	return 0;
 }
 
-
-struct ubbd_se *device_cmd_head(struct ubbd_queue *ubbd_q)
+struct ubbd_se *ubbd_cmd_head(struct ubbd_queue *ubbd_q)
 {
         struct ubbd_sb *sb = ubbd_q->uio_info.map;
 
@@ -117,30 +127,11 @@ struct ubbd_se *device_cmd_head(struct ubbd_queue *ubbd_q)
         return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_head);
 }
 
-struct ubbd_se *device_cmd_tail(struct ubbd_queue *ubbd_q)
-{
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
-
-	ubbd_dbg("cmd: tail: %u\n", sb->cmd_tail);
-
-	return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_tail);
-}
-
-struct ubbd_se *device_cmd_to_handle(struct ubbd_queue *ubbd_q)
+struct ubbd_se *ubbd_cmd_to_handle(struct ubbd_queue *ubbd_q)
 {
 	struct ubbd_sb *sb = ubbd_q->uio_info.map;
 
 	ubbd_dbg("cmd: handled: %u\n", ubbd_q->se_to_handle);
 
 	return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + ubbd_q->se_to_handle);
-}
-
-struct ubbd_se *get_oldest_se(struct ubbd_queue *ubbd_q)
-{
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
-
-	if (sb->cmd_tail == sb->cmd_head)
-		return NULL;
-
-	return (struct ubbd_se *) ((char *) sb + sb->cmdr_off + sb->cmd_tail);
 }
