@@ -77,7 +77,7 @@ We can get **15us** latency and **1.8 million** iops with null type ubbd device.
 
 	Note:
 		a) ubbd + librbd is mapped by:
-			$ ubbdadm/ubbdadm --command map --type rbd --pool rbd --image test
+			$ ubbdadm/ubbdadm --command map --type rbd --pool rbd --image test --ceph-conf /etc/ceph/ceph.conf
 		b) krbd is mapped by:
 			$ rbd map test
 		c) librbd is tested by fio with ioengine=rbd.
