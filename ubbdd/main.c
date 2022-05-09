@@ -8,7 +8,6 @@
 
 static void catch_signal(int signo)
 {
-	ubbd_info("%d caught signal -%d...", signo, getpid());
 	switch (signo) {
 	case SIGTERM:
 		ubbd_mgmt_stop_thread();
@@ -55,6 +54,8 @@ int main()
 	ubbd_info("ubbdd started.....\n");
 
 	ret = pthread_join(mgmt_thread, &join_retval);
+
+	ubbd_info("ubbdd stoping...\n");
 
 stop_devs:
 	ubbd_dev_stop_devs();
