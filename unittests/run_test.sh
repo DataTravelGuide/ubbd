@@ -3,7 +3,14 @@
 make
 
 valgrind --leak-check=full ./utils_test
+if [ $? -ne 0 ]; then
+	exit -1
+fi
+
 valgrind --leak-check=full ./ubbd_uio_test
+if [ $? -ne 0 ]; then
+	exit -1
+fi
 
 rm -rf result
 mkdir result

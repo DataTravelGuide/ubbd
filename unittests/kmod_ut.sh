@@ -32,6 +32,9 @@ insmod kmods/ubbd.ko
 insmod kmods/ubbd_ut.ko
 
 LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib/ ktfrun
+if [ $? -ne 0 ]; then
+	exit -1
+fi
 
 rmmod ubbd_ut
 rmmod ubbd

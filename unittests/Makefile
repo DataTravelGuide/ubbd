@@ -14,3 +14,4 @@ all:
 clean:
 	rm -rf utils_test
 	rm -rf ubbd_uio_test
+	rm -rf *.gcno *.gcda
