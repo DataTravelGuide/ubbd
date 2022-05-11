@@ -30,10 +30,17 @@ EXTRA_CFLAGS += $(call cc-option,-fno-ipa-icf)
 EXTRA_CFLAGS += $(call cc-option,-Wno-tautological-compare) -Wall -Wmaybe-uninitialized -Werror
 EXTRA_CFLAGS += -I${PWD}/../include/ -DCOMMIT_REV="\"$(COMMIT_REV)\""
 EXTRA_CFLAGS += -I$(KERNEL_TREE)/include/ -I$(KERNEL_TREE)/include/linux
+EXTRA_CFLAGS += -I$(KTF_SRC)/kernel/
+
+KBUILD_EXTRA_SYMBOLS += $(KTF_SRC)/build/kernel/Module.symvers
 
 obj-m := ubbd.o
-ubbd-y := ubbd_main.o ubbd_req.o ubbd_nl.o ubbd_uio.o
+ubbd-y := ubbd_main.o ubbd_req.o ubbd_nl.o ubbd_uio.o ubbd_dev.o
 $(obj)/ubbd.o: $(UBBDCONF_HEADER)
+
+obj-$(UBBD_KMODS_UT) += ubbd_ut.o
+ubbd_ut-y := ubbd_unittest.o ubbd_dev.o ubbd_req.o ubbd_nl.o ubbd_uio.o
+$(obj)/ubbd_ut.o: $(UBBDCONF_HEADER)
 
 clean:
 	rm -rf .tmp_versions Module.markers Module.symvers modules.order
