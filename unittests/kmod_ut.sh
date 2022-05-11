@@ -31,7 +31,7 @@ modprobe uio
 insmod kmods/ubbd.ko
 insmod kmods/ubbd_ut.ko
 
-ktfrun
+LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib/ ktfrun
 
 rmmod ubbd_ut
 rmmod ubbd
