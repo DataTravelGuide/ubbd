@@ -6,7 +6,7 @@ ubbd_path=`pwd`
 # install requirments
 apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev
 
-apt install libcmocka-dev valgrind lcov cmake pkg-config
+apt install -y libcmocka-dev valgrind lcov cmake pkg-config
 
 # build
 make
