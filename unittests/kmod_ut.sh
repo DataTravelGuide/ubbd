@@ -36,3 +36,4 @@ LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib/ ktfrun
 rmmod ubbd_ut
 rmmod ubbd
 rmmod uio
+rmmod ktf
