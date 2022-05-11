@@ -5,11 +5,13 @@
 #include "ubbd_dev.h"
 
 #define UBBD_MGMT_NAMESPACE      "UBBD_MGMT_ABSTRACT_NAMESPACE"
+#define UBBD_DEV_MAX	1024
 
 enum ubbd_mgmt_cmd {
 	UBBD_MGMT_CMD_MAP,
 	UBBD_MGMT_CMD_UNMAP,
-	UBBD_MGMT_CMD_CONFIG
+	UBBD_MGMT_CMD_CONFIG,
+	UBBD_MGMT_CMD_LIST,
 };
 
 struct ubbd_mgmt_request {
@@ -26,6 +28,8 @@ struct ubbd_mgmt_request {
 			int dev_id;
 			int data_pages_reserve;
 		} config;
+		struct {
+		} list;
 	} u;
 };
 
@@ -35,6 +39,10 @@ struct ubbd_mgmt_rsp {
 		struct {
 			char path[PATH_MAX];
 		} add;
+		struct {
+			int dev_num;
+			int dev_list[UBBD_DEV_MAX];
+		} list;
 	} u;
 };
 

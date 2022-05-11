@@ -17,6 +17,8 @@ enum ubbd_mgmt_cmd str_to_cmd(char *str)
 		cmd = UBBD_MGMT_CMD_UNMAP;
 	else if (!strcmp("config", str))
 		cmd = UBBD_MGMT_CMD_CONFIG;
+	else if (!strcmp("list", str))
+		cmd = UBBD_MGMT_CMD_LIST;
 	else
 		cmd = -1;
 
@@ -179,6 +181,34 @@ static int do_config(int ubbdid, int data_pages_reserve)
 	return generic_request_and_wait(&req);
 }
 
+static void list_request_callback(struct ubbd_mgmt_rsp *rsp)
+{
+	int i;
+
+	for (i = 0; i < rsp->u.list.dev_num; i++) {
+		fprintf(stdout, "/dev/ubbd%d\n", rsp->u.list.dev_list[i]);
+	}
+}
+
+static int list_request_and_wait(struct ubbd_mgmt_request *req)
+{
+	int ret;
+
+	ret = request_and_wait(req, list_request_callback);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+static int do_list()
+{
+	struct ubbd_mgmt_request req = {0};
+
+	req.cmd = UBBD_MGMT_CMD_LIST;
+
+	return list_request_and_wait(&req);
+}
+
 int main(int argc, char **argv)
 {
 	int ch, longindex;
@@ -264,6 +294,8 @@ int main(int argc, char **argv)
 		}
 
 		ret = do_config(ubbdid, data_pages_reserve);
+	} else if (command == UBBD_MGMT_CMD_LIST) {
+		ret = do_list();
 	} else {
 		printf("error command: %d\n", command);
 		exit(-1);

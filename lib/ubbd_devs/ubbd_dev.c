@@ -204,7 +204,7 @@ out:
 	return;
 }
 
-static LIST_HEAD(ubbd_dev_list);
+LIST_HEAD(ubbd_dev_list);
 pthread_mutex_t ubbd_dev_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct ubbd_device *find_ubbd_dev(int dev_id)

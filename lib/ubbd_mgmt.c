@@ -5,6 +5,9 @@
 #include "ubbd_dev.h"
 #include "ubbd_mgmt.h"
 
+extern struct list_head ubbd_dev_list;
+extern pthread_mutex_t ubbd_dev_list_mutex;
+
 static int setup_abstract_addr(struct sockaddr_un *addr, char *unix_sock_name)
 {
 	memset(addr, 0, sizeof(*addr));
@@ -319,6 +322,21 @@ static void *mgmt_thread_fn(void* args)
 					break;
 				}
 				continue;
+			case UBBD_MGMT_CMD_LIST:
+				mgmt_rsp.u.list.dev_num = 0;
+				pthread_mutex_lock(&ubbd_dev_list_mutex);
+				list_for_each_entry(ubbd_dev, &ubbd_dev_list, dev_node) {
+					if (mgmt_rsp.u.list.dev_num  >= UBBD_DEV_MAX) {
+						ret = -E2BIG;
+						ubbd_err("ubbd device is too much than %d.", UBBD_DEV_MAX);
+						break;
+					}
+					mgmt_rsp.u.list.dev_list[mgmt_rsp.u.list.dev_num++] = ubbd_dev->dev_id;
+				}
+				pthread_mutex_unlock(&ubbd_dev_list_mutex);
+
+				ret = 0;
+				break;
 			default:
 				ubbd_err("unrecognized command: %d", mgmt_req.cmd);
 				ret = -EINVAL;
