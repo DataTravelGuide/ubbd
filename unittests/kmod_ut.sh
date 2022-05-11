@@ -2,7 +2,7 @@
 
 unittest_dir=`pwd`
 
-git submodule update
+git submodule update --init --recursive
 
 cd googletest/
 mkdir build
