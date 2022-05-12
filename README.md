@@ -103,4 +103,4 @@ driver out of kernel module. That means we can upgrade our driver with io inflig
 # 8. Testing:
 ubbd-tests is a test-suite runnnig via avocado which is a gread test framework.
 
-[https://github.com/ubbd/ubbd-tests](URL)
+[https://github.com/ubbd/ubbd-tests](https://github.com/ubbd/ubbd-tests)
