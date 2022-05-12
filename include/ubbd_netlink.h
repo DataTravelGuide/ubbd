@@ -51,4 +51,5 @@ int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, str
 int ubbd_nl_start_thread(pthread_t *t);
 void ubbd_nl_stop_thread(void);
 int ubbd_nl_dev_list(struct list_head *dev_list);
+void destroy_dev_status(struct ubbd_nl_dev_status *dev_status);
 #endif	/* UBBD_NETLINK_H */

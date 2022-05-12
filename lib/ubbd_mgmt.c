@@ -118,7 +118,7 @@ int ubbdd_response(int fd, struct ubbd_mgmt_rsp *rsp,
 			if (err <= 0) {
 				ubbd_err("read error (%d/%d), daemon died?",
 					  err, errno);
-				break;
+				return err;
 			}
 			len -= err;
 		}

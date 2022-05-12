@@ -293,7 +293,7 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 	struct ubbd_device *ubbd_dev = arg;
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
-	struct ubbd_nl_dev_status *dev_status;
+	struct ubbd_nl_dev_status *dev_status = NULL;
 	int ret;
 	int i;
 
@@ -307,10 +307,11 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 	if (msg_attr[UBBD_ATTR_DEV_INFO]) {
 		ret = parse_status(msg_attr[UBBD_ATTR_DEV_INFO], &dev_status);
 		if (ret)
-			return ret;
+			goto out;
 	} else {
 		ubbd_err("no dev_info replyied in add_dev_don\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
 
 	ubbd_dev->dev_id = dev_status->dev_id;
@@ -319,7 +320,8 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 	ubbd_dev->queues = calloc(ubbd_dev->num_queues, sizeof(struct ubbd_queue));
 	if (!ubbd_dev->queues) {
 		ubbd_err("failed to alloc queues\n");
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto out;
 	}
 
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
@@ -327,8 +329,11 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->queue_infos[i].uio_map_size;
 		memcpy(&ubbd_dev->queues[i].cpuset, &dev_status->queue_infos[i].cpuset, sizeof(cpu_set_t));
 	}
+	ret = NL_OK;
 
-	return NL_OK;
+out:
+	destroy_dev_status(dev_status);
+	return ret;
 }
 
 int send_netlink_add_dev(struct ubbd_nl_req *req)
@@ -484,6 +489,16 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 	return 0;
 out:
 	return ret;
+}
+
+void destroy_dev_status(struct ubbd_nl_dev_status *dev_status)
+{
+	if (!dev_status)
+		return;
+
+	if (dev_status->queue_infos)
+		free(dev_status->queue_infos);
+	free(dev_status);
 }
 
 static int status_callback(struct nl_msg *msg, void *arg)

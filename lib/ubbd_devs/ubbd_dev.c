@@ -849,7 +849,7 @@ int ubbd_dev_reopen_devs(void)
 
 		if (tmp_status->status != UBBD_DEV_STATUS_RUNNING)
 			ubbd_dev_remove(ubbd_dev, false, NULL);
-		free(tmp_status);
+		destroy_dev_status(tmp_status);
 	}
 
 	return ret;
