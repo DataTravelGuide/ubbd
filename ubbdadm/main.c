@@ -25,6 +25,20 @@ enum ubbd_mgmt_cmd str_to_cmd(char *str)
 	return cmd;
 }
 
+char *cmd_to_str(enum ubbd_mgmt_cmd cmd)
+{
+	if (cmd == UBBD_MGMT_CMD_MAP)
+		return "map";
+	else if (cmd == UBBD_MGMT_CMD_UNMAP)
+		return "unmap";
+	else if (cmd == UBBD_MGMT_CMD_CONFIG)
+		return "config";
+	else if (cmd == UBBD_MGMT_CMD_LIST)
+		return "list";
+	else
+		return "UNKNOWN";
+}
+
 static enum ubbd_dev_type str_to_type(char *str)
 {
 	enum ubbd_dev_type type;
@@ -83,13 +97,13 @@ static int request_and_wait(struct ubbd_mgmt_request *req, request_callback cb)
 
 	ret = ubbdd_request(&fd, req);
 	if (ret) {
-		ubbd_err("failed to send map request to ubbdd: %d.\n", ret);
+		ubbd_err("failed to send %s request to ubbdd: %d.\n", cmd_to_str(req->cmd), ret);
 		return ret;
 	}
 	
 	ret = ubbdd_response(fd, &rsp, -1);
 	if (ret) {
-		ubbd_err("error in waiting response for map request: %d.\n", ret);
+		ubbd_err("error in waiting response for %s request: %d.\n", cmd_to_str(req->cmd), ret);
 		return ret;
 	}
 
