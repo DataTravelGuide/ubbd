@@ -247,7 +247,7 @@ void __init ubbd_debugfs_init(void);
 
 #ifdef UBBD_FAULT_INJECT
 #define UBBD_REQ_FAULT_MASK	0x0fff	/* 1/4096 */
-#define UBBD_MGMT_FAULT_MASK	0x000f	/* 1/16 */
+#define UBBD_MGMT_FAULT_MASK	0x00ff	/* 1/256 */
 
 #include <linux/random.h>
 
