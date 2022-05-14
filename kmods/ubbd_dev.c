@@ -239,6 +239,7 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_add_opts *add_opts)
 	}
 
 	__module_get(THIS_MODULE);
+	ubbd_debugfs_add_dev(ubbd_dev);
 
 	ubbd_dev_debug(ubbd_dev, "dev is created.");
 
@@ -255,6 +256,7 @@ fail_ubbd_dev:
 
 void ubbd_dev_destroy(struct ubbd_device *ubbd_dev)
 {
+	ubbd_debugfs_remove_dev(ubbd_dev);
 	destroy_workqueue(ubbd_dev->task_wq);
 	ubbd_dev_destroy_queues(ubbd_dev);
 	ida_simple_remove(&ubbd_dev_id_ida, ubbd_dev->dev_id);
@@ -589,6 +591,11 @@ void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force)
 void ubbd_dev_get(struct ubbd_device *ubbd_dev)
 {
 	kref_get(&ubbd_dev->kref);
+}
+
+int ubbd_dev_get_unless_zero(struct ubbd_device *ubbd_dev)
+{
+	return kref_get_unless_zero(&ubbd_dev->kref);
 }
 
 static void __dev_release(struct kref *kref)

@@ -454,6 +454,7 @@ void ubbd_queue_workfn(struct work_struct *work)
 	}
 
 	mutex_lock(&ubbd_q->req_lock);
+	ubbd_req_stats_ktime_delta(ubbd_req->start_to_prepare, ubbd_req->start_kt);
 	ret = queue_req_prepare(ubbd_req);
 	if (ret) {
 		mutex_unlock(&ubbd_q->req_lock);
@@ -464,6 +465,7 @@ void ubbd_queue_workfn(struct work_struct *work)
 	queue_req_data_init(ubbd_req);
 
 	/* ubbd_req is ready, submit it to cmd ring */
+	ubbd_req_stats_ktime_delta(ubbd_req->start_to_submit, ubbd_req->start_kt);
 	list_add_tail(&ubbd_req->inflight_reqs_node, &ubbd_q->inflight_reqs);
 
 	UPDATE_CMDR_HEAD(ubbd_q->sb_addr->cmd_head,
@@ -503,6 +505,8 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 
 	memset(ubbd_req, 0, sizeof(struct ubbd_request));
 	INIT_LIST_HEAD(&ubbd_req->inflight_reqs_node);
+
+	ubbd_req_stats_ktime_get(ubbd_req->start_kt);
 
 	blk_mq_start_request(bd->rq);
 
@@ -585,14 +589,33 @@ static struct ubbd_request *fetch_inflight_req(struct ubbd_queue *ubbd_q, u64 re
 	return NULL;
 }
 
-static void complete_inflight_req(struct ubbd_queue *ubbd_q, struct ubbd_request *req, int ret)
+#ifdef UBBD_REQUEST_STATS
+static void ubbd_req_stats(struct ubbd_queue *ubbd_q, struct ubbd_request *ubbd_req)
 {
-	if (!list_empty(&req->inflight_reqs_node)) {
-		list_del_init(&req->inflight_reqs_node);
+	if (!ubbd_req->start_kt)
+		return;
+
+	ubbd_q->stats_reqs++;
+	ubbd_q->start_to_prepare = ktime_add(ubbd_q->start_to_prepare, ubbd_req->start_to_prepare);
+	ubbd_q->start_to_submit = ktime_add(ubbd_q->start_to_submit, ubbd_req->start_to_submit);
+	ubbd_q->start_to_complete = ktime_add(ubbd_q->start_to_complete, ubbd_req->start_to_complete);
+	ubbd_q->start_to_release = ktime_add(ubbd_q->start_to_release, ubbd_req->start_to_release);
+}
+#endif /* UBBD_REQUEST_STATS */
+
+static void complete_inflight_req(struct ubbd_queue *ubbd_q, struct ubbd_request *ubbd_req, int ret)
+{
+	if (!list_empty(&ubbd_req->inflight_reqs_node)) {
+		list_del_init(&ubbd_req->inflight_reqs_node);
 	}
-	ubbd_se_hdr_flags_set(req->se, UBBD_SE_HDR_DONE);
-	ubbd_req_release(req);
-	blk_mq_end_request(req->req, errno_to_blk_status(ret));
+	ubbd_se_hdr_flags_set(ubbd_req->se, UBBD_SE_HDR_DONE);
+	ubbd_req_release(ubbd_req);
+
+#ifdef UBBD_REQUEST_STATS
+	ubbd_req_stats_ktime_delta(ubbd_req->start_to_release, ubbd_req->start_kt);
+	ubbd_req_stats(ubbd_q, ubbd_req);
+#endif /* UBBD_REQUEST_STATS */
+	blk_mq_end_request(ubbd_req->req, errno_to_blk_status(ret));
 	advance_cmd_ring(ubbd_q);
 }
 
@@ -600,7 +623,7 @@ void complete_work_fn(struct work_struct *work)
 {
 	struct ubbd_queue *ubbd_q = container_of(work, struct ubbd_queue, complete_work);
 	struct ubbd_ce *ce;
-	struct ubbd_request *req;
+	struct ubbd_request *ubbd_req;
 
 	/*
 	 * If queue is removing, return directly. This would happen
@@ -619,15 +642,16 @@ again:
 	}
 
 	ubbd_flush_dcache_range(ce, sizeof(*ce));
-	req = fetch_inflight_req(ubbd_q, ce->priv_data);
-	if (!req) {
+	ubbd_req = fetch_inflight_req(ubbd_q, ce->priv_data);
+	if (!ubbd_req) {
 		goto advance_compr;
 	}
+	ubbd_req_stats_ktime_delta(ubbd_req->start_to_complete, ubbd_req->start_kt);
 
-	if (req_op(req->req) == REQ_OP_READ)
-		copy_data_from_ubbdreq(req);
+	if (req_op(ubbd_req->req) == REQ_OP_READ)
+		copy_data_from_ubbdreq(ubbd_req);
 
-	complete_inflight_req(ubbd_q, req, ce->result);
+	complete_inflight_req(ubbd_q, ubbd_req, ce->result);
 
 advance_compr:
 	UPDATE_COMPR_TAIL(ubbd_q->sb_addr->compr_tail, sizeof(struct ubbd_ce), ubbd_q->sb_addr->compr_size);

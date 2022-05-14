@@ -36,6 +36,8 @@ static int __init ubbd_init(void)
 		goto err_out_genl;
 	}
 
+	ubbd_debugfs_init();
+
 	return 0;
 err_out_genl:
 	genl_unregister_family(&ubbd_genl_family);
@@ -48,6 +50,7 @@ err_out_slab:
 
 static void __exit ubbd_exit(void)
 {
+	ubbd_debugfs_cleanup();
 	ida_destroy(&ubbd_dev_id_ida);
 	genl_unregister_family(&ubbd_genl_family);
 	root_device_unregister(ubbd_uio_root_device);

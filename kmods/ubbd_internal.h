@@ -31,6 +31,19 @@
 #define UBBD_UIO_DATA_PAGES	(256 * 1024)
 #define UBBD_UIO_DATA_RESERVE_PERCENT	75
 
+/* request stats */
+#undef UBBD_REQUEST_STATS
+
+#ifdef UBBD_REQUEST_STATS
+#define ubbd_req_stats_ktime_get(V) V = ktime_get() 
+#define ubbd_req_stats_ktime_aggregate(T, D) T = ktime_add(T, D)
+#define ubbd_req_stats_ktime_delta(V, ST) V = ktime_sub(ktime_get(), ST)
+#else
+#define ubbd_req_stats_ktime_get(V)
+#define ubbd_req_stats_ktime_aggregate(T, D)
+#define ubbd_req_stats_ktime_delta(V, ST)
+#endif /* UBBD_REQUEST_STATS */
+
 extern struct workqueue_struct *ubbd_wq;
 
 struct ubbd_queue {
@@ -63,6 +76,19 @@ struct ubbd_queue {
 	struct inode		*inode;
 	struct work_struct	complete_work;
 	cpumask_t		cpumask;
+
+	struct dentry		*q_debugfs_d;
+#ifdef	UBBD_REQUEST_STATS
+	struct dentry		*q_debugfs_req_stats_f;
+
+	uint64_t		stats_reqs;
+
+	ktime_t			start_to_prepare;
+	ktime_t			start_to_submit;
+
+	ktime_t			start_to_complete;
+	ktime_t			start_to_release;
+#endif /* UBBD_REQUEST_STATS */
 };
 
 #define UBBD_QUEUE_FLAGS_REMOVING	1
@@ -82,6 +108,9 @@ struct ubbd_device {
 
 	/* Block layer tags. */
 	struct blk_mq_tag_set	tag_set;
+
+	struct dentry		*dev_debugfs_d;
+	struct dentry		*dev_debugfs_queues_d;
 
 	unsigned long		open_count;	/* protected by lock */
 
@@ -115,6 +144,7 @@ static inline int minor_to_ubbd_dev_id(int minor)
 }
 
 void ubbd_dev_get(struct ubbd_device *ubbd_dev);
+int ubbd_dev_get_unless_zero(struct ubbd_device *ubbd_dev);
 void ubbd_dev_put(struct ubbd_device *ubbd_dev);
 extern struct device *ubbd_uio_root_device;
 static int ubbd_open(struct block_device *bdev, fmode_t mode)
@@ -162,6 +192,16 @@ struct ubbd_request {
 	uint32_t		inline_pi[UBBD_REQ_INLINE_PI_MAX];
 	uint32_t		*pi;
 	struct work_struct	work;
+
+#ifdef	UBBD_REQUEST_STATS
+	ktime_t			start_kt;
+
+	ktime_t			start_to_prepare;
+	ktime_t			start_to_submit;
+
+	ktime_t			start_to_complete;
+	ktime_t			start_to_release;
+#endif
 };
 
 #define UPDATE_CMDR_HEAD(head, used, size) smp_store_release(&head, ((head % size) + used) % size)
@@ -196,6 +236,12 @@ void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool force);
 int ubbd_add_disk(struct ubbd_device *ubbd_dev);
 int ubbd_queue_uio_init(struct ubbd_queue *ubbd_q);
 void ubbd_queue_uio_destroy(struct ubbd_queue *ubbd_q);
+
+/* debugfs */
+void ubbd_debugfs_add_dev(struct ubbd_device *ubbd_dev);
+void ubbd_debugfs_remove_dev(struct ubbd_device *ubbd_dev);
+void ubbd_debugfs_cleanup(void);
+void __init ubbd_debugfs_init(void);
 
 #undef UBBD_FAULT_INJECT
 
