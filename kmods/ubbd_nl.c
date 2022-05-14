@@ -62,20 +62,17 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	/*add UBBD_ATTR_DEV_INFO */
 	msg_size += nla_total_size(nla_attr_size(sizeof(s32)));
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
 		goto err;
-#endif
 	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
 	if (!reply_skb) {
 		ubbd_dev_err(ubbd_dev, "failed to new genlmsg for size: %lu", msg_size);
 		goto err;
 	}
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
 		goto err_free;
-#endif
+
 	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
 				     UBBD_CMD_ADD_DEV);
 	if (!msg_head)
@@ -93,10 +90,9 @@ static int ubbd_nl_reply_add_dev_done(struct ubbd_device *ubbd_dev,
 	if (nla_put_s32(reply_skb, UBBD_ATTR_RETVAL, 0))
 		goto err_cancel;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
 		goto err_cancel;
-#endif
+
 	genlmsg_end(reply_skb, msg_head);
 	return genlmsg_reply(reply_skb, info);
 
@@ -155,24 +151,22 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	else
 		add_opts.data_pages = UBBD_UIO_DATA_PAGES;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		ret = -ENOMEM;
 		goto out;
 	}
-#endif
+
 	ubbd_dev = ubbd_dev_add_dev(&add_opts);
 	if (IS_ERR_OR_NULL(ubbd_dev)) {
 		ret = PTR_ERR(ubbd_dev);
 		goto out;
 	}
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		ret = -ENOMEM;
 		goto err_remove_dev;
 	}
-#endif
+
 	ret = ubbd_nl_reply_add_dev_done(ubbd_dev, info);
 	if (ret)
 		goto err_remove_dev;
@@ -367,10 +361,9 @@ static int fill_ubbd_status_item(struct ubbd_device *ubbd_dev, struct sk_buff *r
 	struct nlattr *dev_nest;
 	int ret;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
 		return -EMSGSIZE;
-#endif
+
 	dev_nest = nla_nest_start(reply_skb, UBBD_STATUS_ITEM);
 	if (!dev_nest)
 		return -EMSGSIZE;
@@ -449,13 +442,12 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 		msg_size += nla_attr_size(sizeof(s32));
 	}
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOMEM;
 		goto err;
 	}
-#endif
+
 	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
 	if (!reply_skb) {
 		mutex_unlock(&ubbd_dev_list_mutex);
@@ -463,13 +455,11 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 		goto err;
 	}
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOMEM;
 		goto err_free;
 	}
-#endif
 	msg_head = genlmsg_put_reply(reply_skb, info, &ubbd_genl_family, 0,
 				     UBBD_CMD_STATUS);
 	if (!msg_head) {
@@ -491,12 +481,10 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 		goto err_cancel;
 	}
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		ret = -EMSGSIZE;
 		goto err_cancel;
 	}
-#endif
 	genlmsg_end(reply_skb, msg_head);
 	return genlmsg_reply(reply_skb, info);
 

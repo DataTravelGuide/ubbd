@@ -49,10 +49,8 @@ static struct page *ubbd_alloc_page(struct ubbd_queue *ubbd_q)
 {
 	struct page *page;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_req_need_fault())
 		return NULL;
-#endif /* UBBD_FAULT_INJECT */
 
 	page = alloc_page(GFP_NOIO);
 	if (!page) {
@@ -100,10 +98,9 @@ static void ubbd_release_page(struct ubbd_queue *ubbd_q,
 static int ubbd_xa_store_page(struct ubbd_queue *ubbd_q, int page_index,
 		struct page *page)
 {
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_req_need_fault())
 		return -ENOMEM;
-#endif /* UBBD_FAULT_INJECT */
+
 	return xa_err(xa_store(&ubbd_q->data_pages_array,
 				page_index, page, GFP_NOIO));
 }
@@ -345,10 +342,8 @@ void ubbd_req_init(struct ubbd_queue *ubbd_q, enum ubbd_op op, struct request *r
 
 static int ubbd_req_pi_alloc(struct ubbd_request *ubbd_req)
 {
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_req_need_fault())
 		return -ENOMEM;
-#endif /* UBBD_FAULT_INJECT */
 	ubbd_req->pi = kcalloc(ubbd_req->pi_cnt - UBBD_REQ_INLINE_PI_MAX,
 				sizeof(uint32_t), GFP_NOIO);
 	if (!ubbd_req->pi)

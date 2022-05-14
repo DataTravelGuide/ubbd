@@ -32,11 +32,10 @@ int ubbd_queue_sb_init(struct ubbd_queue *ubbd_q)
 {
 	struct ubbd_sb *sb;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		return -ENOMEM;
 	}
-#endif
+
 	sb = vzalloc(RING_SIZE);
 	if (!sb) {
 		return -ENOMEM;
@@ -93,10 +92,9 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 	ubbd_q->data_pages_reserve = \
 		ubbd_q->data_pages * UBBD_UIO_DATA_RESERVE_PERCENT / 100;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
 		return -ENOMEM;
-#endif
+
 	ubbd_q->data_bitmap = bitmap_zalloc(ubbd_q->data_pages, GFP_KERNEL);
 	if (!ubbd_q->data_bitmap) {
 		return -ENOMEM;
@@ -173,10 +171,9 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 {
 	struct ubbd_device *ubbd_dev;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
 		goto err;
-#endif
+
 	ubbd_dev = kzalloc(sizeof(*ubbd_dev), GFP_KERNEL);
 	if (!ubbd_dev)
 		goto err;
@@ -221,10 +218,9 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_add_opts *add_opts)
 	if (!ubbd_dev)
 		return NULL;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault())
 		goto fail_ubbd_dev;
-#endif
+
 	ubbd_dev->dev_id = ida_simple_get(&ubbd_dev_id_ida, 0,
 					 minor_to_ubbd_dev_id(1 << MINORBITS),
 					 GFP_KERNEL);
@@ -286,11 +282,10 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	int err;
 
         /* create gendisk info */
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		return -ENOMEM;
 	}
-#endif
+
         disk = alloc_disk(1 << UBBD_SINGLE_MAJOR_PART_SHIFT);
         if (!disk)
                 return -ENOMEM;
@@ -314,22 +309,20 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	ubbd_dev->tag_set.timeout = UINT_MAX;
 	ubbd_dev->tag_set.driver_data = ubbd_dev;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		err = -ENOMEM;
 		goto err_disk;
 	}
-#endif
+
 	err = blk_mq_alloc_tag_set(&ubbd_dev->tag_set);
 	if (err)
 		goto err_disk;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		err = -ENOMEM;
 		goto out_tag_set;
 	}
-#endif
+
         q = blk_mq_init_queue(&ubbd_dev->tag_set);
         if (IS_ERR(q)) {
                 err = PTR_ERR(q);
@@ -398,22 +391,19 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	ubbd_dev->tag_set.timeout = UINT_MAX;
 	ubbd_dev->tag_set.driver_data = ubbd_dev;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		err = -ENOMEM;
 		goto err;
 	}
-#endif
+
 	err = blk_mq_alloc_tag_set(&ubbd_dev->tag_set);
 	if (err)
 		goto err;
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		err = -ENOMEM;
 		goto out_tag_set;
 	}
-#endif
 	disk = blk_mq_alloc_disk(&ubbd_dev->tag_set, ubbd_dev);
 	if (IS_ERR(disk)) {
 		err = PTR_ERR(disk);
@@ -522,12 +512,11 @@ struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *add_opts)
 		goto out;
 	}
 
-#ifdef UBBD_FAULT_INJECT
 	if (ubbd_mgmt_need_fault()) {
 		ret = -ENOMEM;
 		goto err_dev_put;
 	}
-#endif
+
 	ret = ubbd_dev_device_setup(ubbd_dev, add_opts->device_size, add_opts->dev_features);
 	if (ret) {
 		ret = -EINVAL;

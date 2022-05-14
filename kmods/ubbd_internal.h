@@ -214,9 +214,19 @@ static inline bool ubbd_mgmt_need_fault(void)
 {
 	return ((get_random_u32() & UBBD_MGMT_FAULT_MASK) == 1);
 }
+#else
+static inline bool ubbd_req_need_fault(void)
+{
+	return false;
+}
 
+static inline bool ubbd_mgmt_need_fault(void)
+{
+	return false;
+}
 #endif /* UBBD_FAULT_INJECT */
 
+/* debug messages */
 #define ubbd_err(fmt, ...)						\
 	pr_err("ubbd: " fmt, ##__VA_ARGS__)
 #define ubbd_info(fmt, ...)						\
