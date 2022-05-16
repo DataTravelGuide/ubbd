@@ -22,6 +22,18 @@ static void ubbd_debugfs_remove(struct dentry **dp)
 static int q_req_stats_show(struct seq_file *file, void *ignored)
 {
 	struct ubbd_queue *ubbd_q = file->private;
+	uint64_t stats_reqs = ubbd_q->stats_reqs;
+	uint64_t start_to_prepare = ubbd_q->start_to_prepare;
+	uint64_t start_to_submit = ubbd_q->start_to_submit;
+	uint64_t start_to_complete = ubbd_q->start_to_complete;
+	uint64_t start_to_release = ubbd_q->start_to_release;
+
+	if (stats_reqs) {
+		do_div(start_to_prepare, stats_reqs);
+		do_div(start_to_submit, stats_reqs);
+		do_div(start_to_complete, stats_reqs);
+		do_div(start_to_release, stats_reqs);
+	}
 
 	seq_printf(file,
 		   "request stats values are nanoseconds; write an 'r' to reset all to 0\n\n"
@@ -30,11 +42,7 @@ static int q_req_stats_show(struct seq_file *file, void *ignored)
 		   "start_to_submit:	%12lld\n"
 		   "start_to_complete:	%12lld\n"
 		   "start_to_release:	%12lld\n",
-		   ubbd_q->stats_reqs,
-		   ubbd_q->start_to_prepare,
-		   ubbd_q->start_to_submit,
-		   ubbd_q->start_to_complete,
-		   ubbd_q->start_to_release);
+		   stats_reqs, start_to_prepare, start_to_submit, start_to_complete, start_to_release);
 	seq_puts(file, "\n");
 
 	return 0;
