@@ -21,6 +21,8 @@ enum ubbd_mgmt_cmd str_to_cmd(char *str)
 		cmd = UBBD_MGMT_CMD_LIST;
 	else if (!strcmp("req-stats", str))
 		cmd = UBBD_MGMT_CMD_REQ_STATS;
+	else if (!strcmp("req-stats-reset", str))
+		cmd = UBBD_MGMT_CMD_REQ_STATS_RESET;
 	else
 		cmd = -1;
 
@@ -39,6 +41,8 @@ char *cmd_to_str(enum ubbd_mgmt_cmd cmd)
 		return "list";
 	else if (cmd == UBBD_MGMT_CMD_REQ_STATS)
 		return "req-stats";
+	else if (cmd == UBBD_MGMT_CMD_REQ_STATS_RESET)
+		return "req-stats-reset";
 	else
 		return "UNKNOWN";
 }
@@ -89,7 +93,8 @@ static void usage(int status)
 			ubbdadm --command unmap --ubbdid ID\n\
 			ubbdadm --command config --ubbdid ID --data-pages-reserve 50\n\
 			ubbdadm --command list\n\
-			ubbdadm --command req-stats --ubbdid ID\n");
+			ubbdadm --command req-stats --ubbdid ID\n\
+			ubbdadm --command req-stats-reset --ubbdid ID\n");
 	}
 	exit(status);
 }
@@ -265,6 +270,16 @@ static int do_req_stats(int ubbdid)
 	return req_stats_request_and_wait(&req);
 }
 
+static int do_req_stats_reset(int ubbdid)
+{
+	struct ubbd_mgmt_request req = {0};
+
+	req.cmd = UBBD_MGMT_CMD_REQ_STATS_RESET;
+	req.u.req_stats_reset.dev_id = ubbdid;
+
+	return generic_request_and_wait(&req);
+}
+
 int main(int argc, char **argv)
 {
 	int ch, longindex;
@@ -354,6 +369,8 @@ int main(int argc, char **argv)
 		ret = do_list();
 	} else if (command == UBBD_MGMT_CMD_REQ_STATS) {
 		ret = do_req_stats(ubbdid);
+	} else if (command == UBBD_MGMT_CMD_REQ_STATS_RESET) {
+		ret = do_req_stats_reset(ubbdid);
 	} else {
 		printf("error command: %d\n", command);
 		exit(-1);

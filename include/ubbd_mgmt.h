@@ -14,6 +14,7 @@ enum ubbd_mgmt_cmd {
 	UBBD_MGMT_CMD_CONFIG,
 	UBBD_MGMT_CMD_LIST,
 	UBBD_MGMT_CMD_REQ_STATS,
+	UBBD_MGMT_CMD_REQ_STATS_RESET,
 };
 
 struct ubbd_mgmt_request {
@@ -35,6 +36,9 @@ struct ubbd_mgmt_request {
 		struct {
 			int dev_id;
 		} req_stats;
+		struct {
+			int dev_id;
+		} req_stats_reset;
 	} u;
 };
 

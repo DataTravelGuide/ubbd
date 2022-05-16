@@ -76,6 +76,7 @@ struct ubbd_queue {
 
 	cpu_set_t		cpuset;
 
+	pthread_mutex_t		req_stats_lock;
 	struct ubbd_req_stats	req_stats;
 };
 

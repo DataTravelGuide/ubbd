@@ -354,6 +354,23 @@ static void *mgmt_thread_fn(void* args)
 
 				ret = 0;
 				break;
+			case UBBD_MGMT_CMD_REQ_STATS_RESET:
+				ubbd_dev = find_ubbd_dev(mgmt_req.u.req_stats_reset.dev_id);
+				if (!ubbd_dev) {
+					ubbd_err("cant find ubbddev\n");
+					ret = -EINVAL;
+					break;
+				}
+				mgmt_rsp.u.req_stats.queue_num = ubbd_dev->num_queues;
+				for (i = 0; i < ubbd_dev->num_queues; i++) {
+					ubbd_q = &ubbd_dev->queues[i];
+					pthread_mutex_lock(&ubbd_q->req_stats_lock);
+					memset(&ubbd_q->req_stats, 0, sizeof(struct ubbd_req_stats));
+					pthread_mutex_unlock(&ubbd_q->req_stats_lock);
+				}
+
+				ret = 0;
+				break;
 			default:
 				ubbd_err("unrecognized command: %d", mgmt_req.cmd);
 				ret = -EINVAL;

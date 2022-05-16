@@ -204,8 +204,10 @@ out:
 		exit(EXIT_FAILURE);
 #ifdef	UBBD_REQUEST_STATS
 	} else {
+		pthread_mutex_lock(&ubbd_q->req_stats_lock);
 		ubbd_q->req_stats.reqs++;
 		ubbd_q->req_stats.handle_time += (get_ns() - start_ns);
+		pthread_mutex_unlock(&ubbd_q->req_stats_lock);
 #endif
 	}
 
@@ -403,6 +405,7 @@ int dev_setup(struct ubbd_device *ubbd_dev)
 		ubbd_q = &ubbd_dev->queues[i];
 		ubbd_q->ubbd_dev = ubbd_dev;
 		pthread_mutex_init(&ubbd_q->req_lock, NULL);
+		pthread_mutex_init(&ubbd_q->req_stats_lock, NULL);
 		ret = queue_setup(ubbd_q);
 		if (ret)
 			goto out;
