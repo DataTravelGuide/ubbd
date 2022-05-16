@@ -17,6 +17,16 @@
         (type *)((char *)__mptr - offsetof(type, member));      \
 })
 
+#include <time.h>
+
+static inline uint64_t get_ns()
+{
+	struct timespec t = {0,0};
+
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return ((uint64_t)t.tv_sec * 1.0e9 + t.tv_nsec);
+}
+
 struct context {
 	struct context *parent;
 	int (*finish)(struct context *ctx, int ret);

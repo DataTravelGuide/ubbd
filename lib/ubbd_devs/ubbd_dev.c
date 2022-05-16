@@ -140,6 +140,9 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 {
 	struct ubbd_se_hdr *header = &se->header;
 	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
+#ifdef	UBBD_REQUEST_STATS
+	uint64_t start_ns = get_ns();
+#endif
 	int ret;
 
 	ubbd_dbg("handle_cmd: se: %p\n", se);
@@ -199,6 +202,11 @@ out:
 	if (ret) {
 		ubbd_err("ret of se: %llu: %d", se->priv_data, ret);
 		exit(EXIT_FAILURE);
+#ifdef	UBBD_REQUEST_STATS
+	} else {
+		ubbd_q->req_stats.reqs++;
+		ubbd_q->req_stats.handle_time += (get_ns() - start_ns);
+#endif
 	}
 
 	return;

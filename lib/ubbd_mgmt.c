@@ -259,6 +259,8 @@ static void *mgmt_thread_fn(void* args)
 			struct ubbd_mgmt_request mgmt_req = {0};
 			struct ubbd_mgmt_rsp mgmt_rsp = {0};
 			struct context *ctx;
+			struct ubbd_queue *ubbd_q;
+			int i;
 
 			mgmt_ipc_read_data(read_fd, &mgmt_req, sizeof(mgmt_req));
 			ubbd_info("receive mgmt request: %d.\n", mgmt_req.cmd);
@@ -334,6 +336,21 @@ static void *mgmt_thread_fn(void* args)
 					mgmt_rsp.u.list.dev_list[mgmt_rsp.u.list.dev_num++] = ubbd_dev->dev_id;
 				}
 				pthread_mutex_unlock(&ubbd_dev_list_mutex);
+
+				ret = 0;
+				break;
+			case UBBD_MGMT_CMD_REQ_STATS:
+				ubbd_dev = find_ubbd_dev(mgmt_req.u.req_stats.dev_id);
+				if (!ubbd_dev) {
+					ubbd_err("cant find ubbddev\n");
+					ret = -EINVAL;
+					break;
+				}
+				mgmt_rsp.u.req_stats.queue_num = ubbd_dev->num_queues;
+				for (i = 0; i < ubbd_dev->num_queues; i++) {
+					ubbd_q = &ubbd_dev->queues[i];
+					memcpy(&mgmt_rsp.u.req_stats.req_stats[i], &ubbd_q->req_stats, sizeof(struct ubbd_req_stats));
+				}
 
 				ret = 0;
 				break;

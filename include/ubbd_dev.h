@@ -59,16 +59,24 @@ struct ubbd_uio_info {
 	struct ubbd_sb *map;
 };
 
+
+struct ubbd_req_stats {
+	uint64_t reqs;
+	uint64_t handle_time;
+};
+
 struct ubbd_queue {
-	struct ubbd_device *ubbd_dev;
-	uint32_t se_to_handle;
+	struct ubbd_device	*ubbd_dev;
+	uint32_t		se_to_handle;
 
-	struct ubbd_uio_info uio_info;
-	pthread_t cmdproc_thread;
+	struct ubbd_uio_info	uio_info;
+	pthread_t		cmdproc_thread;
 
-	pthread_mutex_t req_lock;
+	pthread_mutex_t		req_lock;
 
-	cpu_set_t cpuset;
+	cpu_set_t		cpuset;
+
+	struct ubbd_req_stats	req_stats;
 };
 
 struct ubbd_device {
@@ -89,6 +97,11 @@ struct ubbd_device {
 	struct ubbd_dev_features dev_features;
 
 	ubbd_atomic	ref_count;
+};
+
+struct ubbd_request {
+	uint64_t	start_ns;
+	uint64_t	handled_ns;
 };
 
 struct ubbd_file_device {

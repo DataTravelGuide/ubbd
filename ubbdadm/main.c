@@ -19,6 +19,8 @@ enum ubbd_mgmt_cmd str_to_cmd(char *str)
 		cmd = UBBD_MGMT_CMD_CONFIG;
 	else if (!strcmp("list", str))
 		cmd = UBBD_MGMT_CMD_LIST;
+	else if (!strcmp("req-stats", str))
+		cmd = UBBD_MGMT_CMD_REQ_STATS;
 	else
 		cmd = -1;
 
@@ -35,6 +37,8 @@ char *cmd_to_str(enum ubbd_mgmt_cmd cmd)
 		return "config";
 	else if (cmd == UBBD_MGMT_CMD_LIST)
 		return "list";
+	else if (cmd == UBBD_MGMT_CMD_REQ_STATS)
+		return "req-stats";
 	else
 		return "UNKNOWN";
 }
@@ -82,7 +86,10 @@ static void usage(int status)
 		printf("\
 			ubbdadm --command map --type file --filepath PATH --devsize SIZE\n\
 			ubbdadm --command map --type rbd --pool POOL --image IMANGE \n\
-			ubbdadm --command unmap --ubbdid ID\n");
+			ubbdadm --command unmap --ubbdid ID\n\
+			ubbdadm --command config --ubbdid ID --data-pages-reserve 50\n\
+			ubbdadm --command list\n\
+			ubbdadm --command req-stats --ubbdid ID\n");
 	}
 	exit(status);
 }
@@ -214,6 +221,7 @@ static int list_request_and_wait(struct ubbd_mgmt_request *req)
 
 	return 0;
 }
+
 static int do_list()
 {
 	struct ubbd_mgmt_request req = {0};
@@ -221,6 +229,40 @@ static int do_list()
 	req.cmd = UBBD_MGMT_CMD_LIST;
 
 	return list_request_and_wait(&req);
+}
+
+static void req_stats_request_callback(struct ubbd_mgmt_rsp *rsp)
+{
+	int i;
+	struct ubbd_req_stats *req_stats;
+
+	for (i = 0; i < rsp->u.req_stats.queue_num; i++) {
+		req_stats = &rsp->u.req_stats.req_stats[i];
+		fprintf(stdout, "Queue-%d:\n", i);
+		fprintf(stdout, "\tRequests:%lu\n", req_stats->reqs);
+		fprintf(stdout, "\tHandle_time:%lu\n", req_stats->reqs? req_stats->handle_time / req_stats->reqs : 0);
+	}
+}
+
+static int req_stats_request_and_wait(struct ubbd_mgmt_request *req)
+{
+	int ret;
+
+	ret = request_and_wait(req, req_stats_request_callback);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static int do_req_stats(int ubbdid)
+{
+	struct ubbd_mgmt_request req = {0};
+
+	req.cmd = UBBD_MGMT_CMD_REQ_STATS;
+	req.u.req_stats.dev_id = ubbdid;
+
+	return req_stats_request_and_wait(&req);
 }
 
 int main(int argc, char **argv)
@@ -310,6 +352,8 @@ int main(int argc, char **argv)
 		ret = do_config(ubbdid, data_pages_reserve);
 	} else if (command == UBBD_MGMT_CMD_LIST) {
 		ret = do_list();
+	} else if (command == UBBD_MGMT_CMD_REQ_STATS) {
+		ret = do_req_stats(ubbdid);
 	} else {
 		printf("error command: %d\n", command);
 		exit(-1);

@@ -24,6 +24,8 @@
 
 #define UBBD_MAGIC	0x676896C596EFULL
 
+#undef UBBD_REQUEST_STATS
+
 struct ubbd_sb {
 	__u64  magic;
 	__u16 version;

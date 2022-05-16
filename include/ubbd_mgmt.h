@@ -6,12 +6,14 @@
 
 #define UBBD_MGMT_NAMESPACE      "UBBD_MGMT_ABSTRACT_NAMESPACE"
 #define UBBD_DEV_MAX	1024
+#define UBBD_QUEUE_MAX	1024
 
 enum ubbd_mgmt_cmd {
 	UBBD_MGMT_CMD_MAP,
 	UBBD_MGMT_CMD_UNMAP,
 	UBBD_MGMT_CMD_CONFIG,
 	UBBD_MGMT_CMD_LIST,
+	UBBD_MGMT_CMD_REQ_STATS,
 };
 
 struct ubbd_mgmt_request {
@@ -30,6 +32,9 @@ struct ubbd_mgmt_request {
 		} config;
 		struct {
 		} list;
+		struct {
+			int dev_id;
+		} req_stats;
 	} u;
 };
 
@@ -43,6 +48,10 @@ struct ubbd_mgmt_rsp {
 			int dev_num;
 			int dev_list[UBBD_DEV_MAX];
 		} list;
+		struct {
+			int queue_num;
+			struct ubbd_req_stats req_stats[UBBD_QUEUE_MAX];
+		} req_stats;
 	} u;
 };
 

@@ -32,8 +32,6 @@
 #define UBBD_UIO_DATA_RESERVE_PERCENT	75
 
 /* request stats */
-#undef UBBD_REQUEST_STATS
-
 #ifdef UBBD_REQUEST_STATS
 #define ubbd_req_stats_ktime_get(V) V = ktime_get() 
 #define ubbd_req_stats_ktime_aggregate(T, D) T = ktime_add(T, D)
