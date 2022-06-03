@@ -1,15 +1,19 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "ubbd_backend.h"
 #include "ubbd_config.h"
+
+#define UBBD_CONF_DIR	"/var/lib/ubbd/"
 
 static char *get_backend_conf_path(int dev_id)
 {
 	char *path;
 
-	if (asprintf(&path, "/var/lib/ubbd/ubbd%d_backend_config", dev_id) == -1) {
+	if (asprintf(&path, "%s/ubbd%d_backend_config", UBBD_CONF_DIR, dev_id) == -1) {
 		ubbd_err("failed to init backend config path.\n");
 		return NULL;
 	}
@@ -21,7 +25,7 @@ static char *get_dev_conf_path(int dev_id)
 {
 	char *path;
 
-	if (asprintf(&path, "/var/lib/ubbd/ubbd%d_dev_config", dev_id) == -1) {
+	if (asprintf(&path, "%s/ubbd%d_dev_config", UBBD_CONF_DIR, dev_id) == -1) {
 		ubbd_err("failed to init dev config path.\n");
 		return NULL;
 	}
@@ -41,6 +45,14 @@ static size_t get_conf_size(struct ubbd_conf_header *conf_header)
 	}
 }
 
+static void check_conf_dir(void)
+{
+	struct stat st = {0};
+
+	if (stat(UBBD_CONF_DIR, &st) == -1)
+		mkdir(UBBD_CONF_DIR, 0644);
+}
+
 
 static struct ubbd_conf_header *conf_get_header(char *conf_path)
 {
@@ -53,6 +65,8 @@ static struct ubbd_conf_header *conf_get_header(char *conf_path)
 		ubbd_err("failed to alloc for conf_header.\n");
 		return NULL;
 	}
+
+	check_conf_dir();
 
 	fd = open(conf_path, O_RDONLY);
 	if (fd == -1) {
@@ -194,6 +208,8 @@ static int __conf_write(char *conf_path, void *data, size_t len)
 {
 	int fd;
 	size_t write_len;
+
+	check_conf_dir();
 
 	fd = open(conf_path, O_WRONLY | O_CREAT);
 	if (fd == -1) {
