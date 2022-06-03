@@ -78,12 +78,11 @@ static void ubbd_queue_destroy(struct ubbd_queue *ubbd_q)
 	ubbd_queue_uio_destroy(ubbd_q);
 	ubbd_queue_sb_destroy(ubbd_q);
 
-	ubbd_page_release(ubbd_q);
-
-	xa_destroy(&ubbd_q->data_pages_array);
-
-	if (ubbd_q->data_bitmap)
+	if (ubbd_q->data_bitmap) {
+		ubbd_page_release(ubbd_q);
+		xa_destroy(&ubbd_q->data_pages_array);
 		bitmap_free(ubbd_q->data_bitmap);
+	}
 }
 
 static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
@@ -97,12 +96,12 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 	if (ubbd_mgmt_need_fault())
 		return -ENOMEM;
 
+	xa_init(&ubbd_q->data_pages_array);
+
 	ubbd_q->data_bitmap = bitmap_zalloc(ubbd_q->data_pages, GFP_KERNEL);
 	if (!ubbd_q->data_bitmap) {
 		return -ENOMEM;
 	}
-
-	xa_init(&ubbd_q->data_pages_array);
 
 	ret = ubbd_queue_sb_init(ubbd_q);
 	if (ret) {
@@ -116,15 +115,14 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 		goto err;
 	}
 
-
 	mutex_init(&ubbd_q->req_lock);
 	spin_lock_init(&ubbd_q->state_lock);
 	INIT_LIST_HEAD(&ubbd_q->inflight_reqs);
 	spin_lock_init(&ubbd_q->inflight_reqs_lock);
 	ubbd_q->req_tid = 0;
-	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_INIT);
 	INIT_WORK(&ubbd_q->complete_work, complete_work_fn);
 	cpumask_clear(&ubbd_q->cpumask);
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_INIT);
 
 	return 0;
 err:
