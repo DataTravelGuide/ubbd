@@ -15,7 +15,7 @@ static void ubbd_vma_open(struct vm_area_struct *vma)
 	struct ubbd_queue *ubbd_q = vma->vm_private_data;
 	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
-	ubbd_dev_debug(ubbd_q->ubbd_dev, "vma_open\n");
+	ubbd_queue_debug(ubbd_q, "vma_open\n");
 	ubbd_dev_get(ubbd_dev);
 }
 
@@ -24,7 +24,14 @@ static void ubbd_vma_close(struct vm_area_struct *vma)
 	struct ubbd_queue *ubbd_q = vma->vm_private_data;
 	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
-	ubbd_dev_debug(ubbd_q->ubbd_dev, "vma_close\n");
+	if (vma->vm_flags & VM_WRITE) {
+		spin_lock(&ubbd_q->state_lock);
+		clear_bit(UBBD_QUEUE_FLAGS_HAS_BACKEND, &ubbd_q->flags);
+		ubbd_q->backend_pid = 0;
+		spin_unlock(&ubbd_q->state_lock);
+	}
+
+	ubbd_queue_debug(ubbd_q, "vma_close\n");
 	ubbd_dev_put(ubbd_dev);
 }
 
@@ -47,7 +54,7 @@ static struct page *ubbd_try_get_data_page(struct ubbd_queue *ubbd_q, uint32_t d
 
 	page = xa_load(&ubbd_q->data_pages_array, dpi);
 	if (unlikely(!page)) {
-		ubbd_dev_debug(ubbd_q->ubbd_dev, "Invalid addr to data page mapping (dpi %u) on device %s\n",
+		ubbd_queue_debug(ubbd_q, "Invalid addr to data page mapping (dpi %u) on device %s\n",
 		       dpi, ubbd_q->ubbd_dev->name);
 		return NULL;
 	}
@@ -79,11 +86,11 @@ static vm_fault_t ubbd_vma_fault(struct vm_fault *vmf)
 		page = ubbd_try_get_data_page(ubbd_q, dpi);
 		if (!page)
 			return VM_FAULT_SIGBUS;
-		ubbd_dev_debug(ubbd_q->ubbd_dev, "ubbd uio fault page: %p", page);
+		ubbd_queue_debug(ubbd_q, "ubbd uio fault page: %p", page);
 	}
 
 	get_page(page);
-	ubbd_dev_debug(ubbd_q->ubbd_dev, "ubbd uio fault return page: %p", page);
+	ubbd_queue_debug(ubbd_q, "ubbd uio fault return page: %p", page);
 	vmf->page = page;
 	return 0;
 }
@@ -106,7 +113,17 @@ static int ubbd_uio_mmap(struct uio_info *info, struct vm_area_struct *vma)
 	if (vma_pages(vma) != ubbd_q->mmap_pages)
 		return -EINVAL;
 
+	spin_lock(&ubbd_q->state_lock);
+	if (test_bit(UBBD_QUEUE_FLAGS_HAS_BACKEND, &ubbd_q->flags)) {
+		spin_unlock(&ubbd_q->state_lock);
+		return -EBUSY;
+	}
+	set_bit(UBBD_QUEUE_FLAGS_HAS_BACKEND, &ubbd_q->flags);
+	ubbd_q->backend_pid = current->pid;
+	spin_unlock(&ubbd_q->state_lock);
+
 	ubbd_vma_open(vma);
+	ubbd_queue_debug(ubbd_q, "uio mmap by process: %d\n", current->pid);
 
 	return 0;
 }
@@ -116,7 +133,7 @@ static int ubbd_uio_open(struct uio_info *info, struct inode *inode)
 	struct ubbd_queue *ubbd_q = container_of(info, struct ubbd_queue, uio_info);
 
 	ubbd_q->inode = inode;
-	ubbd_dev_debug(ubbd_q->ubbd_dev, "uio open\n");
+	ubbd_queue_debug(ubbd_q, "uio opened by process: %d\n", current->pid);
 
 	return 0;
 }
@@ -125,7 +142,7 @@ static int ubbd_uio_release(struct uio_info *info, struct inode *inode)
 {
 	struct ubbd_queue *ubbd_q = container_of(info, struct ubbd_queue, uio_info);
 
-	ubbd_dev_debug(ubbd_q->ubbd_dev, "uio close\n");
+	ubbd_queue_debug(ubbd_q, "uio release by process: %d\n", current->pid);
 
 	return 0;
 }
@@ -162,4 +179,10 @@ void ubbd_queue_uio_destroy(struct ubbd_queue *ubbd_q)
 
 	kfree(info->name);
 	uio_unregister_device(info);
+}
+
+void ubbd_uio_unmap_range(struct ubbd_queue *ubbd_q,
+		loff_t const holebegin, loff_t const holelen, int even_cows)
+{
+	unmap_mapping_range(ubbd_q->inode->i_mapping, holebegin, holelen, even_cows);
 }

@@ -2,7 +2,6 @@
 #include <libnl3/netlink/genl/genl.h>
 #include <libnl3/netlink/genl/mngt.h>
 #include <libnl3/netlink/genl/ctrl.h>
-#include <libnl3/netlink/errno.h>
 #include <pthread.h>
 #include <sched.h>
 
@@ -287,15 +286,14 @@ close_sock:
 	return ret;
 }
 
-static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_p);
+static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status *status);
 static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 {
 	struct ubbd_device *ubbd_dev = arg;
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
-	struct ubbd_nl_dev_status *dev_status = NULL;
+	struct ubbd_nl_dev_status dev_status = { 0 };
 	int ret;
-	int i;
 
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
@@ -314,25 +312,14 @@ static int add_dev_done_callback(struct nl_msg *msg, void *arg)
 		goto out;
 	}
 
-	ubbd_dev->dev_id = dev_status->dev_id;
-	ubbd_dev->num_queues = dev_status->num_queues;
-
-	ubbd_dev->queues = calloc(ubbd_dev->num_queues, sizeof(struct ubbd_queue));
-	if (!ubbd_dev->queues) {
-		ubbd_err("failed to alloc queues\n");
-		ret = -ENOMEM;
+	ret = ubbd_dev_init_from_dev_status(ubbd_dev, &dev_status);
+	if (ret) {
 		goto out;
 	}
 
-	for (i = 0; i < ubbd_dev->num_queues; i++) {
-		ubbd_dev->queues[i].uio_info.uio_id = dev_status->queue_infos[i].uio_id;
-		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->queue_infos[i].uio_map_size;
-		memcpy(&ubbd_dev->queues[i].cpuset, &dev_status->queue_infos[i].cpuset, sizeof(cpu_set_t));
-	}
 	ret = NL_OK;
 
 out:
-	destroy_dev_status(dev_status);
 	return ret;
 }
 
@@ -422,10 +409,9 @@ static int parse_queue_info_cpu_list(cpu_set_t *cpuset, struct nlattr *attr)
 }
 
 
-static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_p)
+static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status *dev_status)
 {
 	struct nlattr *status[UBBD_STATUS_ATTR_MAX+1];
-	struct ubbd_nl_dev_status *dev_status;
 	struct nlattr *queue_info_attr;
 	int num_queues = 0;
 	int rem;
@@ -439,14 +425,6 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 		goto out;
 	}
 
-	dev_status = calloc(1, sizeof(struct ubbd_nl_dev_status));
-	if (!dev_status) {
-		ret = -ENOMEM;
-		goto out;
-	}
-
-	INIT_LIST_HEAD(&dev_status->node);
-
 	dev_status->dev_id = nla_get_s32(status[UBBD_STATUS_DEV_ID]);
 	dev_status->status = nla_get_u8(status[UBBD_STATUS_STATUS]);
 	nla_for_each_nested(queue_info_attr, status[UBBD_STATUS_QUEUE_INFO], rem) {
@@ -454,11 +432,6 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 	}
 
 	dev_status->num_queues = num_queues;
-	dev_status->queue_infos = calloc(num_queues, sizeof(struct ubbd_nl_queue_info));
-	if (!dev_status->queue_infos) {
-		ret = -ENOMEM;
-		goto out;
-	}
 	num_queues = 0;
 
 	nla_for_each_nested(queue_info_attr, status[UBBD_STATUS_QUEUE_INFO], rem) {
@@ -473,6 +446,9 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 		}
 		dev_status->queue_infos[num_queues].uio_id = nla_get_s32(queue_info[UBBD_QUEUE_INFO_UIO_ID]);
 		dev_status->queue_infos[num_queues].uio_map_size = nla_get_s32(queue_info[UBBD_QUEUE_INFO_UIO_MAP_SIZE]);
+		dev_status->queue_infos[num_queues].backend_pid = nla_get_s32(queue_info[UBBD_QUEUE_INFO_B_PID]);
+		dev_status->queue_infos[num_queues].status = nla_get_s32(queue_info[UBBD_QUEUE_INFO_STATUS]);
+		ubbd_err("status: %d\n", dev_status->queue_infos[num_queues].status);
 
 		ret = parse_queue_info_cpu_list(&dev_status->queue_infos[num_queues].cpuset, queue_info[UBBD_QUEUE_INFO_CPU_LIST]);
 		if (ret) {
@@ -484,21 +460,9 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status **status_
 		num_queues++;
 	}
 
-	*status_p = dev_status;
-
 	return 0;
 out:
 	return ret;
-}
-
-void destroy_dev_status(struct ubbd_nl_dev_status *dev_status)
-{
-	if (!dev_status)
-		return;
-
-	if (dev_status->queue_infos)
-		free(dev_status->queue_infos);
-	free(dev_status);
 }
 
 static int status_callback(struct nl_msg *msg, void *arg)
@@ -506,8 +470,9 @@ static int status_callback(struct nl_msg *msg, void *arg)
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
 	int ret;
-	struct list_head *dev_list = (struct list_head *)arg;
+	struct ubbd_nl_dev_status *dev_status = arg;
 
+	ubbd_err("into status_callback\n");
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
 	if (ret) {
@@ -519,32 +484,96 @@ static int status_callback(struct nl_msg *msg, void *arg)
 	if (ret)
 		return ret;
 
-	if (msg_attr[UBBD_ATTR_DEV_LIST]) {
-		struct nlattr *attr;
-		int rem;
-
-		nla_for_each_nested(attr, msg_attr[UBBD_ATTR_DEV_LIST], rem) {
-			struct ubbd_nl_dev_status *dev_status;
-
-			if (nla_type(attr) != UBBD_STATUS_ITEM) {
-				ubbd_err("ubbd: ubbd device shoudl be nested in UBBD_STATUS_ITEM\n");
-				ret = -EINVAL;
-				goto out;
-			}
-
-			ret = parse_status(attr, &dev_status);
-			if (ret)
-				goto out;
-
-			list_add_tail(&dev_status->node, dev_list);
-		}
+	if (msg_attr[UBBD_ATTR_DEV_INFO]) {
+		ret = parse_status(msg_attr[UBBD_ATTR_DEV_INFO], dev_status);
+		if (ret)
+			goto out;
 	}
-
 out:
 	return ret;
 }
 
-int ubbd_nl_dev_list(struct list_head *dev_list)
+int ubbd_nl_dev_status(int dev_id, struct ubbd_nl_dev_status *dev_status)
+{
+	struct nl_msg *msg;
+	void *hdr;
+	int ret = -ENOMEM;
+	struct nl_sock *socket;
+	int driver_id;
+	LIST_HEAD(tmp_list);
+
+	socket = get_ubbd_socket(&driver_id);
+	if (!socket)
+		return -1;
+
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, status_callback, dev_status);
+
+	msg = nlmsg_alloc();
+	if (!msg)
+		goto close_sock;
+
+	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
+			  0, 0, UBBD_CMD_STATUS, UBBD_NL_VERSION);
+	if (!hdr)
+		goto free_msg;
+
+	ret = nla_put_s32(msg, UBBD_ATTR_DEV_ID, dev_id);
+	if (ret < 0)
+		goto free_msg;
+
+	ubbd_err("before send_sync\n");
+	ret = nl_send_sync(socket, msg);
+	ubbd_err("after send_sync\n");
+	ubbd_socket_close(socket);
+	if (ret < 0) {
+		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_STATUS, ret);
+	}
+
+	return ret;
+
+free_msg:
+	nlmsg_free(msg);
+close_sock:
+	ubbd_socket_close(socket);
+	return ret;
+}
+
+static int list_callback(struct nl_msg *msg, void *arg)
+{
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *msg_attr[UBBD_ATTR_MAX + 1];
+	int ret;
+	struct nlattr *list_attr;
+	struct ubbd_nl_list_result *result = arg;
+	int rem;
+
+	ubbd_err("into list_callback\n");
+	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+			genlmsg_attrlen(gnlh, 0), NULL);
+	if (ret) {
+		ubbd_err("Invalid response from the kernel\n");
+		return ret;
+	}
+
+	ret = nla_get_s32(msg_attr[UBBD_ATTR_RETVAL]);
+	if (ret)
+		return ret;
+
+	result->num_devs = 0;
+	if (!msg_attr[UBBD_ATTR_DEV_LIST]) {
+		ubbd_err("no dev list\n");
+	}
+	nla_for_each_nested(list_attr, msg_attr[UBBD_ATTR_DEV_LIST], rem) {
+		ubbd_err("into for\n");
+		result->dev_ids[result->num_devs] = nla_get_s32(&list_attr[UBBD_LIST_DEV_ID]);
+		result->num_devs++;
+		ubbd_err("num_devs: %d\n", result->num_devs);
+
+	}
+	return ret;
+}
+
+int ubbd_nl_dev_list(struct ubbd_nl_list_result *result)
 {
 	struct nl_msg *msg;
 	void *hdr;
@@ -556,26 +585,22 @@ int ubbd_nl_dev_list(struct list_head *dev_list)
 	if (!socket)
 		return -1;
 
-	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, status_callback, dev_list);
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, list_callback, result);
 
 	msg = nlmsg_alloc();
 	if (!msg)
 		goto close_sock;
 
 	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
-			  0, 0, UBBD_CMD_STATUS, UBBD_NL_VERSION);
+			  0, 0, UBBD_CMD_LIST, UBBD_NL_VERSION);
 	if (!hdr)
-		goto free_msg;
-
-	ret = nla_put_s32(msg, UBBD_ATTR_DEV_ID, -1);
-	if (ret < 0)
 		goto free_msg;
 
 	ret = nl_send_sync(socket, msg);
 	ubbd_err("ret of nl_send_sync: %d\n", ret);
 	ubbd_socket_close(socket);
 	if (ret < 0)
-		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_STATUS, ret);
+		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_LIST, ret);
 	return ret;
 
 free_msg:
@@ -584,6 +609,62 @@ close_sock:
 	ubbd_socket_close(socket);
 	return ret;
 
+}
+
+static int ubbd_nl_queue_op(struct ubbd_device *ubbd_dev, int queue_id, uint64_t flags)
+{
+	struct nl_msg *msg;
+	void *hdr;
+	int ret = -ENOMEM;
+	struct nl_sock *socket;
+	int driver_id;
+
+	socket = get_ubbd_socket(&driver_id);
+	if (!socket)
+		return -1;
+
+	nl_socket_modify_cb(socket, NL_CB_VALID, NL_CB_CUSTOM, nl_callback, NULL);
+
+	msg = nlmsg_alloc();
+	if (!msg)
+		goto close_sock;
+
+	hdr = genlmsg_put(msg, NL_AUTO_PORT, NL_AUTO_SEQ, driver_id,
+			  0, 0, UBBD_CMD_QUEUE_OP, UBBD_NL_VERSION);
+	if (!hdr)
+		goto free_msg;
+
+	ret = nla_put_s32(msg, UBBD_ATTR_DEV_ID, ubbd_dev->dev_id);
+	if (ret < 0)
+		goto free_msg;
+
+	ret = nla_put_s32(msg, UBBD_ATTR_QUEUE_ID, queue_id);
+	if (ret < 0)
+		goto free_msg;
+
+	ret = nla_put_u64(msg, UBBD_ATTR_FLAGS, flags);
+	if (ret < 0)
+		goto free_msg;
+
+	ret = nl_send_sync(socket, msg);
+	ubbd_socket_close(socket);
+	return ret;
+
+free_msg:
+	nlmsg_free(msg);
+close_sock:
+	ubbd_socket_close(socket);
+	return ret;
+}
+
+int ubbd_nl_stop_queue(struct ubbd_device *ubbd_dev, int queue_id)
+{
+	return ubbd_nl_queue_op(ubbd_dev, queue_id, UBBD_ATTR_FLAGS_QUEUE_OP_STOP);
+}
+
+int ubbd_nl_start_queue(struct ubbd_device *ubbd_dev, int queue_id)
+{
+	return ubbd_nl_queue_op(ubbd_dev, queue_id, UBBD_ATTR_FLAGS_QUEUE_OP_START);
 }
 
 int ubbd_nl_queue_req(struct ubbd_device *ubbd_dev, struct ubbd_nl_req *req)
@@ -721,13 +802,15 @@ static void *nl_thread_fn(void* args)
 	return NULL;
 }
 
-int ubbd_nl_start_thread(pthread_t *t)
+pthread_t ubbd_nl_thread;
+
+int ubbd_nl_start_thread(void)
 {
 	INIT_LIST_HEAD(&ubbd_nl_req_list);
 	pthread_mutex_init(&ubbd_nl_req_list_lock, NULL);
 	pthread_cond_init(&ubbd_nl_thread_cond, NULL);
 
-	return pthread_create(t, NULL, nl_thread_fn, NULL);
+	return pthread_create(&ubbd_nl_thread, NULL, nl_thread_fn, NULL);
 }
 
 void ubbd_nl_stop_thread(void)
@@ -736,4 +819,11 @@ void ubbd_nl_stop_thread(void)
 	stop_nl_thread = true;
 	pthread_cond_signal(&ubbd_nl_thread_cond);
 	pthread_mutex_unlock(&ubbd_nl_req_list_lock);
+}
+
+int ubbd_nl_wait_thread(void)
+{
+	void *join_retval;
+
+	return pthread_join(ubbd_nl_thread, &join_retval);
 }

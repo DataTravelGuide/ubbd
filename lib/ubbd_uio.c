@@ -5,10 +5,11 @@
 #include "ubbd_dev.h"
 #include "utils.h"
 #include "ubbd_uio.h"
+#include "ubbd_queue.h"
 
-struct ubbd_dev_info *ubbd_uio_get_dev_info(void *map)
+void *ubbd_uio_get_info(struct ubbd_uio_info *uio_info)
 {
-	struct ubbd_sb *sb = map;
+	struct ubbd_sb *sb = uio_info->map;
 
 	if (sb->magic != UBBD_MAGIC) {
 		ubbd_err("invalid magic: %llx (expected: %llx)\n", sb->magic, UBBD_MAGIC);
@@ -17,9 +18,8 @@ struct ubbd_dev_info *ubbd_uio_get_dev_info(void *map)
 
 	ubbd_dbg("info_off: %u\n", sb->info_off);
 
-	return (struct ubbd_dev_info *)((char *)map + sb->info_off);
+	return (void *)((char *)uio_info->map + sb->info_off);
 }
-
 
 int ubbd_close_uio(struct ubbd_uio_info *uio_info)
 {
@@ -47,6 +47,7 @@ int ubbd_close_uio(struct ubbd_uio_info *uio_info)
 int ubbd_open_uio(struct ubbd_uio_info *uio_info)
 {
 	char *mmap_name;
+	int mmap_prot;
 
 	if (asprintf(&mmap_name, "/dev/uio%d", uio_info->uio_id) == -1) {
 		ubbd_err("cont init mmap name\n");
@@ -60,7 +61,9 @@ int ubbd_open_uio(struct ubbd_uio_info *uio_info)
 	}
 	ubbd_info("fd: %d\n", uio_info->fd);
 
-	uio_info->map = mmap(NULL, uio_info->uio_map_size, PROT_READ|PROT_WRITE, MAP_SHARED, uio_info->fd, 0);
+	mmap_prot = PROT_READ|PROT_WRITE;
+
+	uio_info->map = mmap(NULL, uio_info->uio_map_size, mmap_prot, MAP_SHARED, uio_info->fd, 0);
 	if (uio_info->map == MAP_FAILED) {
 		ubbd_err("could not mmap %s\n", mmap_name);
 		goto err_fd_close;
@@ -80,47 +83,47 @@ err_fail:
 }
 
 
-int ubbd_processing_start(struct ubbd_queue *ubbd_q)
+int ubbd_processing_start(struct ubbd_uio_info *uio_info)
 {
 	int r;
 	uint32_t buf;
 
 	/* Clear the event on the fd */
 	do {
-		r = read(ubbd_q->uio_info.fd, &buf, 4);
+		r = read(uio_info->fd, &buf, 4);
 	} while (r == -1 && errno == EINTR);
 
 	if (r == -1 && errno != EAGAIN) {
 		ubbd_err("failed to read device /dev/uio%d: %d\n",
-			 ubbd_q->uio_info.uio_id, errno);
+			 uio_info->uio_id, errno);
 		return -errno;
 	}
 
 	return 0;
 }
 
-int ubbd_processing_complete(struct ubbd_queue *ubbd_q)
+int ubbd_processing_complete(struct ubbd_uio_info *uio_info)
 {
 	int r;
 	uint32_t buf = 0;
 
 	/* Tell the kernel there are completed commands */
 	do {
-		r = write(ubbd_q->uio_info.fd, &buf, 4);
+		r = write(uio_info->fd, &buf, 4);
 	} while (r == -1 && errno == EINTR);
 
 	if (r == -1 && errno != EAGAIN) {
 		ubbd_err("failed to write uio device /dev/uio%d: %d\n",
-			 ubbd_q->uio_info.uio_id, errno);
+			 uio_info->uio_id, errno);
 		return -errno;
 	}
 
 	return 0;
 }
 
-struct ubbd_se *ubbd_cmd_head(struct ubbd_queue *ubbd_q)
+struct ubbd_se *ubbd_cmd_head(struct ubbd_uio_info *uio_info)
 {
-        struct ubbd_sb *sb = ubbd_q->uio_info.map;
+        struct ubbd_sb *sb = uio_info->map;
 
 	ubbd_dbg("cmd: head: %u tail: %u\n", sb->cmd_head, sb->cmd_tail);
 

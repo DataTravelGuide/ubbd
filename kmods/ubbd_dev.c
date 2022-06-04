@@ -17,7 +17,9 @@ static int ubbd_init_hctx(struct blk_mq_hw_ctx *hctx, void *driver_data,
 	struct ubbd_queue *ubbd_q;
 
 	ubbd_q = &ubbd_dev->queues[hctx_idx];
+	ubbd_q->mq_hctx = hctx;
 	hctx->driver_data = ubbd_q;
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_RUNNING);
 
 	return 0;
 }
@@ -76,12 +78,11 @@ static void ubbd_queue_destroy(struct ubbd_queue *ubbd_q)
 	ubbd_queue_uio_destroy(ubbd_q);
 	ubbd_queue_sb_destroy(ubbd_q);
 
-	ubbd_page_release(ubbd_q);
-
-	xa_destroy(&ubbd_q->data_pages_array);
-
-	if (ubbd_q->data_bitmap)
+	if (ubbd_q->data_bitmap) {
+		ubbd_page_release(ubbd_q);
+		xa_destroy(&ubbd_q->data_pages_array);
 		bitmap_free(ubbd_q->data_bitmap);
+	}
 }
 
 static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
@@ -95,12 +96,12 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 	if (ubbd_mgmt_need_fault())
 		return -ENOMEM;
 
+	xa_init(&ubbd_q->data_pages_array);
+
 	ubbd_q->data_bitmap = bitmap_zalloc(ubbd_q->data_pages, GFP_KERNEL);
 	if (!ubbd_q->data_bitmap) {
 		return -ENOMEM;
 	}
-
-	xa_init(&ubbd_q->data_pages_array);
 
 	ret = ubbd_queue_sb_init(ubbd_q);
 	if (ret) {
@@ -114,7 +115,6 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 		goto err;
 	}
 
-
 	mutex_init(&ubbd_q->req_lock);
 	spin_lock_init(&ubbd_q->state_lock);
 	INIT_LIST_HEAD(&ubbd_q->inflight_reqs);
@@ -122,6 +122,7 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 	ubbd_q->req_tid = 0;
 	INIT_WORK(&ubbd_q->complete_work, complete_work_fn);
 	cpumask_clear(&ubbd_q->cpumask);
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_INIT);
 
 	return 0;
 err:
@@ -464,6 +465,28 @@ int ubbd_add_disk(struct ubbd_device *ubbd_dev)
 }
 #endif /* HAVE_ALLOC_DISK */
 
+static void ubbd_add_disk_fn(struct work_struct *work)
+{
+	struct ubbd_device *ubbd_dev =
+		container_of(work, struct ubbd_device, work);
+	int ret;
+
+	ret = ubbd_add_disk(ubbd_dev);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "failed to add disk.");
+		return;
+	}
+	ubbd_dev->status = UBBD_DEV_STATUS_RUNNING;
+}
+
+int ubbd_dev_add_disk(struct ubbd_device *ubbd_dev)
+{
+	INIT_WORK(&ubbd_dev->work, ubbd_add_disk_fn);
+	queue_work(ubbd_wq, &ubbd_dev->work);
+
+	return 0;
+}
+
 int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
 			u64 device_size,
 			u64 dev_features)
@@ -549,7 +572,76 @@ void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev)
 	ubbd_dev_put(ubbd_dev);
 }
 
-void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool force)
+static struct ubbd_queue *find_running_queue(struct ubbd_device *ubbd_dev)
+{
+	int i;
+	struct ubbd_queue *ubbd_q = NULL;
+
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		if (atomic_read(&ubbd_dev->queues[i].status) == UBBD_QUEUE_STATUS_RUNNING) {
+			ubbd_q = &ubbd_dev->queues[i];
+			break;
+		}
+	}
+
+	return ubbd_q;
+}
+
+int ubbd_dev_stop_queue(struct ubbd_device *ubbd_dev, int queue_id)
+{
+	int ret = 0;
+	struct ubbd_queue *ubbd_q, *running_q;
+	struct blk_mq_hw_ctx *hctx;
+
+	if (queue_id >= ubbd_dev->num_queues) {
+		ubbd_dev_err(ubbd_dev, "invalid queue_id: %d.", queue_id);
+		ret = -EINVAL;
+		goto out;
+	}
+	ubbd_q = &ubbd_dev->queues[queue_id];
+
+	hctx = ubbd_q->mq_hctx;	
+	if (hctx) {
+		running_q = find_running_queue(ubbd_dev);
+		if (running_q)
+			hctx->driver_data = running_q;
+	}
+
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_STOPPING);
+	flush_workqueue(ubbd_dev->task_wq);
+
+	mutex_lock(&ubbd_q->req_lock);
+	if (list_empty(&ubbd_q->inflight_reqs)) {
+		atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_STOPPED);
+	}
+	mutex_unlock(&ubbd_q->req_lock);
+
+out:
+	return ret;
+}
+
+int ubbd_dev_start_queue(struct ubbd_device *ubbd_dev, int queue_id)
+{
+	int ret = 0;
+	struct ubbd_queue *ubbd_q;
+
+	if (queue_id >= ubbd_dev->num_queues) {
+		ubbd_dev_err(ubbd_dev, "invalid queue_id: %d.", queue_id);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	ubbd_q = &ubbd_dev->queues[queue_id];
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_RUNNING);
+
+	if (ubbd_q->mq_hctx && ubbd_q->mq_hctx->driver_data != ubbd_q) {
+		ubbd_q->mq_hctx->driver_data = ubbd_q;
+	}
+out:
+	return ret;
+}
+
+void ubbd_dev_remove_queues(struct ubbd_device *ubbd_dev, bool force)
 {
 	int i;
 
@@ -557,12 +649,12 @@ void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool force)
 		struct ubbd_queue *ubbd_q;
 
 		ubbd_q = &ubbd_dev->queues[i];
-		set_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags);
+		atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_REMOVING);
 		/*
 		 * flush the task_wq, to avoid race with complete_work.
 		 *
 		 * after the flush_workqueue, all other work will return
-		 * directly as UBBD_QUEUE_FLAGS_REMOVING is already set.
+		 * directly as UBBD_QUEUE_STATUS_REMOVING is already set.
 		 * Then we can end the inflight requests safely.
 		 * */
 		flush_workqueue(ubbd_dev->task_wq);
@@ -577,11 +669,12 @@ void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force)
 	bool disk_is_running;
 
 	mutex_lock(&ubbd_dev->state_lock);
+	ubbd_dev_debug(ubbd_dev, "remove disk status is: %d, force: %d", ubbd_dev->status, force);
 	disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
 	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
 	mutex_unlock(&ubbd_dev->state_lock);
 
-	ubbd_dev_stop_disk(ubbd_dev, force);
+	ubbd_dev_remove_queues(ubbd_dev, force);
 
 	if (disk_is_running) {
 		del_gendisk(ubbd_dev->disk);

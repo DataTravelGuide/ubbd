@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -16,6 +17,14 @@
         const typeof(((type *)0)->member) *__mptr = (ptr);      \
         (type *)((char *)__mptr - offsetof(type, member));      \
 })
+
+#define COMPILE_ASSERT(predicate, name) _impl_COMPILE_ASSERT_LINE(predicate,__LINE__, name)
+
+#define _impl_PASTE(a,b) a##b
+#define _impl_COMPILE_ASSERT_LINE(predicate, line, file) \
+	    typedef char _impl_PASTE(assertion_failed_##file##_,line)[2*!!(predicate)-1];
+
+int execute(char* program, char** arg_list);
 
 #include <time.h>
 
@@ -63,6 +72,22 @@ static inline int context_finish(struct context *ctx, int ret)
 	context_free(ctx);
 
 	return ret;
+}
+
+static inline int wait_condition(int wait_count, uint64_t wait_interval_us, bool (*condition)(void *), void *data)
+{
+	int i;
+	int ret;
+
+	for (i = 0; i < wait_count; i++) {
+		ret = condition(data);
+		if (ret) {
+			return 0;
+		}
+		usleep(wait_interval_us);
+	}
+
+	return -1;
 }
 
 /* Atomic  */
@@ -228,4 +253,4 @@ static inline long ubbd_atomic64_cmpxchg(ubbd_atomic64 *a, long old, long new)
 	return atomic_cmpxchg(a, old, new);
 }
 
-#endif
+#endif /* UTILS_H */

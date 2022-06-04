@@ -1,7 +1,11 @@
 #ifndef UBBD_NETLINK_H
 #define UBBD_NETLINK_H
+#include <libnl3/netlink/errno.h>
+
+#include "ubbd_queue.h"
 #include "ubbd_dev.h"
 #include "list.h"
+#include "ubbd_limits.h"
 
 enum ubbd_nl_req_type {
 	UBBD_NL_REQ_ADD_DEV,
@@ -29,18 +33,16 @@ struct ubbd_nl_req {
 	struct list_head node;
 };
 
-struct ubbd_nl_queue_info {
-	int32_t	uio_id;
-	uint64_t uio_map_size;
-	cpu_set_t cpuset;
-};
-
 struct ubbd_nl_dev_status {
-	struct list_head node;
 	int32_t	dev_id;
 	uint8_t	status;
 	int	num_queues;
-	struct ubbd_nl_queue_info *queue_infos;
+	struct ubbd_queue_info queue_infos[UBBD_QUEUE_MAX];
+};
+
+struct ubbd_nl_list_result {
+	int num_devs;
+	int dev_ids[UBBD_DEV_MAX];
 };
 
 int ubbd_nl_req_add_dev(struct ubbd_device *ubbd_dev, struct context *ctx);
@@ -48,8 +50,11 @@ int ubbd_nl_req_add_disk(struct ubbd_device *ubbd_dev, struct context *ctx);
 int ubbd_nl_req_remove_disk(struct ubbd_device *ubbd_dev, bool force, struct context *ctx);
 int ubbd_nl_req_remove_dev(struct ubbd_device *ubbd_dev, struct context *ctx);
 int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct context *ctx);
-int ubbd_nl_start_thread(pthread_t *t);
+int ubbd_nl_start_thread(void);
 void ubbd_nl_stop_thread(void);
-int ubbd_nl_dev_list(struct list_head *dev_list);
-void destroy_dev_status(struct ubbd_nl_dev_status *dev_status);
+int ubbd_nl_wait_thread(void);
+int ubbd_nl_dev_list(struct ubbd_nl_list_result *result);
+int ubbd_nl_dev_status(int dev_id, struct ubbd_nl_dev_status *dev_status);
+int ubbd_nl_stop_queue(struct ubbd_device *ubbd_dev, int queue_id);
+int ubbd_nl_start_queue(struct ubbd_device *ubbd_dev, int queue_id);
 #endif	/* UBBD_NETLINK_H */
