@@ -2,220 +2,22 @@
 #include <stdio.h>
 #include <sys/mman.h>
 #include <pthread.h>
+#include <signal.h>
+#include <sys/wait.h> 
+#include <unistd.h>
 
 #include "utils.h"
 #include "list.h"
 #include "ubbd_dev.h"
+#include "ubbd_backend_mgmt.h"
+
 #include "ubbd_uio.h"
 #include "ubbd_netlink.h"
-
-
-static bool compr_space_enough(struct ubbd_queue *ubbd_q, uint32_t required)
-{
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
-	uint32_t space_available;
-	uint32_t space_max, space_used;
-
-	/* There is a CMPR_RESERVED we dont use to prevent the ring to be used up */
-	space_max = sb->compr_size - CMPR_RESERVED;
-
-	if (sb->compr_head > sb->compr_tail)
-		space_used = sb->compr_head - sb->compr_tail;
-	else if (sb->compr_head < sb->compr_tail)
-		space_used = sb->compr_head + (sb->compr_size - sb->compr_tail);
-	else
-		space_used = 0;
-
-	space_available = space_max - space_used;
-	if (space_available < required)
-		return false;
-
-	return true;
-}
-
-struct ubbd_ce *get_available_ce(struct ubbd_queue *ubbd_q)
-{
-	/*
-	 * dev->req_lock held
-	 */
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
-
-	while (!compr_space_enough(ubbd_q, sizeof(struct ubbd_ce))) {
-		pthread_mutex_unlock(&ubbd_q->req_lock);
-		ubbd_err(" compr not enough head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
-		ubbd_processing_complete(ubbd_q);
-                usleep(50000);
-		pthread_mutex_lock(&ubbd_q->req_lock);
-	}
-
-	return device_comp_head(ubbd_q);
-}
-
-static void wait_for_compr_empty(struct ubbd_queue *ubbd_q)
-{
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
-	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
- 
-         ubbd_info("waiting for ring to clear\n");
-         while (sb->compr_head != sb->compr_tail) {
-		 ubbd_info("head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
-                 usleep(50000);
-		 if (ubbd_dev->status == UBBD_DEV_USTATUS_STOPPING) {
-			 ubbd_err("ubbd device is stopping\n");
-			 break;
-		 }
-	 }
-         ubbd_info("ring clear\n");
-}
-
-static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se);
-void *cmd_process(void *arg)
-{
-	struct ubbd_queue *ubbd_q = arg;
-	struct ubbd_se *se;
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
-	uint32_t op_len = 0;
-
-	struct pollfd pollfds[128];
-	int ret;
-
-	if (ubbd_processing_complete(ubbd_q))
-		return NULL;
-
-	wait_for_compr_empty(ubbd_q);
-
-	ubbd_q->se_to_handle = sb->cmd_tail;
-	ubbd_dbg("cmd_tail: %u, cmd_head: %u\n", sb->cmd_tail, sb->cmd_head);
-
-	while (1) {
-		while (1) {
-			if (ubbd_processing_start(ubbd_q)) {
-				ubbd_dev_err(ubbd_q->ubbd_dev, "failed to start processing\n");
-				return NULL;
-			}
-
-			se = ubbd_cmd_to_handle(ubbd_q);
-			if (se == ubbd_cmd_head(ubbd_q)) {
-				break;
-			}
-			op_len = ubbd_se_hdr_get_len(se->header.len_op);
-			ubbd_dbg("len_op: %x\n", se->header.len_op);
-			ubbd_dbg("op: %d, length: %u\n", ubbd_se_hdr_get_op(se->header.len_op), ubbd_se_hdr_get_len(se->header.len_op));
-			if (ubbd_se_hdr_get_op(se->header.len_op) != UBBD_OP_PAD)
-				ubbd_dbg("se id: %llu\n", se->priv_data);
-			handle_cmd(ubbd_q, se);
-			UBBD_UPDATE_CMD_TO_HANDLE(ubbd_q, sb, op_len);
-			ubbd_dbg("finish handle_cmd\n");
-		}
-
-poll:
-		pollfds[0].fd = ubbd_q->uio_info.fd;
-		pollfds[0].events = POLLIN;
-		pollfds[0].revents = 0;
-
-		ret = poll(pollfds, 1, 60);
-		if (ret == -1) {
-			ubbd_err("poll() returned %d, exiting\n", ret);
-			return NULL;
-		}
-
-		if (ubbd_q->ubbd_dev->status == UBBD_DEV_USTATUS_STOPPING) {
-			ubbd_err("exit cmd_process\n");
-			return NULL;
-		}
-
-		ubbd_dbg("poll cmd: %d\n", ret);
-		if (!pollfds[0].revents) {
-			goto poll;
-		}
-
-	}
-
-	return NULL;
-}
-
-
-
-static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
-{
-	struct ubbd_se_hdr *header = &se->header;
-	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
-#ifdef	UBBD_REQUEST_STATS
-	uint64_t start_ns = get_ns();
-#endif
-	int ret;
-
-	ubbd_dbg("handle_cmd: se: %p\n", se);
-	if (ubbd_se_hdr_flags_test(se, UBBD_SE_HDR_DONE)) {
-		ubbd_dbg("flags is done\n");
-		return;
-	}
-
-	switch (ubbd_se_hdr_get_op(header->len_op)) {
-	case UBBD_OP_PAD:
-		ubbd_dbg("set pad op to done\n");
-		ubbd_se_hdr_flags_set(se, UBBD_SE_HDR_DONE);
-		ret = 0;
-		ubbd_processing_complete(ubbd_q);
-		break;
-	case UBBD_OP_WRITE:
-		ubbd_dbg("UBBD_OP_WRITE\n");
-		ret = ubbd_dev->dev_ops->writev(ubbd_q, se);
-		break;
-	case UBBD_OP_READ:
-		ubbd_dbg("UBBD_OP_READ\n");
-		ret = ubbd_dev->dev_ops->readv(ubbd_q, se);
-		break;
-	case UBBD_OP_FLUSH:
-		ubbd_dbg("UBBD_OP_FLUSH\n");
-		if (!ubbd_dev->dev_ops->flush) {
-			ret = -EOPNOTSUPP;
-			ubbd_dev_err(ubbd_dev, "flush is not supportted.\n");
-			goto out;
-		}
-		ret = ubbd_dev->dev_ops->flush(ubbd_q, se);
-		break;
-	case UBBD_OP_DISCARD:
-		ubbd_dbg("UBBD_OP_DISCARD\n");
-		if (!ubbd_dev->dev_ops->discard) {
-			ret = -EOPNOTSUPP;
-			ubbd_dev_err(ubbd_dev, "discard is not supportted.\n");
-			goto out;
-		}
-		ret = ubbd_dev->dev_ops->discard(ubbd_q, se);
-		break;
-	case UBBD_OP_WRITE_ZEROS:
-		ubbd_dbg("UBBD_OP_WRITE_ZEROS\n");
-		if (!ubbd_dev->dev_ops->write_zeros) {
-			ret = -EOPNOTSUPP;
-			ubbd_dev_err(ubbd_dev, "write_zeros is not supportted.\n");
-			goto out;
-		}
-		ret = ubbd_dev->dev_ops->write_zeros(ubbd_q, se);
-		break;
-	default:
-		ubbd_err("error handle_cmd\n");
-		exit(EXIT_FAILURE);
-	}
-
-out:
-	if (ret) {
-		ubbd_err("ret of se: %llu: %d", se->priv_data, ret);
-		exit(EXIT_FAILURE);
-#ifdef	UBBD_REQUEST_STATS
-	} else {
-		pthread_mutex_lock(&ubbd_q->req_stats_lock);
-		ubbd_q->req_stats.reqs++;
-		ubbd_q->req_stats.handle_time += (get_ns() - start_ns);
-		pthread_mutex_unlock(&ubbd_q->req_stats_lock);
-#endif
-	}
-
-	return;
-}
+#include "ubbd_backend.h"
 
 LIST_HEAD(ubbd_dev_list);
 pthread_mutex_t ubbd_dev_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+bool dev_checker_stop = false;
 
 struct ubbd_device *find_ubbd_dev(int dev_id)
 {
@@ -232,14 +34,6 @@ struct ubbd_device *find_ubbd_dev(int dev_id)
 	pthread_mutex_unlock(&ubbd_dev_list_mutex);
 
         return ubbd_dev;
-}
-
-static void ubbd_dev_init(struct ubbd_device *ubbd_dev)
-{
-	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
-	ubbd_atomic_set(&ubbd_dev->ref_count, 1);
-	INIT_LIST_HEAD(&ubbd_dev->dev_node);
-	pthread_mutex_init(&ubbd_dev->lock, NULL);
 }
 
 struct ubbd_rbd_device *create_rbd_dev(void)
@@ -325,7 +119,10 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 		return NULL;
 	}
 
-	ubbd_dev_init(ubbd_dev);
+	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
+	ubbd_atomic_set(&ubbd_dev->ref_count, 1);
+	INIT_LIST_HEAD(&ubbd_dev->dev_node);
+	pthread_mutex_init(&ubbd_dev->lock, NULL);
 	ubbd_dev->num_queues = info->num_queues;
 	memcpy(&ubbd_dev->dev_info, info, sizeof(*info));
 
@@ -336,11 +133,11 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 	return ubbd_dev;
 }
 
-int ubbd_dev_open(struct ubbd_device *ubbd_dev)
+int ubbd_dev_init(struct ubbd_device *ubbd_dev)
 {
 	int ret = 0;
 
-	ret = ubbd_dev->dev_ops->open(ubbd_dev);
+	ret = ubbd_dev->dev_ops->init(ubbd_dev);
 	if (ret)
 		goto out;
 
@@ -348,13 +145,6 @@ int ubbd_dev_open(struct ubbd_device *ubbd_dev)
 
 out:
 	return ret;
-}
-
-void ubbd_dev_close(struct ubbd_device *ubbd_dev)
-{
-
-	ubbd_dev->dev_ops->close(ubbd_dev);
-	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
 }
 
 void ubbd_dev_release(struct ubbd_device *ubbd_dev)
@@ -369,74 +159,200 @@ void ubbd_dev_release(struct ubbd_device *ubbd_dev)
 /*
  * ubbd device add
  */
-
-int queue_setup(struct ubbd_queue *ubbd_q)
+int ubbd_dev_init_from_dev_status(struct ubbd_device *ubbd_dev, struct ubbd_nl_dev_status *dev_status)
 {
-	int ret;
-	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
+	int ret = 0;
 
-	ret = ubbd_open_uio(&ubbd_q->uio_info);
-	if (ret) {
-		ubbd_dev_err(ubbd_dev, "failed to open shm: %d\n", ret);
-		goto out;
-	}
+	ubbd_dev->dev_id = dev_status->dev_id;
+	ubbd_dev->num_queues = dev_status->num_queues;
+	memcpy(&ubbd_dev->queue_infos, &dev_status->queue_infos, sizeof(struct ubbd_queue_info) * UBBD_QUEUE_MAX);
 
-	memcpy(ubbd_uio_get_dev_info(ubbd_q->uio_info.map),
-			&ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
-
-	ret = pthread_create(&ubbd_q->cmdproc_thread, NULL, cmd_process, ubbd_q);
-	if (ret) {
-		ubbd_dev_err(ubbd_dev, "failed to create cmdproc_thread: %d\n", ret);
-		goto out;
-	}
-	pthread_setaffinity_np(ubbd_q->cmdproc_thread, CPU_SETSIZE, &ubbd_q->cpuset);
-out:
 	return ret;
 }
 
-int dev_setup(struct ubbd_device *ubbd_dev)
+
+extern pthread_t ubbdd_mgmt_thread;
+extern pthread_t ubbdd_nl_thread;
+
+extern void ubbdd_mgmt_stop_thread(void);
+extern void ubbdd_mgmt_wait_thread(void);
+
+static int backend_conf_setup(struct ubbd_device *ubbd_dev)
 {
-	struct ubbd_queue *ubbd_q;
 	int ret;
-	int i;
+	struct ubbd_backend_conf backend_conf = { 0 };
 
-	ubbd_dev_info(ubbd_dev, "setup queues: %u\n", ubbd_dev->num_queues);
-	for (i = 0; i < ubbd_dev->num_queues; i++) {
-		ubbd_q = &ubbd_dev->queues[i];
-		ubbd_q->ubbd_dev = ubbd_dev;
-		pthread_mutex_init(&ubbd_q->req_lock, NULL);
-		pthread_mutex_init(&ubbd_q->req_stats_lock, NULL);
-		ret = queue_setup(ubbd_q);
-		if (ret)
-			goto out;
-	}
+	ubbd_conf_header_init(&backend_conf.conf_header, UBBD_CONF_TYPE_BACKEND);
 
-out:
-	return ret;
-}
+	backend_conf.dev_id = ubbd_dev->dev_id;
+	memcpy(&backend_conf.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
 
-static int stop_queues(struct ubbd_device *ubbd_dev)
-{
-	int i;
-	int ret;
-	struct ubbd_queue *ubbd_q;
-	void *join_retval;
+	backend_conf.num_queues = ubbd_dev->num_queues;
+	memcpy(&backend_conf.queue_infos, &ubbd_dev->queue_infos, sizeof(struct ubbd_queue_info) * UBBD_QUEUE_MAX);
 
-	for (i = 0; i < ubbd_dev->num_queues; i++) {
-		ubbd_q = &ubbd_dev->queues[i];
-
-		if (!ubbd_q) 
-			continue;
-
-		if (ubbd_q->cmdproc_thread) {
-			ret = pthread_join(ubbd_q->cmdproc_thread, &join_retval);
-			if (ret)
-				return ret;
-		}
-		ubbd_close_uio(&ubbd_q->uio_info);
+	ret = ubbd_conf_write_backend_conf(&backend_conf);
+	if (ret) {
+		ubbd_err("failed to write backend_conf.\n");
+		return ret;
 	}
 
 	return 0;
+}
+
+static int backend_start(struct ubbd_device *ubbd_dev, int backend_id, bool start_queues)
+{
+	char *dev_id_str;
+	char *backend_id_str;
+	char *start_queues_str;
+	int ret;
+
+	if (asprintf(&dev_id_str, "%d", ubbd_dev->dev_id) == -1) {
+		ubbd_err("cont init dev_id_str\n");
+		ret = -1;
+		goto out;
+	}
+
+	if (asprintf(&backend_id_str, "%d", backend_id) == -1) {
+		ubbd_err("cont init backend_id_str\n");
+		ret = -1;
+		goto free_dev_id_str;
+	}
+
+	if (asprintf(&start_queues_str, "%d", (start_queues? 1 : 0)) == -1) {
+		ubbd_err("cont init backend_id_str\n");
+		ret = -1;
+		goto free_backend_id_str;
+	}
+
+	char *arg_list[] = {
+		"ubbd-backend",
+		"--dev-id",
+		dev_id_str,
+		"--backend-id",
+		backend_id_str,
+		"--start-queues",
+		start_queues_str,
+		NULL
+	};
+
+	ret = execute("ubbd-backend", arg_list);
+	if (ret > 0)
+		ret = 0;
+
+	free(start_queues_str);
+free_backend_id_str:
+	free(backend_id_str);
+free_dev_id_str:
+	free(dev_id_str);
+out:
+	return ret;
+}
+
+static int start_backend_queue(struct ubbd_device *ubbd_dev, int backend_id, int queue_id)
+{
+	struct ubbd_backend_mgmt_rsp backend_rsp;
+	struct ubbd_backend_mgmt_request backend_request = { 0 };
+	int fd;
+	int ret;
+
+	backend_request.dev_id = ubbd_dev->dev_id;
+	backend_request.backend_id = backend_id;
+	backend_request.u.start_queue.queue_id = queue_id;
+	backend_request.cmd = UBBD_BACKEND_MGMT_CMD_START_QUEUE;
+
+	ret = ubbd_backend_request(&fd, &backend_request);
+	if (ret)
+		return ret;
+
+	ret = ubbd_backend_response(fd, &backend_rsp, 5);
+
+	return ret;
+}
+
+static int stop_backend_queue(struct ubbd_device *ubbd_dev, int backend_id, int queue_id)
+{
+	struct ubbd_backend_mgmt_rsp backend_rsp;
+	struct ubbd_backend_mgmt_request backend_request = { 0 };
+	int fd;
+	int ret;
+
+	backend_request.dev_id = ubbd_dev->dev_id;
+	backend_request.backend_id = backend_id;
+	backend_request.u.stop_queue.queue_id = queue_id;
+	backend_request.cmd = UBBD_BACKEND_MGMT_CMD_STOP_QUEUE;
+
+	ret = ubbd_backend_request(&fd, &backend_request);
+	if (ret)
+		return ret;
+
+	ret = ubbd_backend_response(fd, &backend_rsp, 5);
+
+	return ret;
+}
+
+static int backend_stop(struct ubbd_device *ubbd_dev, int backend_id)
+{
+	struct ubbd_backend_mgmt_rsp backend_rsp;
+	struct ubbd_backend_mgmt_request backend_request = { 0 };
+	int fd;
+	int ret;
+
+	backend_request.dev_id = ubbd_dev->dev_id;
+	backend_request.backend_id = backend_id;
+	backend_request.cmd = UBBD_BACKEND_MGMT_CMD_STOP;
+
+	ret = ubbd_backend_request(&fd, &backend_request);
+	if (ret)
+		return ret;
+
+	ret = ubbd_backend_response(fd, &backend_rsp, 5);
+
+	return ret;
+}
+
+bool backend_stopped(void *data)
+{
+	struct ubbd_device *ubbd_dev = data;
+	int ret;
+	int i;
+	struct ubbd_nl_dev_status dev_status = { 0 };
+	bool stopped = false;
+
+	ret = ubbd_nl_dev_status(ubbd_dev->dev_id, &dev_status);
+	if (ret) {
+		ubbd_err("failed to get status from netlink\n");
+		goto out;
+	}
+
+	for (i = 0; i < dev_status.num_queues; i++) {
+		if (dev_status.queue_infos[i].backend_pid != 0) {
+			stopped = false;
+			goto out;
+		}
+	}
+	stopped = true;
+out:
+	return stopped;
+}
+
+int wait_for_backend_stopped(struct ubbd_device *ubbd_dev)
+{
+	return wait_condition(1000, 10000, backend_stopped, ubbd_dev);
+}
+
+
+static int dev_conf_write(struct ubbd_device *ubbd_dev)
+{
+	struct ubbd_dev_conf dev_conf = { 0 };
+
+	ubbd_conf_header_init(&dev_conf.conf_header, UBBD_CONF_TYPE_DEVICE);
+
+	memcpy(&dev_conf.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
+	dev_conf.current_backend_id = ubbd_dev->current_backend_id;
+	dev_conf.new_backend_id = ubbd_dev->new_backend_id;
+	dev_conf.dev_id = ubbd_dev->dev_id;
+
+	return ubbd_conf_write_dev_conf(&dev_conf);
 }
 
 int dev_stop(struct ubbd_device *ubbd_dev)
@@ -444,14 +360,20 @@ int dev_stop(struct ubbd_device *ubbd_dev)
 	int ret;
 
 	ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
-	if (!ubbd_dev->queues)
-		return 0;
 
-	ret = stop_queues(ubbd_dev);
+	if (backend_stopped(ubbd_dev)) {
+		return 0;
+	}
+
+	ret = backend_stop(ubbd_dev, ubbd_dev->current_backend_id);
 	if (ret)
 		return ret;
 
-	free(ubbd_dev->queues);
+	ret = wait_for_backend_stopped(ubbd_dev);
+	if (ret) {
+		ubbd_err("failed to wait for dev stopped: %d\n", ret);
+		return ret;
+	}
 
 	return 0;
 }
@@ -484,6 +406,32 @@ struct dev_add_disk_data {
 	struct ubbd_device *ubbd_dev;
 };
 
+bool disk_running(void *data)
+{
+	struct ubbd_device *ubbd_dev = data;
+	int ret;
+	struct ubbd_nl_dev_status dev_status = { 0 };
+	bool running = false;
+
+	ret = ubbd_nl_dev_status(ubbd_dev->dev_id, &dev_status);
+	if (ret) {
+		ubbd_err("failed to get status from netlink\n");
+		goto out;
+	}
+
+	if (dev_status.status == UBBD_DEV_STATUS_RUNNING) {
+		running = true;
+	}
+
+out:
+	return running;
+}
+
+int wait_disk_running(struct ubbd_device *ubbd_dev)
+{
+	return wait_condition(1000, 10000, disk_running, ubbd_dev);
+}
+
 int dev_add_disk_finish(struct context *ctx, int ret)
 {
 	struct dev_add_disk_data *add_disk_data = (struct dev_add_disk_data *)ctx->data;
@@ -491,6 +439,12 @@ int dev_add_disk_finish(struct context *ctx, int ret)
 
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "error in add: %d.\n", ret);
+		goto clean_dev;
+	}
+
+	ret = wait_disk_running(ubbd_dev);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "error to wait disk running: %d\n", ret);
 		goto clean_dev;
 	}
 
@@ -554,7 +508,23 @@ int dev_add_dev_finish(struct context *ctx, int ret)
 	/* advance dev status into ADD_DEVD */
 	ubbd_dev->status = UBBD_DEV_USTATUS_PREPARED;
 
-	ret = dev_setup(ubbd_dev);
+	ubbd_dev->current_backend_id = 0;
+	ubbd_dev->new_backend_id = -1;
+
+	ret = dev_conf_write(ubbd_dev);
+	if (ret) {
+		ubbd_err("failed to write dev_info.\n");
+		goto clean_dev;
+	}
+
+	ret = backend_conf_setup(ubbd_dev);
+	if (ret) {
+		ubbd_err("backend_conf_setup failed: %d\n", ret);
+		ret = -1;
+		goto clean_dev;
+	}
+
+	ret = backend_start(ubbd_dev, ubbd_dev->current_backend_id, true);
 	if (ret) {
 		goto clean_dev;
 	}
@@ -609,19 +579,17 @@ int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 	int ret;
 
 	pthread_mutex_lock(&ubbd_dev->lock);
-	ret = ubbd_dev_open(ubbd_dev);
+	ret = ubbd_dev_init(ubbd_dev);
 	if (ret) {
 		goto release_dev;
 	}
 
 	ret = dev_add_dev(ubbd_dev, ctx);
 	if (ret)
-		goto close_dev;
+		goto release_dev;
 	pthread_mutex_unlock(&ubbd_dev->lock);
 	return ret;
 
-close_dev:
-	ubbd_dev_close(ubbd_dev);
 release_dev:
 	ubbd_dev_release(ubbd_dev);
 	pthread_mutex_unlock(&ubbd_dev->lock);
@@ -641,9 +609,6 @@ static int dev_remove_dev_finish(struct context *ctx, int ret)
 		ubbd_dev_err(ubbd_dev, "error in dev remove: %d.\n", ret);
 		return ret;
 	}
-	pthread_mutex_lock(&ubbd_dev->lock);
-	ubbd_dev_close(ubbd_dev);
-	pthread_mutex_unlock(&ubbd_dev->lock);
 	ubbd_dev_release(ubbd_dev);
 
 	return 0;
@@ -678,12 +643,7 @@ static int dev_remove_disk_finish(struct context *ctx, int ret)
 
 	pthread_mutex_lock(&ubbd_dev->lock);
 
-	ret = dev_stop(ubbd_dev);
-	if (ret) {
-		pthread_mutex_unlock(&ubbd_dev->lock);
-		ubbd_dev_err(ubbd_dev, "error in dev stop: %d,\n", ret);
-		return ret;
-	}
+	dev_stop(ubbd_dev);
 
 	dev_remove_dev(ubbd_dev, ctx->parent);
 	ctx->parent = NULL;
@@ -721,7 +681,6 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ct
 		break;
 	case UBBD_DEV_USTATUS_OPENED:
 		ubbd_err("opend\n");
-		ubbd_dev_close(ubbd_dev);
 		ubbd_dev_release(ubbd_dev);
 		break;
 	case UBBD_DEV_USTATUS_PREPARED:
@@ -772,98 +731,187 @@ int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct
 	return ret;
 }
 
+static int get_backend_status(struct ubbd_device *ubbd_dev, int backend_id)
+{
+	struct ubbd_backend_mgmt_rsp backend_rsp;
+	struct ubbd_backend_mgmt_request backend_request = { 0 };
+	int fd;
+	int ret;
+
+	backend_request.dev_id = ubbd_dev->dev_id;
+	backend_request.backend_id = backend_id;
+	backend_request.cmd = UBBD_BACKEND_MGMT_CMD_GET_STATUS;
+
+	ret = ubbd_backend_request(&fd, &backend_request);
+	if (ret)
+		return ret;
+
+	ret = ubbd_backend_response(fd, &backend_rsp, 5);
+	if (ret)
+		return ret;
+
+	return backend_rsp.u.get_status.status;
+}
+
+static int start_kernel_queue(struct ubbd_device *ubbd_dev, int queue_id)
+{
+	int ret;
+
+	ret = ubbd_nl_start_queue(ubbd_dev, queue_id);
+	if (ret) {
+		ubbd_err("failed to start kernel queue: %d\n", ret);
+		goto out;
+	}
+
+out:
+	return ret;
+}
+
+static int stop_kernel_queue(struct ubbd_device *ubbd_dev, int queue_id)
+{
+	int ret;
+
+	ret = ubbd_nl_stop_queue(ubbd_dev, queue_id);
+	if (ret) {
+		ubbd_err("failed to stop kernel queue: %d\n", ret);
+		goto out;
+	}
+
+out:
+	return ret;
+}
+
+static int dev_reset(struct ubbd_device *ubbd_dev)
+{
+	int ret;
+	int i;
+
+	if (ubbd_dev->current_backend_id != -1) {
+		backend_stop(ubbd_dev, ubbd_dev->current_backend_id);
+	}
+
+	if (ubbd_dev->new_backend_id != -1) {
+		backend_stop(ubbd_dev, ubbd_dev->new_backend_id);
+	}
+
+	ret = wait_for_backend_stopped(ubbd_dev);
+	if (ret) {
+		ubbd_err("failed to wait backend stopped in reset.\n");
+		return ret;
+	}
+
+	/* reset backend id */
+	ubbd_dev->current_backend_id = 0;
+	ubbd_dev->new_backend_id = -1;
+
+	ret = dev_conf_write(ubbd_dev);
+	if (ret) {
+		ubbd_err("failed to write dev_conf in reset.\n");
+		return ret;
+	}
+
+	/* start current backend only */
+	ret = backend_start(ubbd_dev, ubbd_dev->current_backend_id, true);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "failed to start backend in reset\n");
+		return ret;
+	}
+
+	for (i = 0; i < ubbd_dev->num_queues; i++) {
+		ret = start_kernel_queue(ubbd_dev, i);
+		if (ret) {
+			ubbd_err("failed to start backend queue: %d\n", ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
 static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 				struct ubbd_device **ubbd_dev_p)
 {
 	int ret;
-	struct ubbd_dev_info *dev_info;
 	struct ubbd_device *ubbd_dev;
-	struct ubbd_uio_info uio_info = { .uio_id = dev_status->queue_infos[0].uio_id,
-				.uio_map_size = dev_status->queue_infos[0].uio_map_size };
-	int i;
+	struct ubbd_dev_conf *dev_conf;
 
-	ret = ubbd_open_uio(&uio_info);
-	if (ret)
-		goto err_fail;
-
-	dev_info = ubbd_uio_get_dev_info(uio_info.map);
-	ubbd_dev = ubbd_dev_create(dev_info);
-	ubbd_close_uio(&uio_info);
-	if (!ubbd_dev) {
-		ret = -ENOMEM;
-		goto err_close;
+	dev_conf = ubbd_conf_read_dev_conf(dev_status->dev_id);
+	if (!dev_conf) {
+		ubbd_err("failed to read dev config\n");
+		return -1;
 	}
 
-	ubbd_dev->dev_id = dev_status->dev_id;
-	ubbd_dev->num_queues = dev_status->num_queues;
+	ubbd_dev = ubbd_dev_create(&dev_conf->dev_info);
+	if (!ubbd_dev) {
+		ret = -ENOMEM;
+		free(dev_conf);
+		goto err;
+	}
+
+	ubbd_dev->dev_id = dev_conf->dev_id;
+	ubbd_dev->current_backend_id = dev_conf->current_backend_id;
+	ubbd_dev->new_backend_id = dev_conf->new_backend_id;
+	free(dev_conf);
 
 	if (dev_status->status != UBBD_DEV_STATUS_RUNNING) {
 		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
 		goto out;
 	}
 
-	ret = ubbd_dev_open(ubbd_dev);
-	if (ret)
+	/* current_backend_id is always not -1 here.*/
+	if (ubbd_dev->new_backend_id == -1 &&
+			(get_backend_status(ubbd_dev, ubbd_dev->current_backend_id) == UBBD_BACKEND_STATUS_RUNNING)) {
+		goto dev_running;
+	}
+
+	ret = dev_reset(ubbd_dev);
+	if (ret) {
+		ubbd_err("failed to reset dev: %d.", ret);
 		goto release_dev;
-
-	ubbd_dev->queues = calloc(ubbd_dev->num_queues, sizeof(struct ubbd_queue));
-	if (!ubbd_dev->queues) {
-		ubbd_err("failed to alloc queues\n");
-		ret = -ENOMEM;
-		goto close_dev;
 	}
 
-	for (i = 0; i < ubbd_dev->num_queues; i++) {
-		ubbd_dev->queues[i].uio_info.uio_id = dev_status->queue_infos[i].uio_id;
-		ubbd_dev->queues[i].uio_info.uio_map_size = dev_status->queue_infos[i].uio_map_size;
-		memcpy(&ubbd_dev->queues[i].cpuset, &dev_status->queue_infos[i].cpuset, sizeof(cpu_set_t));
-	}
-
-	ret = dev_setup(ubbd_dev);
-	if (ret)
-		goto destroy_queues;
-
+dev_running:
 	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
-
 out:
 	*ubbd_dev_p = ubbd_dev;
-
 	return 0;
 
-destroy_queues:
-	free(ubbd_dev->queues);
-close_dev:
-	ubbd_dev_close(ubbd_dev);
 release_dev:
-	ubbd_dev_release(ubbd_dev);
-err_close:
-	ubbd_close_uio(&uio_info);
-err_fail:
+	free(ubbd_dev);
+err:
 	return ret;
 }
 
 int ubbd_dev_reopen_devs(void)
 {
-	struct ubbd_nl_dev_status *tmp_status, *next_status;
-	LIST_HEAD(tmp_list);
 	struct ubbd_device *ubbd_dev;
+	struct ubbd_nl_list_result list_result = { 0 };
+	struct ubbd_nl_dev_status dev_status = { 0 };
+	int i;
 	int ret;
 
-	ret = ubbd_nl_dev_list(&tmp_list);
-	list_for_each_entry_safe(tmp_status, next_status, &tmp_list, node) {
-		list_del(&tmp_status->node);
-		ubbd_err("tmp_status: %p, id: %d\n", tmp_status, tmp_status->dev_id);
-		ret = reopen_dev(tmp_status, &ubbd_dev);
-		ubbd_err("ubbd_Dev: %p, status: %d\n", ubbd_dev, tmp_status->status);
+	ret = ubbd_nl_dev_list(&list_result);
+	if (ret) {
+		ubbd_err("failed to list devs in reopen devs: %d\n", ret);
+		return ret;
+	}
+
+	ubbd_err("num_devs: %d\n", list_result.num_devs);
+	for (i = 0; i < list_result.num_devs; i++) {
+		ret = ubbd_nl_dev_status(list_result.dev_ids[i], &dev_status);
+		if (ret) {
+			ubbd_err("failed to get status of dev: %d\n", list_result.dev_ids[i]);
+			return ret;
+		}
+		ret = reopen_dev(&dev_status, &ubbd_dev);
 		if (ret)
 			return ret;
 
-		if (tmp_status->status != UBBD_DEV_STATUS_RUNNING)
+		if (dev_status.status != UBBD_DEV_STATUS_RUNNING)
 			ubbd_dev_remove(ubbd_dev, false, NULL);
-		destroy_dev_status(tmp_status);
 	}
 
-	return ret;
+	return 0;
 }
 
 void ubbd_dev_stop_devs(void)
@@ -878,29 +926,9 @@ void ubbd_dev_stop_devs(void)
         list_for_each_entry_safe(ubbd_dev_tmp, next, &tmp_list, dev_node) {
 		pthread_mutex_lock(&ubbd_dev_tmp->lock);
 		dev_stop(ubbd_dev_tmp);
-		ubbd_dev_close(ubbd_dev_tmp);
 		pthread_mutex_unlock(&ubbd_dev_tmp->lock);
 		ubbd_dev_release(ubbd_dev_tmp);
         }
-}
-
-void ubbd_dev_add_ce(struct ubbd_queue *ubbd_q, uint64_t priv_data,
-		int result)
-{
-	struct ubbd_ce *ce;
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
-
-	pthread_mutex_lock(&ubbd_q->req_lock);
-	ce = get_available_ce(ubbd_q);
-	memset(ce, 0, sizeof(*ce));
-	ce->priv_data = priv_data;
-	ce->flags = 0;
-
-	ce->result = result;
-	ubbd_dbg("append ce: %llu, result: %d\n", ce->priv_data, ce->result);
-	UBBD_UPDATE_DEV_COMP_HEAD(ubbd_q, sb, ce);
-	pthread_mutex_unlock(&ubbd_q->req_lock);
-	ubbd_processing_complete(ubbd_q);
 }
 
 bool ubbd_dev_get(struct ubbd_device *ubbd_dev)
@@ -917,4 +945,297 @@ void ubbd_dev_put(struct ubbd_device *ubbd_dev)
 {
 	if (ubbd_atomic_dec_and_test(&ubbd_dev->ref_count))
 		ubbd_dev->dev_ops->release(ubbd_dev);
+}
+
+static int kernel_queue_get_status(int dev_id, int queue_id)
+{
+	struct ubbd_nl_dev_status dev_status = { 0 };
+	int ret;
+	int status;
+
+	ret = ubbd_nl_dev_status(dev_id, &dev_status);
+	if (ret) {
+		ubbd_err("failed to get status from netlink\n");
+		return ret;
+	}
+
+	status = dev_status.queue_infos[queue_id].status;
+
+	return status;
+}
+
+static int wait_kernel_queue_stopped(int dev_id, int queue_id)
+{
+	int ret;
+	int i;
+
+	for (i = 0; i < 1000; i++) {
+		ret = kernel_queue_get_status(dev_id, queue_id);
+		if (ret < 0)
+			continue;
+		if (ret == UBBD_QUEUE_STATUS_STOPPED)
+			return 0;
+		usleep(100000);
+	}
+	return -1;
+}
+
+static int kernel_queue_get_backend_pid(int dev_id, int queue_id)
+{
+	struct ubbd_nl_dev_status dev_status = { 0 };
+	int ret;
+	pid_t backend_pid;
+
+	ret = ubbd_nl_dev_status(dev_id, &dev_status);
+	if (ret) {
+		ubbd_err("failed to get status from netlink\n");
+		return ret;
+	}
+
+	backend_pid = dev_status.queue_infos[queue_id].backend_pid;
+
+	return backend_pid;
+}
+
+static int wait_kernel_queue_no_backend(int dev_id, int queue_id)
+{
+	int ret;
+	int i;
+
+	for (i = 0; i < 1000; i++) {
+		ret = kernel_queue_get_backend_pid(dev_id, queue_id);
+		if (ret < 0)
+			continue;
+		if (ret == 0)
+			return 0;
+		usleep(100000);
+	}
+	return -1;
+}
+
+static int get_backend_queue_status(struct ubbd_device *ubbd_dev, int backend_id, int queue_id)
+{
+	struct ubbd_backend_mgmt_rsp backend_rsp;
+	struct ubbd_backend_mgmt_request backend_request = { 0 };
+	int fd;
+	int ret;
+
+	backend_request.dev_id = ubbd_dev->dev_id;
+	backend_request.backend_id = backend_id;
+	backend_request.u.get_queue_status.queue_id = queue_id;
+	backend_request.cmd = UBBD_BACKEND_MGMT_CMD_GET_QUEUE_STATUS;
+
+	ret = ubbd_backend_request(&fd, &backend_request);
+	if (ret)
+		return ret;
+
+	ret = ubbd_backend_response(fd, &backend_rsp, 5);
+	if (ret)
+		return ret;
+
+	return backend_rsp.u.get_queue_status.status;
+}
+
+static int wait_backend_queue_ready(struct ubbd_device *ubbd_dev, int backend_id, int queue_id)
+{
+	int ret;
+	int i;
+
+	for (i = 0; i < 1000; i++) {
+		ret = get_backend_queue_status(ubbd_dev, backend_id, queue_id);
+		if (ret < 0)
+			continue;
+
+		if (ret == UBBD_DEV_USTATUS_RUNNING)
+			return 0;
+		usleep(100000);
+	}
+	return -1;
+}
+
+
+static int ubbd_backend_start_new_backend(struct ubbd_device *ubbd_dev)
+{
+	if (ubbd_dev->new_backend_id != -1) {
+		ubbd_err("new_backend_id is not -1, cant start new backend\n");
+		return -1;
+	}
+
+	return (ubbd_dev->current_backend_id == 0? 1 : 0);
+}
+
+static int ubbd_backend_finish_new_backend(struct ubbd_device *ubbd_dev)
+{
+	if (ubbd_dev->new_backend_id == -1) {
+		ubbd_err("new_backend_id is -1, cant finish new backend\n");
+		return -1;
+	}
+
+	ubbd_dev->current_backend_id = ubbd_dev->new_backend_id;
+	ubbd_dev->new_backend_id = -1;
+
+	return 0;
+}
+
+int ubbd_dev_restart(struct ubbd_device *ubbd_dev, int restart_mode)
+{
+	int ret;
+
+again:
+	if (restart_mode == UBBD_DEV_RESTART_MODE_DEV || 
+			(restart_mode == UBBD_DEV_RESTART_MODE_DEFAULT && ubbd_dev->num_queues == 1)) {
+		ret = dev_reset(ubbd_dev);
+		if (ret) {
+			ubbd_dev_err(ubbd_dev, "failed to reset ubbd_dev.\n");
+			return ret;
+		}
+	} else {
+		int i;
+		int new_backend_id;
+
+		new_backend_id = ubbd_backend_start_new_backend(ubbd_dev);
+		if (new_backend_id < 0) {
+			ubbd_err("failed to start new backend for restart\n");
+			ret = -1;
+			goto err;
+		}
+		ubbd_dev->new_backend_id = new_backend_id;
+
+		ret = dev_conf_write(ubbd_dev);
+		if (ret) {
+			ubbd_err("failed to write dev_conf after start new backend.\n");
+			goto err;
+		}
+
+		ret = backend_start(ubbd_dev, ubbd_dev->new_backend_id, false);
+
+		for (i = 0; i < ubbd_dev->num_queues; i++) {
+			ret = stop_kernel_queue(ubbd_dev, i);
+			if (ret) {
+				ubbd_err("failed to stop kernel queue: %d\n", ret);
+				goto err;
+			}
+			ret = wait_kernel_queue_stopped(ubbd_dev->dev_id, i);
+			if (ret) {
+				ubbd_err("failed to wait kernel queue stopped.\n");
+				goto err;
+			}
+
+			ret = stop_backend_queue(ubbd_dev, ubbd_dev->current_backend_id, i);
+			if (ret) {
+				ubbd_err("failed to stop backend queue: %d\n", ret);
+				goto err;
+			}
+
+			ret = wait_kernel_queue_no_backend(ubbd_dev->dev_id, i);
+			if (ret) {
+				ubbd_err("failed to wait kernel queue no backend.\n");
+				goto err;
+			}
+
+			ret = start_backend_queue(ubbd_dev, ubbd_dev->new_backend_id, i);
+			if (ret) {
+				ubbd_err("failed to start backend queue: %d\n", ret);
+				goto err;
+			}
+
+			ret = wait_backend_queue_ready(ubbd_dev, ubbd_dev->new_backend_id, i);
+			if (ret) {
+				ubbd_err("failed to wait backend queue ready: %d\n", ret);
+				goto err;
+			}
+
+			ret = start_kernel_queue(ubbd_dev, i);
+			if (ret) {
+				ubbd_err("failed to start kernel queue: %d\n", ret);
+				goto err;
+			}
+		}
+
+		ret = backend_stop(ubbd_dev, ubbd_dev->current_backend_id);
+		if (ret) {
+			ubbd_err("failed to stop current backend before finish new backend.\n");
+			goto err;
+		}
+
+		ret = ubbd_backend_finish_new_backend(ubbd_dev);
+		if (ret) {
+			ubbd_err("failed to finish new backend.\n");
+			goto err;
+		}
+
+		ret = dev_conf_write(ubbd_dev);
+		if (ret) {
+			ubbd_err("failed to write dev_conf after finish new backend.\n");
+			goto err;
+		}
+	}
+
+	return ret;
+err:
+	restart_mode = UBBD_DEV_RESTART_MODE_DEV;
+	goto again;
+}
+
+static int get_kernel_dev_status(struct ubbd_device *ubbd_dev)
+{
+	int ret;
+	struct ubbd_nl_dev_status dev_status = { 0 };
+
+	ret = ubbd_nl_dev_status(ubbd_dev->dev_id, &dev_status);
+	if (ret) {
+		ubbd_err("failed to get status from netlink\n");
+		goto out;
+	}
+
+	return dev_status.status;
+out:
+	return -1;
+}
+
+static void *ubbd_dev_checker_fn(void *arg)
+{
+        struct ubbd_device *ubbd_dev = NULL;
+	int ret;
+
+	while (!dev_checker_stop) {
+		pthread_mutex_lock(&ubbd_dev_list_mutex);
+		list_for_each_entry(ubbd_dev, &ubbd_dev_list, dev_node) {
+			if (get_kernel_dev_status(ubbd_dev) == UBBD_DEV_STATUS_REMOVING)
+				continue;
+
+			if (backend_stopped(ubbd_dev)) {
+				pthread_mutex_unlock(&ubbd_dev_list_mutex);
+				ret = dev_reset(ubbd_dev);
+				if (ret) {
+					ubbd_dev_err(ubbd_dev, "reset dev failed in checker: %d\n", ret);
+				}
+				goto again;
+			}
+		}
+		pthread_mutex_unlock(&ubbd_dev_list_mutex);
+again:
+		sleep(5);
+	}
+
+	return NULL;
+}
+
+pthread_t ubbd_dev_checker_thread;
+
+int ubbd_dev_checker_start_thread()
+{
+	return pthread_create(&ubbd_dev_checker_thread, NULL, ubbd_dev_checker_fn, NULL);
+}
+
+void ubbd_dev_checker_stop_thread(void)
+{
+	dev_checker_stop = true;
+}
+
+int ubbd_dev_checker_wait_thread(void)
+{
+	void *join_retval;
+
+	return pthread_join(ubbd_dev_checker_thread, &join_retval);
 }
