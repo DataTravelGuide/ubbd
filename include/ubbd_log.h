@@ -38,7 +38,6 @@ void ubbd_dbg_message(struct ubbd_device *dev, const char *funcname, int linenr,
 #define ubbd_dev_info(dev, ...) do { ubbd_info_message(dev, __func__, __LINE__, __VA_ARGS__);} while (0)
 #define ubbd_dev_dbg(dev, ...)  do { ubbd_dbg_message(dev, __func__, __LINE__, __VA_ARGS__);} while (0)
 
-
 #define ubbd_err(...)  do { ubbd_err_message(NULL, __func__, __LINE__, __VA_ARGS__);} while (0)
 #define ubbd_info(...) do { ubbd_info_message(NULL, __func__, __LINE__, __VA_ARGS__);} while (0)
 #define ubbd_dbg(...)  do { ubbd_dbg_message(NULL, __func__, __LINE__, __VA_ARGS__);} while (0)
