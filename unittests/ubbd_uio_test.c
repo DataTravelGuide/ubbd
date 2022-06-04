@@ -11,6 +11,7 @@
 
 #include <sys/mman.h>
 
+#include "ubbd_queue.h"
 #include "ubbd_uio.h"
 #include "ubbd.h"
 
@@ -86,24 +87,26 @@ int __wrap_asprintf(char **strp, const char *fmt, ...)
 
 void test_get_dev_info(void **state)
 {
-	struct ubbd_sb input_map = { 0 };
-	struct ubbd_dev_info *dev_info;
+	struct ubbd_uio_info uio_info = { 0 };
+	struct ubbd_sb sb = { 0 };
+	void *info;
 
 	// invalid ubbd magic
-	dev_info = ubbd_uio_get_dev_info(&input_map);
-	assert_null(dev_info);
+	uio_info.map = &sb;
+	info = ubbd_uio_get_info(&uio_info);
+	assert_null(info);
 
 	// set magic and info_off is zero
-	input_map.magic = UBBD_MAGIC;
-	input_map.info_off = 0;
+	sb.magic = UBBD_MAGIC;
+	sb.info_off = 0;
 
-	dev_info = ubbd_uio_get_dev_info(&input_map);
-	assert_ptr_equal(dev_info, &input_map);
+	info = ubbd_uio_get_info(&uio_info);
+	assert_ptr_equal(info, &sb);
 
 	// set info_off to 1
-	input_map.info_off = 1;
-	dev_info = ubbd_uio_get_dev_info(&input_map);
-	assert_ptr_equal(dev_info, (char *)(&input_map) + 1);
+	sb.info_off = 1;
+	info = ubbd_uio_get_info(&uio_info);
+	assert_ptr_equal(info, (char *)(&sb) + 1);
 }
 
 void test_open_shm(void **state)
@@ -226,10 +229,10 @@ void test_close_shm(void **state)
 
 void test_processing_start(void **state)
 {
-	struct ubbd_queue ubbd_q = { 0 };
+	struct ubbd_uio_info uio_info = { 0 };
 	int ret;
 
-	ubbd_q.uio_info.fd = 1;
+	uio_info.fd = 1;
 
 	// read eagain
 	expect_value(__wrap_read, fd, 1);
@@ -237,7 +240,7 @@ void test_processing_start(void **state)
 	will_return(__wrap_read, -1);
 	errno = EAGAIN;
 
-	ret = ubbd_processing_start(&ubbd_q);
+	ret = ubbd_processing_start(&uio_info);
 	assert_int_equal(ret, 0);
 	// read ioerror
 	expect_value(__wrap_read, fd, 1);
@@ -245,23 +248,23 @@ void test_processing_start(void **state)
 	will_return(__wrap_read, -1);
 	errno = EIO;
 
-	ret = ubbd_processing_start(&ubbd_q);
+	ret = ubbd_processing_start(&uio_info);
 	assert_int_equal(ret, -EIO);
 	// read ok
 	expect_value(__wrap_read, fd, 1);
 	expect_value(__wrap_read, count, 4);
 	will_return(__wrap_read, 0);
 
-	ret = ubbd_processing_start(&ubbd_q);
+	ret = ubbd_processing_start(&uio_info);
 	assert_int_equal(ret, 0);
 }
 
 void test_processing_complete(void **state)
 {
-	struct ubbd_queue ubbd_q = { 0 };
+	struct ubbd_uio_info uio_info = { 0 };
 	int ret;
 
-	ubbd_q.uio_info.fd = 1;
+	uio_info.fd = 1;
 
 	// write eagain
 	expect_value(__wrap_write, fd, 1);
@@ -269,7 +272,7 @@ void test_processing_complete(void **state)
 	will_return(__wrap_write, -1);
 	errno = EAGAIN;
 
-	ret = ubbd_processing_complete(&ubbd_q);
+	ret = ubbd_processing_complete(&uio_info);
 	assert_int_equal(ret, 0);
 
 	// write ioerror
@@ -278,14 +281,14 @@ void test_processing_complete(void **state)
 	will_return(__wrap_write, -1);
 	errno = EIO;
 
-	ret = ubbd_processing_complete(&ubbd_q);
+	ret = ubbd_processing_complete(&uio_info);
 	assert_int_equal(ret, -EIO);
 	// write ok
 	expect_value(__wrap_write, fd, 1);
 	expect_value(__wrap_write, count, 4);
 	will_return(__wrap_write, 0);
 
-	ret = ubbd_processing_complete(&ubbd_q);
+	ret = ubbd_processing_complete(&uio_info);
 	assert_int_equal(ret, 0);
 }
 
@@ -300,7 +303,7 @@ void test_cmd_se(void **state)
 	sb.cmd_head = 10;
 	ubbd_q.uio_info.map = &sb;
 
-	cmd_head = ubbd_cmd_head(&ubbd_q);
+	cmd_head = ubbd_cmd_head(&ubbd_q.uio_info);
 	assert_ptr_equal(cmd_head, ((char *)&sb) + 11);
 
 	// get to_handle
