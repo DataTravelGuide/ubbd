@@ -318,7 +318,7 @@ static int create_file_output(struct log_buf *logbuf, int pri,
 	pthread_mutex_unlock(&logbuf->file_out_lock);
 	pthread_cleanup_pop(0);
 
-	ubbd_info("log file path now is '%s'\n", log_file_path);
+	ubbd_dbg("log file path now is '%s'\n", log_file_path);
 	return 0;
 }
 
