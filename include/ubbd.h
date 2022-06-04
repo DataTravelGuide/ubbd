@@ -16,7 +16,7 @@
 /* Offset of cmd ring is size of sb */
 
 #define UBBD_INFO_OFF (sizeof(struct ubbd_sb))
-#define UBBD_INFO_SIZE (4096)
+#define UBBD_INFO_SIZE (4096 * 8)
 #define COMPR_OFF (UBBD_INFO_OFF + UBBD_INFO_SIZE)
 #define COMPR_SIZE (sizeof(struct ubbd_ce) * 1024)
 #define CMDR_OFF (COMPR_OFF + COMPR_SIZE)
@@ -126,9 +126,15 @@ enum ubbd_genl_cmd {
 	UBBD_CMD_REMOVE_DISK,
 	UBBD_CMD_STATUS,
 	UBBD_CMD_CONFIG,
+	UBBD_CMD_QUEUE_OP,
+	UBBD_CMD_LIST,
 	__UBBD_CMD_MAX,
 };
 #define UBBD_CMD_MAX (__UBBD_CMD_MAX - 1)
+
+/* queue op */
+#define UBBD_ATTR_FLAGS_QUEUE_OP_STOP	1 << 0
+#define UBBD_ATTR_FLAGS_QUEUE_OP_START	2 << 0
 
 enum ubbd_genl_attr {
 	UBBD_ATTR_PAD,
@@ -138,6 +144,7 @@ enum ubbd_genl_attr {
 	UBBD_ATTR_DEV_LIST,
 	UBBD_ATTR_FLAGS,
 	UBBD_ATTR_RETVAL,
+	UBBD_ATTR_QUEUE_ID,
 	__UBBD_ATTR_MAX,
 };
 
@@ -160,19 +167,19 @@ enum ubbd_genl_attr {
  * Format of nested UBBD_ATTR_DEV_LIST
  *
  * [UBBD_ATTR_DEV_LIST]
- * 	[UBBD_STATUS_ITEM]
+ * 	[UBBD_LIST_DEV_ID]
  * 		...
- * 	[UBBD_STATUS_ITEM]
+ * 	[UBBD_LIST_DEV_ID]
  * 		...
  */
 enum {
-	UBBD_STATUS_ITEM,
-	__UBBD_STATUS_ITEM_MAX,
+	UBBD_LIST_DEV_ID,
+	__UBBD_LIST_MAX,
 };
-#define UBBD_STATUS_ITEM_MAX (__UBBD_STATUS_ITEM_MAX - 1)
+#define UBBD_LIST_MAX (__UBBD_LIST_MAX - 1)
 
 /*
- * Fromat of nested UBBD_STATUS_ITEM and UBBD_ATTR_DEV_INFO
+ * Fromat of nested UBBD_ATTR_DEV_INFO
  * [UBBD_ATTR_DEV_INFO]
  * 	[UBBD_STATUS_DEV_ID]
  * 	[UBBD_STATUS_QUEUE_INFO]
@@ -214,9 +221,19 @@ enum {
 	UBBD_QUEUE_INFO_UIO_ID,
 	UBBD_QUEUE_INFO_UIO_MAP_SIZE,
 	UBBD_QUEUE_INFO_CPU_LIST,
+	UBBD_QUEUE_INFO_B_PID,
+	UBBD_QUEUE_INFO_STATUS,
 	__UBBD_QUEUE_INFO_MAX,
 };
 #define UBBD_QUEUE_INFO_ATTR_MAX (__UBBD_QUEUE_INFO_MAX - 1)
+
+enum UBBD_QUEUE_STATUS {
+	UBBD_QUEUE_STATUS_INIT = 0,
+	UBBD_QUEUE_STATUS_RUNNING,
+	UBBD_QUEUE_STATUS_STOPPING,
+	UBBD_QUEUE_STATUS_STOPPED,
+	UBBD_QUEUE_STATUS_REMOVING,
+};
 
 enum ubbd_dev_status {
 	UBBD_DEV_STATUS_INIT = 0,

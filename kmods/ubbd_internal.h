@@ -70,10 +70,13 @@ struct ubbd_queue {
 	struct mutex   		req_lock;
 	spinlock_t 		state_lock;
 	unsigned long		flags;
+	atomic_t		status;
 
 	struct inode		*inode;
 	struct work_struct	complete_work;
 	cpumask_t		cpumask;
+	pid_t			backend_pid;
+	struct blk_mq_hw_ctx	*mq_hctx;
 
 	struct dentry		*q_debugfs_d;
 #ifdef	UBBD_REQUEST_STATS
@@ -89,7 +92,7 @@ struct ubbd_queue {
 #endif /* UBBD_REQUEST_STATS */
 };
 
-#define UBBD_QUEUE_FLAGS_REMOVING	1
+#define UBBD_QUEUE_FLAGS_HAS_BACKEND	1
 
 struct ubbd_device {
 	int			dev_id;		/* blkdev unique id */
@@ -97,6 +100,7 @@ struct ubbd_device {
 	int			major;		/* blkdev assigned major */
 	int			minor;
 	struct gendisk		*disk;		/* blkdev's gendisk and rq */
+	struct work_struct	work;		/* lifecycle work such add disk */
 
 	char			name[DEV_NAME_LEN]; /* blkdev name, e.g. ubbd3 */
 
@@ -114,7 +118,7 @@ struct ubbd_device {
 
 	uint32_t		num_queues;
 	struct ubbd_queue	*queues;
-	struct workqueue_struct	*task_wq;
+	struct workqueue_struct	*task_wq;  /* workqueue for request work */
 
 	u8			status;
 	struct kref		kref;
@@ -230,10 +234,14 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved);
 struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *);
 void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev);
 void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force);
-void ubbd_dev_stop_disk(struct ubbd_device *ubbd_dev, bool force);
-int ubbd_add_disk(struct ubbd_device *ubbd_dev);
+void ubbd_dev_remove_queues(struct ubbd_device *ubbd_dev, bool force);
+int ubbd_dev_stop_queue(struct ubbd_device *ubbd_dev, int queue_id);
+int ubbd_dev_start_queue(struct ubbd_device *ubbd_dev, int queue_id);
+int ubbd_dev_add_disk(struct ubbd_device *ubbd_dev);
 int ubbd_queue_uio_init(struct ubbd_queue *ubbd_q);
 void ubbd_queue_uio_destroy(struct ubbd_queue *ubbd_q);
+void ubbd_uio_unmap_range(struct ubbd_queue *ubbd_q,
+		loff_t const holebegin, loff_t const holelen, int even_cows);
 
 /* debugfs */
 void ubbd_debugfs_add_dev(struct ubbd_device *ubbd_dev);
@@ -289,5 +297,17 @@ static inline bool ubbd_mgmt_need_fault(void)
 #define ubbd_dev_debug(dev, fmt, ...)					\
 	ubbd_debug("ubbd%d: " fmt,					\
 		 dev->dev_id, ##__VA_ARGS__)
+
+#define ubbd_queue_err(queue, fmt, ...)					\
+	ubbd_dev_err(queue->ubbd_dev, "queue-%d: " fmt,			\
+		     queue->index, ##__VA_ARGS__)
+
+#define ubbd_queue_info(queue, fmt, ...)					\
+	ubbd_dev_info(queue->ubbd_dev, "queue-%d: " fmt,			\
+		     queue->index, ##__VA_ARGS__)
+
+#define ubbd_queue_debug(queue, fmt, ...)					\
+	ubbd_dev_debug(queue->ubbd_dev, "queue-%d: " fmt,			\
+		     queue->index, ##__VA_ARGS__)
 
 #endif /* UBBD_INTERNAL_H */

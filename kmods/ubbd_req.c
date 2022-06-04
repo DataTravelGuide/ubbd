@@ -88,7 +88,7 @@ static void ubbd_release_page(struct ubbd_queue *ubbd_q,
 			return;
 
 		off = ubbd_q->data_off + page_index * 4096;
-		unmap_mapping_range(ubbd_q->inode->i_mapping, off, 2, 1);
+		ubbd_uio_unmap_range(ubbd_q, off, 2, 1);
 
 		xa_erase(&ubbd_q->data_pages_array, page_index);
 		__ubbd_release_page(ubbd_q, page);
@@ -443,14 +443,21 @@ void ubbd_queue_workfn(struct work_struct *work)
 		container_of(work, struct ubbd_request, work);
 	struct ubbd_queue *ubbd_q = ubbd_req->ubbd_q;
 	int ret = 0;
+	int status = atomic_read(&ubbd_q->status);
 
-	/*
-	 * If queue is removing, return directly. This would happen
-	 * in force unmapping.
-	 * */
-	if (test_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags)) {
-		ret = -EIO;
-		goto end_request;
+	if (unlikely(status != UBBD_QUEUE_STATUS_RUNNING)) {
+		/*
+		 * If queue is removing, return directly. This would happen
+		 * in force unmapping.
+		 * */
+		if (status == UBBD_QUEUE_STATUS_REMOVING) {
+			ret = -EIO;
+			goto end_request;
+		} else if (status == UBBD_QUEUE_STATUS_STOPPING ||
+				status == UBBD_QUEUE_STATUS_STOPPED) {
+			ret = -EBUSY;
+			goto end_request;
+		}
 	}
 
 	mutex_lock(&ubbd_q->req_lock);
@@ -480,7 +487,7 @@ void ubbd_queue_workfn(struct work_struct *work)
 	return;
 
 end_request:
-	if (ret == -ENOMEM)
+	if (ret == -ENOMEM || ret == -EBUSY)
 		blk_mq_requeue_request(ubbd_req->req, true);
 	else
 		blk_mq_end_request(ubbd_req->req, errno_to_blk_status(ret));
@@ -494,13 +501,19 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	struct ubbd_queue *ubbd_q = hctx->driver_data;
 	struct request *req = bd->rq;
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(bd->rq);
+	int status = atomic_read(&ubbd_q->status);
 
-	/*
-	 * If queue is removing, return directly. This would happen
-	 * in force unmapping.
-	 * */
-	if (test_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags)) {
-		return BLK_STS_IOERR;
+	if (unlikely(status != UBBD_QUEUE_STATUS_RUNNING)) {
+		/*
+		 * If queue is removing, return directly. This would happen
+		 * in force unmapping.
+		 * */
+		if (status == UBBD_QUEUE_STATUS_REMOVING) {
+			return BLK_STS_IOERR;
+		} else if (status == UBBD_QUEUE_STATUS_STOPPING ||
+				status == UBBD_QUEUE_STATUS_STOPPED) {
+			return BLK_STS_RESOURCE;
+		}
 	}
 
 	memset(ubbd_req, 0, sizeof(struct ubbd_request));
@@ -579,6 +592,10 @@ static struct ubbd_request *fetch_inflight_req(struct ubbd_queue *ubbd_q, u64 re
 	list_for_each_entry(req, &ubbd_q->inflight_reqs, inflight_reqs_node) {
 		if (req->req_tid == req_tid) {
 			list_del_init(&req->inflight_reqs_node);
+			if (unlikely(atomic_read(&ubbd_q->status) == UBBD_QUEUE_STATUS_STOPPING) &&
+					list_empty(&ubbd_q->inflight_reqs)) {
+				atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_STOPPED);
+			}
 			found = true;
 			break;
 		}
@@ -629,7 +646,8 @@ void complete_work_fn(struct work_struct *work)
 	 * If queue is removing, return directly. This would happen
 	 * in force unmapping. inflight request would be ended by unmapping
 	 * */
-	if (test_bit(UBBD_QUEUE_FLAGS_REMOVING, &ubbd_q->flags)) {
+	if (atomic_read(&ubbd_q->status) == UBBD_QUEUE_STATUS_REMOVING) {
+		ubbd_queue_debug(ubbd_q, "is removing.");
 		return;
 	}
 
@@ -691,7 +709,7 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved)
 		return BLK_EH_RESET_TIMER;
 
 	ubbd_dev_err(ubbd_dev, "ubbd timeouted.");
-	ubbd_dev_stop_disk(ubbd_dev, true);
+	ubbd_dev_remove_queues(ubbd_dev, true);
 
 	return BLK_EH_DONE;
 }
