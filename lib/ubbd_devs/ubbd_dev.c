@@ -1046,7 +1046,7 @@ static int wait_backend_queue_ready(struct ubbd_device *ubbd_dev, int backend_id
 		if (ret < 0)
 			continue;
 
-		if (ret == UBBD_DEV_USTATUS_RUNNING)
+		if (ret == UBBD_QUEUE_USTATUS_RUNNING)
 			return 0;
 		usleep(100000);
 	}

@@ -58,7 +58,7 @@ static void wait_for_compr_empty(struct ubbd_queue *ubbd_q)
 		 ubbd_info("head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
                  usleep(50000);
 		 ubbd_processing_complete(&ubbd_q->uio_info);
-		 if (ubbd_q->status == UBBD_QUEUE_STATUS_STOPPING) {
+		 if (ubbd_q->status == UBBD_QUEUE_USTATUS_STOPPING) {
 			 ubbd_err("ubbd device is stopping\n");
 			 break;
 		 }
@@ -92,11 +92,11 @@ void *cmd_process(void *arg)
 	ubbd_dbg("cmd_tail: %u, cmd_head: %u\n", sb->cmd_tail, sb->cmd_head);
 
 	pthread_mutex_lock(&ubbd_q->lock);
-	if (ubbd_q->status == UBBD_QUEUE_STATUS_STOPPING) {
+	if (ubbd_q->status == UBBD_QUEUE_USTATUS_STOPPING) {
 		pthread_mutex_unlock(&ubbd_q->lock);
 		goto out;
 	}
-	ubbd_q->status = UBBD_QUEUE_STATUS_RUNNING;
+	ubbd_q->status = UBBD_QUEUE_USTATUS_RUNNING;
 	pthread_mutex_unlock(&ubbd_q->lock);
 
 	while (1) {
@@ -131,7 +131,7 @@ poll:
 			goto out;
 		}
 
-		if (ubbd_q->status == UBBD_QUEUE_STATUS_STOPPING) {
+		if (ubbd_q->status == UBBD_QUEUE_USTATUS_STOPPING) {
 			ubbd_err("exit cmd_process\n");
 			goto out;
 		}
@@ -154,7 +154,7 @@ void ubbd_queue_stop(struct ubbd_queue *ubbd_q)
 		return;
 
 	pthread_mutex_lock(&ubbd_q->lock);
-	ubbd_q->status = UBBD_QUEUE_STATUS_STOPPING;
+	ubbd_q->status = UBBD_QUEUE_USTATUS_STOPPING;
 	pthread_mutex_unlock(&ubbd_q->lock);
 }
 

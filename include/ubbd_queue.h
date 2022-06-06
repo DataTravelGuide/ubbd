@@ -12,9 +12,9 @@ struct ubbd_req_stats {
 	uint64_t handle_time;
 };
 
-#define UBBD_QUEUE_STATUS_INIT		0
-#define UBBD_QUEUE_STATUS_RUNNING	1
-#define UBBD_QUEUE_STATUS_STOPPING	2
+#define UBBD_QUEUE_USTATUS_INIT		0
+#define UBBD_QUEUE_USTATUS_RUNNING	1
+#define UBBD_QUEUE_USTATUS_STOPPING	2
 
 struct ubbd_queue_info {
 	int32_t	uio_id;
