@@ -400,10 +400,8 @@ static int parse_queue_info_cpu_list(cpu_set_t *cpuset, struct nlattr *attr)
 
 	nla_for_each_nested(cpu_list_attr, attr, rem) {
 		c = nla_get_s32(&cpu_list_attr[UBBD_QUEUE_INFO_CPU_ID]);
-		ubbd_err("get cpu: %d\n", c);
 		CPU_SET(c, cpuset);
 	}
-	ubbd_err("after cpulist \n");
 
 	return 0;
 }
@@ -448,7 +446,6 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status *dev_stat
 		dev_status->queue_infos[num_queues].uio_map_size = nla_get_s32(queue_info[UBBD_QUEUE_INFO_UIO_MAP_SIZE]);
 		dev_status->queue_infos[num_queues].backend_pid = nla_get_s32(queue_info[UBBD_QUEUE_INFO_B_PID]);
 		dev_status->queue_infos[num_queues].status = nla_get_s32(queue_info[UBBD_QUEUE_INFO_STATUS]);
-		ubbd_err("status: %d\n", dev_status->queue_infos[num_queues].status);
 
 		ret = parse_queue_info_cpu_list(&dev_status->queue_infos[num_queues].cpuset, queue_info[UBBD_QUEUE_INFO_CPU_LIST]);
 		if (ret) {
@@ -472,7 +469,6 @@ static int status_callback(struct nl_msg *msg, void *arg)
 	int ret;
 	struct ubbd_nl_dev_status *dev_status = arg;
 
-	ubbd_err("into status_callback\n");
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
 	if (ret) {
@@ -521,9 +517,7 @@ int ubbd_nl_dev_status(int dev_id, struct ubbd_nl_dev_status *dev_status)
 	if (ret < 0)
 		goto free_msg;
 
-	ubbd_err("before send_sync\n");
 	ret = nl_send_sync(socket, msg);
-	ubbd_err("after send_sync\n");
 	ubbd_socket_close(socket);
 	if (ret < 0) {
 		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_STATUS, ret);
@@ -547,7 +541,6 @@ static int list_callback(struct nl_msg *msg, void *arg)
 	struct ubbd_nl_list_result *result = arg;
 	int rem;
 
-	ubbd_err("into list_callback\n");
 	ret = nla_parse(msg_attr, UBBD_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 			genlmsg_attrlen(gnlh, 0), NULL);
 	if (ret) {
@@ -564,10 +557,8 @@ static int list_callback(struct nl_msg *msg, void *arg)
 		ubbd_err("no dev list\n");
 	}
 	nla_for_each_nested(list_attr, msg_attr[UBBD_ATTR_DEV_LIST], rem) {
-		ubbd_err("into for\n");
 		result->dev_ids[result->num_devs] = nla_get_s32(&list_attr[UBBD_LIST_DEV_ID]);
 		result->num_devs++;
-		ubbd_err("num_devs: %d\n", result->num_devs);
 
 	}
 	return ret;
@@ -597,7 +588,6 @@ int ubbd_nl_dev_list(struct ubbd_nl_list_result *result)
 		goto free_msg;
 
 	ret = nl_send_sync(socket, msg);
-	ubbd_err("ret of nl_send_sync: %d\n", ret);
 	ubbd_socket_close(socket);
 	if (ret < 0)
 		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_LIST, ret);
