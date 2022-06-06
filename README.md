@@ -97,10 +97,57 @@ will be synced up to secondary ceph cluster by rbd-mirroring.
 As we decoupling the storage related logic with block device, then we can upgrade storage
 driver out of kernel module. That means we can upgrade our driver with io inflight on the air.
 
-![upgrade online](doc/ubbd_upgrade_online.gif)
+![upgrad](doc/ubbd_upgrade.png)
 
+When you are going to upgrade ubbd, you can upgrade it as below: 
+
+(1) upgrade ubbdd, it is a deamon to do management for ubbd, there is no IO be handled in this process, 
+
+then you can upgrade it with IO inflight. 
+
+(2) restart backend one-by-one. we can restart each backend one time, that means it is smooth to restart 
+
+all ubbd devices with ubbdadm --command dev-restart command. 
+
+and you can choose the restart-mode in dev-restart command: 
+
+**dev mode:** 
+In this mode, ubbdd will stop backend and start a new backend for this device.
+
+**queue mode** 
+
+In this mode, ubbdd will start a new backend firstly, then stop queue in current backend, and start queue in new backend one-by-one
+until all queues in this device are working in new backend. At last, stop the old backend and new backend become to current backend.
+
+![dev-restart](doc/dev-restart.gif)
 
 # 8. Testing:
+![testing](doc/ubbd_tests.png)
+
+# 8.1 unittests
+
+![unittest](doc/unittest.gif)
+
+unittests in ubbd are supportted in userspace and kernelspace, that means all code in ubbd can be unittested.
+
+**userspace**
+userspace unittests is in cmocka test framework. The coverage of cmocka is in unittests/result/index.html
+
+![cmocka_coverage](doc/cmocka_coverage.PNG)
+
+**kernelspace**
+kernelspace unittests is in ktf test framework.
+
+
+
+# 8.2 function tests
+
 ubbd-tests is a test-suite runnnig via avocado which is a gread test framework.
 
 [https://github.com/ubbd/ubbd-tests](https://github.com/ubbd/ubbd-tests)
+
+![ubbd-tests](doc/ubbd_tests.gif)
+
+result like that:
+
+![test result](doc/ubbd_tests_result.PNG)
