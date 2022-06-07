@@ -445,16 +445,16 @@ void ubbd_queue_workfn(struct work_struct *work)
 	int ret = 0;
 	int status = atomic_read(&ubbd_q->status);
 
-	if (unlikely(status != UBBD_QUEUE_STATUS_RUNNING)) {
+	if (unlikely(status != UBBD_QUEUE_KSTATUS_RUNNING)) {
 		/*
 		 * If queue is removing, return directly. This would happen
 		 * in force unmapping.
 		 * */
-		if (status == UBBD_QUEUE_STATUS_REMOVING) {
+		if (status == UBBD_QUEUE_KSTATUS_REMOVING) {
 			ret = -EIO;
 			goto end_request;
-		} else if (status == UBBD_QUEUE_STATUS_STOPPING ||
-				status == UBBD_QUEUE_STATUS_STOPPED) {
+		} else if (status == UBBD_QUEUE_KSTATUS_STOPPING ||
+				status == UBBD_QUEUE_KSTATUS_STOPPED) {
 			ret = -EBUSY;
 			goto end_request;
 		}
@@ -503,15 +503,15 @@ blk_status_t ubbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 	struct ubbd_request *ubbd_req = blk_mq_rq_to_pdu(bd->rq);
 	int status = atomic_read(&ubbd_q->status);
 
-	if (unlikely(status != UBBD_QUEUE_STATUS_RUNNING)) {
+	if (unlikely(status != UBBD_QUEUE_KSTATUS_RUNNING)) {
 		/*
 		 * If queue is removing, return directly. This would happen
 		 * in force unmapping.
 		 * */
-		if (status == UBBD_QUEUE_STATUS_REMOVING) {
+		if (status == UBBD_QUEUE_KSTATUS_REMOVING) {
 			return BLK_STS_IOERR;
-		} else if (status == UBBD_QUEUE_STATUS_STOPPING ||
-				status == UBBD_QUEUE_STATUS_STOPPED) {
+		} else if (status == UBBD_QUEUE_KSTATUS_STOPPING ||
+				status == UBBD_QUEUE_KSTATUS_STOPPED) {
 			return BLK_STS_RESOURCE;
 		}
 	}
@@ -592,9 +592,9 @@ static struct ubbd_request *fetch_inflight_req(struct ubbd_queue *ubbd_q, u64 re
 	list_for_each_entry(req, &ubbd_q->inflight_reqs, inflight_reqs_node) {
 		if (req->req_tid == req_tid) {
 			list_del_init(&req->inflight_reqs_node);
-			if (unlikely(atomic_read(&ubbd_q->status) == UBBD_QUEUE_STATUS_STOPPING) &&
+			if (unlikely(atomic_read(&ubbd_q->status) == UBBD_QUEUE_KSTATUS_STOPPING) &&
 					list_empty(&ubbd_q->inflight_reqs)) {
-				atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_STOPPED);
+				atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_STOPPED);
 			}
 			found = true;
 			break;
@@ -646,7 +646,7 @@ void complete_work_fn(struct work_struct *work)
 	 * If queue is removing, return directly. This would happen
 	 * in force unmapping. inflight request would be ended by unmapping
 	 * */
-	if (atomic_read(&ubbd_q->status) == UBBD_QUEUE_STATUS_REMOVING) {
+	if (atomic_read(&ubbd_q->status) == UBBD_QUEUE_KSTATUS_REMOVING) {
 		ubbd_queue_debug(ubbd_q, "is removing.");
 		return;
 	}

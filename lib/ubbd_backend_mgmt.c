@@ -85,8 +85,15 @@ static void *mgmt_thread_fn(void* args)
 		}
 
 		ret = get_kernel_dev_status(ubbd_backend->dev_id);
-		if (ret == -NLE_OBJ_NOTFOUND || ret == UBBD_DEV_STATUS_REMOVING)
+		if (ret == -NLE_OBJ_NOTFOUND) {
+			ubbd_err("device %d is already removed\n", ubbd_backend->dev_id);
 			goto out;
+		}
+		
+		if (ret == UBBD_DEV_KSTATUS_REMOVING) {
+			ubbd_err("device %d is in removing\n", ubbd_backend->dev_id);
+			goto out;
+		}
 
 		if (mgmt_stop)
 			goto out;

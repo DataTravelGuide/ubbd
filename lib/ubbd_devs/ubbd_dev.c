@@ -419,7 +419,7 @@ bool disk_running(void *data)
 		goto out;
 	}
 
-	if (dev_status.status == UBBD_DEV_STATUS_RUNNING) {
+	if (dev_status.status == UBBD_DEV_KSTATUS_RUNNING) {
 		running = true;
 	}
 
@@ -853,7 +853,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	ubbd_dev->new_backend_id = dev_conf->new_backend_id;
 	free(dev_conf);
 
-	if (dev_status->status != UBBD_DEV_STATUS_RUNNING) {
+	if (dev_status->status != UBBD_DEV_KSTATUS_RUNNING) {
 		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
 		goto out;
 	}
@@ -907,7 +907,7 @@ int ubbd_dev_reopen_devs(void)
 		if (ret)
 			return ret;
 
-		if (dev_status.status != UBBD_DEV_STATUS_RUNNING)
+		if (dev_status.status != UBBD_DEV_KSTATUS_RUNNING)
 			ubbd_dev_remove(ubbd_dev, false, NULL);
 	}
 
@@ -973,7 +973,7 @@ static int wait_kernel_queue_stopped(int dev_id, int queue_id)
 		ret = kernel_queue_get_status(dev_id, queue_id);
 		if (ret < 0)
 			continue;
-		if (ret == UBBD_QUEUE_STATUS_STOPPED)
+		if (ret == UBBD_QUEUE_KSTATUS_STOPPED)
 			return 0;
 		usleep(100000);
 	}
@@ -1201,7 +1201,7 @@ static void *ubbd_dev_checker_fn(void *arg)
 	while (!dev_checker_stop) {
 		pthread_mutex_lock(&ubbd_dev_list_mutex);
 		list_for_each_entry(ubbd_dev, &ubbd_dev_list, dev_node) {
-			if (get_kernel_dev_status(ubbd_dev) == UBBD_DEV_STATUS_REMOVING)
+			if (get_kernel_dev_status(ubbd_dev) == UBBD_DEV_KSTATUS_REMOVING)
 				continue;
 
 			if (backend_stopped(ubbd_dev)) {

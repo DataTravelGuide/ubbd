@@ -19,7 +19,7 @@ static int ubbd_init_hctx(struct blk_mq_hw_ctx *hctx, void *driver_data,
 	ubbd_q = &ubbd_dev->queues[hctx_idx];
 	ubbd_q->mq_hctx = hctx;
 	hctx->driver_data = ubbd_q;
-	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_RUNNING);
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_RUNNING);
 
 	return 0;
 }
@@ -122,7 +122,7 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 	ubbd_q->req_tid = 0;
 	INIT_WORK(&ubbd_q->complete_work, complete_work_fn);
 	cpumask_clear(&ubbd_q->cpumask);
-	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_INIT);
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_INIT);
 
 	return 0;
 err:
@@ -179,7 +179,7 @@ static struct ubbd_device *__ubbd_dev_create(u32 data_pages)
 	if (!ubbd_dev)
 		goto err;
 
-	ubbd_dev->status = UBBD_DEV_STATUS_INIT;
+	ubbd_dev->status = UBBD_DEV_KSTATUS_INIT;
 
 	spin_lock_init(&ubbd_dev->lock);
 	mutex_init(&ubbd_dev->state_lock);
@@ -476,7 +476,7 @@ static void ubbd_add_disk_fn(struct work_struct *work)
 		ubbd_dev_err(ubbd_dev, "failed to add disk.");
 		return;
 	}
-	ubbd_dev->status = UBBD_DEV_STATUS_RUNNING;
+	ubbd_dev->status = UBBD_DEV_KSTATUS_RUNNING;
 }
 
 int ubbd_dev_add_disk(struct ubbd_device *ubbd_dev)
@@ -578,7 +578,7 @@ static struct ubbd_queue *find_running_queue(struct ubbd_device *ubbd_dev)
 	struct ubbd_queue *ubbd_q = NULL;
 
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
-		if (atomic_read(&ubbd_dev->queues[i].status) == UBBD_QUEUE_STATUS_RUNNING) {
+		if (atomic_read(&ubbd_dev->queues[i].status) == UBBD_QUEUE_KSTATUS_RUNNING) {
 			ubbd_q = &ubbd_dev->queues[i];
 			break;
 		}
@@ -607,12 +607,12 @@ int ubbd_dev_stop_queue(struct ubbd_device *ubbd_dev, int queue_id)
 			hctx->driver_data = running_q;
 	}
 
-	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_STOPPING);
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_STOPPING);
 	flush_workqueue(ubbd_dev->task_wq);
 
 	mutex_lock(&ubbd_q->req_lock);
 	if (list_empty(&ubbd_q->inflight_reqs)) {
-		atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_STOPPED);
+		atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_STOPPED);
 	}
 	mutex_unlock(&ubbd_q->req_lock);
 
@@ -632,7 +632,7 @@ int ubbd_dev_start_queue(struct ubbd_device *ubbd_dev, int queue_id)
 	}
 
 	ubbd_q = &ubbd_dev->queues[queue_id];
-	atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_RUNNING);
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_RUNNING);
 
 	if (ubbd_q->mq_hctx && ubbd_q->mq_hctx->driver_data != ubbd_q) {
 		ubbd_q->mq_hctx->driver_data = ubbd_q;
@@ -649,12 +649,12 @@ void ubbd_dev_remove_queues(struct ubbd_device *ubbd_dev, bool force)
 		struct ubbd_queue *ubbd_q;
 
 		ubbd_q = &ubbd_dev->queues[i];
-		atomic_set(&ubbd_q->status, UBBD_QUEUE_STATUS_REMOVING);
+		atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_REMOVING);
 		/*
 		 * flush the task_wq, to avoid race with complete_work.
 		 *
 		 * after the flush_workqueue, all other work will return
-		 * directly as UBBD_QUEUE_STATUS_REMOVING is already set.
+		 * directly as UBBD_QUEUE_KSTATUS_REMOVING is already set.
 		 * Then we can end the inflight requests safely.
 		 * */
 		flush_workqueue(ubbd_dev->task_wq);
@@ -670,8 +670,8 @@ void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force)
 
 	mutex_lock(&ubbd_dev->state_lock);
 	ubbd_dev_debug(ubbd_dev, "remove disk status is: %d, force: %d", ubbd_dev->status, force);
-	disk_is_running = (ubbd_dev->status == UBBD_DEV_STATUS_RUNNING);
-	ubbd_dev->status = UBBD_DEV_STATUS_REMOVING;
+	disk_is_running = (ubbd_dev->status == UBBD_DEV_KSTATUS_RUNNING);
+	ubbd_dev->status = UBBD_DEV_KSTATUS_REMOVING;
 	mutex_unlock(&ubbd_dev->state_lock);
 
 	ubbd_dev_remove_queues(ubbd_dev, force);

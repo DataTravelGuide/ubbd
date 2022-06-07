@@ -178,7 +178,7 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		goto err_remove_dev;
 
-	ubbd_dev->status = UBBD_DEV_STATUS_PREPARED;
+	ubbd_dev->status = UBBD_DEV_KSTATUS_PREPARED;
 
 	return 0;
 
@@ -231,9 +231,9 @@ static int handle_cmd_add_disk(struct sk_buff *skb, struct genl_info *info)
 		ret = -ENOENT;
 		goto out;
 	}
-	if (ubbd_dev->status != UBBD_DEV_STATUS_PREPARED) {
+	if (ubbd_dev->status != UBBD_DEV_KSTATUS_PREPARED) {
 		ret = -EINVAL;
-		ubbd_dev_err(ubbd_dev, "add_disk expected status is UBBD_DEV_STATUS_PREPARED, \
+		ubbd_dev_err(ubbd_dev, "add_disk expected status is UBBD_DEV_KSTATUS_PREPARED, \
 				but current status is: %d.", ubbd_dev->status);
 		goto out;
 	}
@@ -292,8 +292,8 @@ static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
-	if (ubbd_dev->status != UBBD_DEV_STATUS_REMOVING &&
-			ubbd_dev->status != UBBD_DEV_STATUS_PREPARED) {
+	if (ubbd_dev->status != UBBD_DEV_KSTATUS_REMOVING &&
+			ubbd_dev->status != UBBD_DEV_KSTATUS_PREPARED) {
 		ubbd_dev_err(ubbd_dev, "remove dev is not allowed in current status: %d.",
 				ubbd_dev->status);
 		ret = -EINVAL;
@@ -594,7 +594,7 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
-	if (ubbd_dev->status != UBBD_DEV_STATUS_RUNNING) {
+	if (ubbd_dev->status != UBBD_DEV_KSTATUS_RUNNING) {
 		ubbd_dev_err(ubbd_dev, "config cmd expected ubbd dev status is running, \
 				but current status is: %d.", ubbd_dev->status);
 		ret = -EINVAL;
