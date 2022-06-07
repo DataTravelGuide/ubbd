@@ -178,12 +178,12 @@ static int handle_cmd_add_dev(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		goto err_remove_dev;
 
-	ubbd_dev->status = UBBD_DEV_KSTATUS_PREPARED;
-
 	return 0;
 
 err_remove_dev:
-	ubbd_dev_remove_dev(ubbd_dev);
+	if (ubbd_dev_remove_dev(ubbd_dev)) {
+		ubbd_err("failed to remove dev to cleanup device.");
+	}
 out:
 	ubbd_err("handle_cmd_add_dev err: %d", ret);
 	return ret;
@@ -200,6 +200,7 @@ static struct ubbd_device *__find_ubbd_dev(int dev_id)
 	list_for_each_entry(ubbd_dev_tmp, &ubbd_dev_list, dev_node) {
 		if (ubbd_dev_tmp->dev_id == dev_id) {
 			ubbd_dev = ubbd_dev_tmp;
+			ubbd_dev_get(ubbd_dev);
 			break;
 		}
 	}
@@ -231,14 +232,9 @@ static int handle_cmd_add_disk(struct sk_buff *skb, struct genl_info *info)
 		ret = -ENOENT;
 		goto out;
 	}
-	if (ubbd_dev->status != UBBD_DEV_KSTATUS_PREPARED) {
-		ret = -EINVAL;
-		ubbd_dev_err(ubbd_dev, "add_disk expected status is UBBD_DEV_KSTATUS_PREPARED, \
-				but current status is: %d.", ubbd_dev->status);
-		goto out;
-	}
 
 	ret = ubbd_dev_add_disk(ubbd_dev);
+	ubbd_dev_put(ubbd_dev);
 out:
 	return ret;
 }
@@ -269,12 +265,14 @@ static int handle_cmd_remove_disk(struct sk_buff *skb, struct genl_info *info)
 	if (!force && ubbd_dev->open_count) {
 		ret = -EBUSY;
 		spin_unlock(&ubbd_dev->lock);
-		goto out;
+		goto err_put;
 	}
 	spin_unlock(&ubbd_dev->lock);
 
 	ubbd_dev_remove_disk(ubbd_dev, force);
 
+err_put:
+	ubbd_dev_put(ubbd_dev);
 out:
 	return ret;
 }
@@ -292,15 +290,8 @@ static int handle_cmd_remove_dev(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
-	if (ubbd_dev->status != UBBD_DEV_KSTATUS_REMOVING &&
-			ubbd_dev->status != UBBD_DEV_KSTATUS_PREPARED) {
-		ubbd_dev_err(ubbd_dev, "remove dev is not allowed in current status: %d.",
-				ubbd_dev->status);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	ubbd_dev_remove_dev(ubbd_dev);
+	ret = ubbd_dev_remove_dev(ubbd_dev);
+	ubbd_dev_put(ubbd_dev);
 out:
 	return ret;
 }
@@ -418,14 +409,14 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 	if (ubbd_mgmt_need_fault()) {
 		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOMEM;
-		goto err;
+		goto err_put;
 	}
 
 	reply_skb = genlmsg_new(msg_size, GFP_KERNEL);
 	if (!reply_skb) {
 		mutex_unlock(&ubbd_dev_list_mutex);
 		ret = -ENOMEM;
-		goto err;
+		goto err_put;
 	}
 
 	if (ubbd_mgmt_need_fault()) {
@@ -461,13 +452,17 @@ static int handle_cmd_status(struct sk_buff *skb, struct genl_info *info)
 	genlmsg_end(reply_skb, msg_head);
 	ret = genlmsg_reply(reply_skb, info);
 	if (ret)
-		goto err;
+		goto err_put;
+	ubbd_dev_put(ubbd_dev);
+
 	return ret;
 
 err_cancel:
 	genlmsg_cancel(reply_skb, msg_head);
 err_free:
 	nlmsg_free(reply_skb);
+err_put:
+	ubbd_dev_put(ubbd_dev);
 err:
 	ubbd_err("ret of handle_cmd_status: %d", ret);
 	return ret;
@@ -577,8 +572,8 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 	struct ubbd_device *ubbd_dev;
 	struct nlattr *config[UBBD_DEV_OPTS_MAX + 1];
 	int dev_id;
-	u32 config_dp_reserve;
 	int ret = 0;
+	struct ubbd_dev_config_opts config_opts = { 0 };
 
 	if (!info->attrs[UBBD_ATTR_DEV_ID] ||
 			!info->attrs[UBBD_ATTR_DEV_OPTS]) {
@@ -594,32 +589,29 @@ static int handle_cmd_config(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
-	if (ubbd_dev->status != UBBD_DEV_KSTATUS_RUNNING) {
-		ubbd_dev_err(ubbd_dev, "config cmd expected ubbd dev status is running, \
-				but current status is: %d.", ubbd_dev->status);
-		ret = -EINVAL;
-		goto out;
-	}
-
 	ret = ubbd_nla_parse_nested(config, UBBD_DEV_OPTS_MAX,
 			info->attrs[UBBD_ATTR_DEV_OPTS],
 			ubbd_dev_opts_attr_policy,
 			info->extack);
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "failed to parse config");
-		goto out;
+		goto out_put;
 	}
 
 	if (config[UBBD_DEV_OPTS_DP_RESERVE]) {
-		config_dp_reserve = nla_get_u32(config[UBBD_DEV_OPTS_DP_RESERVE]);
-		if (config_dp_reserve > 100) {
+		config_opts.flags |= UBBD_DEV_CONFIG_FLAG_DP_RESERVE;
+		config_opts.config_dp_reserve = nla_get_u32(config[UBBD_DEV_OPTS_DP_RESERVE]);
+		if (config_opts.config_dp_reserve > 100) {
 			ret = -EINVAL;
-			ubbd_dev_err(ubbd_dev, "dp_reserve is not valide: %u", config_dp_reserve);
-			goto out;
+			ubbd_dev_err(ubbd_dev, "dp_reserve is not valide: %u", config_opts.config_dp_reserve);
+			goto out_put;
 		}
-		ubbd_dev->queues[0].data_pages_reserve = config_dp_reserve * ubbd_dev->queues[0].data_pages / 100;
 	}
 
+	ret = ubbd_dev_config(ubbd_dev, &config_opts);
+
+out_put:
+	ubbd_dev_put(ubbd_dev);
 out:
 	return ret;
 }
@@ -656,8 +648,10 @@ static int handle_cmd_queue_op(struct sk_buff *skb, struct genl_info *info)
 	} else {
 		ubbd_dev_err(ubbd_dev, "undefined op for queue_op: %llx", flags);
 		ret = -EINVAL;
-		goto out;
+		goto out_put;
 	}
+out_put:
+	ubbd_dev_put(ubbd_dev);
 out:
 	return ret;
 }

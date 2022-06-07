@@ -25,10 +25,10 @@ static void ubbd_vma_close(struct vm_area_struct *vma)
 	struct ubbd_device *ubbd_dev = ubbd_q->ubbd_dev;
 
 	if (vma->vm_flags & VM_WRITE) {
-		spin_lock(&ubbd_q->state_lock);
+		mutex_lock(&ubbd_q->state_lock);
 		clear_bit(UBBD_QUEUE_FLAGS_HAS_BACKEND, &ubbd_q->flags);
 		ubbd_q->backend_pid = 0;
-		spin_unlock(&ubbd_q->state_lock);
+		mutex_unlock(&ubbd_q->state_lock);
 	}
 
 	ubbd_queue_debug(ubbd_q, "vma_close\n");
@@ -113,14 +113,14 @@ static int ubbd_uio_mmap(struct uio_info *info, struct vm_area_struct *vma)
 	if (vma_pages(vma) != ubbd_q->mmap_pages)
 		return -EINVAL;
 
-	spin_lock(&ubbd_q->state_lock);
+	mutex_lock(&ubbd_q->state_lock);
 	if (test_bit(UBBD_QUEUE_FLAGS_HAS_BACKEND, &ubbd_q->flags)) {
-		spin_unlock(&ubbd_q->state_lock);
+		mutex_unlock(&ubbd_q->state_lock);
 		return -EBUSY;
 	}
 	set_bit(UBBD_QUEUE_FLAGS_HAS_BACKEND, &ubbd_q->flags);
 	ubbd_q->backend_pid = current->pid;
-	spin_unlock(&ubbd_q->state_lock);
+	mutex_unlock(&ubbd_q->state_lock);
 
 	ubbd_vma_open(vma);
 	ubbd_queue_debug(ubbd_q, "uio mmap by process: %d\n", current->pid);

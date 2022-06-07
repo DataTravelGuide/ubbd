@@ -10,6 +10,29 @@ struct workqueue_struct *ubbd_wq;
 struct device *ubbd_uio_root_device;
 DEFINE_IDA(ubbd_dev_id_ida);
 
+void ubbd_dev_destroy(struct ubbd_device *ubbd_dev);
+void ubbd_dev_get(struct ubbd_device *ubbd_dev)
+{
+	kref_get(&ubbd_dev->kref);
+}
+
+int ubbd_dev_get_unless_zero(struct ubbd_device *ubbd_dev)
+{
+	return kref_get_unless_zero(&ubbd_dev->kref);
+}
+
+static void __dev_release(struct kref *kref)
+{
+	struct ubbd_device *ubbd_dev = container_of(kref, struct ubbd_device, kref);
+
+	ubbd_dev_destroy(ubbd_dev);
+}
+
+void ubbd_dev_put(struct ubbd_device *ubbd_dev)
+{
+	kref_put(&ubbd_dev->kref, &__dev_release);
+}
+
 static int ubbd_init_hctx(struct blk_mq_hw_ctx *hctx, void *driver_data,
 			unsigned int hctx_idx)
 {
@@ -19,7 +42,6 @@ static int ubbd_init_hctx(struct blk_mq_hw_ctx *hctx, void *driver_data,
 	ubbd_q = &ubbd_dev->queues[hctx_idx];
 	ubbd_q->mq_hctx = hctx;
 	hctx->driver_data = ubbd_q;
-	atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_RUNNING);
 
 	return 0;
 }
@@ -116,13 +138,13 @@ static int ubbd_queue_create(struct ubbd_queue *ubbd_q, u32 data_pages)
 	}
 
 	mutex_init(&ubbd_q->req_lock);
-	spin_lock_init(&ubbd_q->state_lock);
+	mutex_init(&ubbd_q->state_lock);
 	INIT_LIST_HEAD(&ubbd_q->inflight_reqs);
 	spin_lock_init(&ubbd_q->inflight_reqs_lock);
 	ubbd_q->req_tid = 0;
 	INIT_WORK(&ubbd_q->complete_work, complete_work_fn);
 	cpumask_clear(&ubbd_q->cpumask);
-	atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_INIT);
+	atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_RUNNING);
 
 	return 0;
 err:
@@ -471,20 +493,42 @@ static void ubbd_add_disk_fn(struct work_struct *work)
 		container_of(work, struct ubbd_device, work);
 	int ret;
 
+	mutex_lock(&ubbd_dev->state_lock);
+	if (ubbd_dev->status != UBBD_DEV_KSTATUS_PREPARED) {
+		ret = -EINVAL;
+		ubbd_dev_err(ubbd_dev, "add_disk_fn expected status is UBBD_DEV_KSTATUS_PREPARED, \
+				but current status is: %d.", ubbd_dev->status);
+		goto out;
+	}
+
 	ret = ubbd_add_disk(ubbd_dev);
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "failed to add disk.");
-		return;
+		goto out;
 	}
 	ubbd_dev->status = UBBD_DEV_KSTATUS_RUNNING;
+out:
+	mutex_unlock(&ubbd_dev->state_lock);
+	ubbd_dev_put(ubbd_dev);
 }
 
 int ubbd_dev_add_disk(struct ubbd_device *ubbd_dev)
 {
+	int ret = 0;
+
+	if (ubbd_dev->status != UBBD_DEV_KSTATUS_PREPARED) {
+		ret = -EINVAL;
+		ubbd_dev_err(ubbd_dev, "add_disk expected status is UBBD_DEV_KSTATUS_PREPARED, \
+				but current status is: %d.", ubbd_dev->status);
+		goto out;
+	}
+
+	ubbd_dev_get(ubbd_dev);
 	INIT_WORK(&ubbd_dev->work, ubbd_add_disk_fn);
 	queue_work(ubbd_wq, &ubbd_dev->work);
 
-	return 0;
+out:
+	return ret;
 }
 
 int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
@@ -548,6 +592,8 @@ struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *add_opts)
 		goto err_dev_put;
 	}
 
+	ubbd_dev->status = UBBD_DEV_KSTATUS_PREPARED;
+
 	mutex_lock(&ubbd_dev_list_mutex);
 	ubbd_total_devs++;
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
@@ -561,15 +607,61 @@ out:
 	return ERR_PTR(ret);
 }
 
-void ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev)
+int ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev)
 {
+	int ret = 0;
+
+	mutex_lock(&ubbd_dev->state_lock);
+	if (ubbd_dev->status != UBBD_DEV_KSTATUS_REMOVING &&
+			ubbd_dev->status != UBBD_DEV_KSTATUS_PREPARED) {
+		ubbd_dev_err(ubbd_dev, "remove dev is not allowed in current status: %d.",
+				ubbd_dev->status);
+		ret = -EINVAL;
+		mutex_unlock(&ubbd_dev->state_lock);
+		goto out;
+	}
+
 	mutex_lock(&ubbd_dev_list_mutex);
 	ubbd_total_devs--;
 	list_del_init(&ubbd_dev->dev_node);
 	mutex_unlock(&ubbd_dev_list_mutex);
 
 	ubbd_free_disk(ubbd_dev);
+	mutex_unlock(&ubbd_dev->state_lock);
 	ubbd_dev_put(ubbd_dev);
+out:
+	return ret;
+}
+
+int ubbd_dev_config(struct ubbd_device *ubbd_dev, struct ubbd_dev_config_opts *opts)
+{
+	int ret = 0;
+
+	mutex_lock(&ubbd_dev->state_lock);
+	if (ubbd_dev->status != UBBD_DEV_KSTATUS_RUNNING) {
+		ubbd_dev_err(ubbd_dev, "config cmd expected ubbd dev status is running, \
+				but current status is: %d.", ubbd_dev->status);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (opts->flags & UBBD_DEV_CONFIG_FLAG_DP_RESERVE) {
+		int i;
+
+		if (opts->config_dp_reserve > 100) {
+			ret = -EINVAL;
+			ubbd_dev_err(ubbd_dev, "config_dp_reserve is not valide: %u", opts->config_dp_reserve);
+			goto out;
+		}
+
+		for (i = 0; i < ubbd_dev->num_queues; i++) {
+			ubbd_dev->queues[i].data_pages_reserve = opts->config_dp_reserve * ubbd_dev->queues[i].data_pages / 100;
+		}
+	}
+
+out:
+	mutex_unlock(&ubbd_dev->state_lock);
+	return ret;
 }
 
 static struct ubbd_queue *find_running_queue(struct ubbd_device *ubbd_dev)
@@ -587,18 +679,21 @@ static struct ubbd_queue *find_running_queue(struct ubbd_device *ubbd_dev)
 	return ubbd_q;
 }
 
-int ubbd_dev_stop_queue(struct ubbd_device *ubbd_dev, int queue_id)
+static int queue_stop(struct ubbd_device *ubbd_dev, struct ubbd_queue *ubbd_q)
 {
-	int ret = 0;
-	struct ubbd_queue *ubbd_q, *running_q;
 	struct blk_mq_hw_ctx *hctx;
+	struct ubbd_queue *running_q;
+	int status;
+	int ret = 0;
 
-	if (queue_id >= ubbd_dev->num_queues) {
-		ubbd_dev_err(ubbd_dev, "invalid queue_id: %d.", queue_id);
+	mutex_lock(&ubbd_q->state_lock);
+	status = atomic_read(&ubbd_q->status);
+	if (status != UBBD_QUEUE_KSTATUS_RUNNING) {
+		ubbd_queue_err(ubbd_q, "stop queue expected status running, but \
+				current status is %d.", status);
 		ret = -EINVAL;
 		goto out;
 	}
-	ubbd_q = &ubbd_dev->queues[queue_id];
 
 	hctx = ubbd_q->mq_hctx;	
 	if (hctx) {
@@ -617,13 +712,22 @@ int ubbd_dev_stop_queue(struct ubbd_device *ubbd_dev, int queue_id)
 	mutex_unlock(&ubbd_q->req_lock);
 
 out:
+	mutex_unlock(&ubbd_q->state_lock);
 	return ret;
 }
 
-int ubbd_dev_start_queue(struct ubbd_device *ubbd_dev, int queue_id)
+int ubbd_dev_stop_queue(struct ubbd_device *ubbd_dev, int queue_id)
 {
 	int ret = 0;
 	struct ubbd_queue *ubbd_q;
+
+	mutex_lock(&ubbd_dev->state_lock);
+	if (ubbd_dev->status != UBBD_DEV_KSTATUS_RUNNING) {
+		ubbd_dev_err(ubbd_dev, "stop_queue cmd expected ubbd dev status is running, \
+				but current status is: %d.", ubbd_dev->status);
+		ret = -EINVAL;
+		goto out;
+	}
 
 	if (queue_id >= ubbd_dev->num_queues) {
 		ubbd_dev_err(ubbd_dev, "invalid queue_id: %d.", queue_id);
@@ -632,12 +736,60 @@ int ubbd_dev_start_queue(struct ubbd_device *ubbd_dev, int queue_id)
 	}
 
 	ubbd_q = &ubbd_dev->queues[queue_id];
+
+	ret = queue_stop(ubbd_dev, ubbd_q);
+out:
+	mutex_unlock(&ubbd_dev->state_lock);
+	return ret;
+}
+
+static int queue_start(struct ubbd_queue *ubbd_q)
+{
+	int ret= 0;
+	int status;
+
+	mutex_lock(&ubbd_q->state_lock);
+	status = atomic_read(&ubbd_q->status);
+	if (status == UBBD_QUEUE_KSTATUS_REMOVING) {
+		ubbd_queue_err(ubbd_q, "cant start queue in removing status.");
+		ret = -EINVAL;
+		goto out;
+	}
+
 	atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_RUNNING);
 
 	if (ubbd_q->mq_hctx && ubbd_q->mq_hctx->driver_data != ubbd_q) {
 		ubbd_q->mq_hctx->driver_data = ubbd_q;
 	}
 out:
+	mutex_unlock(&ubbd_q->state_lock);
+	return ret;
+}
+
+int ubbd_dev_start_queue(struct ubbd_device *ubbd_dev, int queue_id)
+{
+	int ret = 0;
+	struct ubbd_queue *ubbd_q;
+
+	mutex_lock(&ubbd_dev->state_lock);
+	if (ubbd_dev->status != UBBD_DEV_KSTATUS_RUNNING) {
+		ubbd_dev_err(ubbd_dev, "start_queue cmd expected ubbd dev status is running, \
+				but current status is: %d.", ubbd_dev->status);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (queue_id >= ubbd_dev->num_queues) {
+		ubbd_dev_err(ubbd_dev, "invalid queue_id: %d.", queue_id);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	ubbd_q = &ubbd_dev->queues[queue_id];
+
+	ret = queue_start(ubbd_q);
+out:
+	mutex_unlock(&ubbd_dev->state_lock);
 	return ret;
 }
 
@@ -649,7 +801,9 @@ void ubbd_dev_remove_queues(struct ubbd_device *ubbd_dev, bool force)
 		struct ubbd_queue *ubbd_q;
 
 		ubbd_q = &ubbd_dev->queues[i];
+		mutex_lock(&ubbd_q->state_lock);
 		atomic_set(&ubbd_q->status, UBBD_QUEUE_KSTATUS_REMOVING);
+		mutex_unlock(&ubbd_q->state_lock);
 		/*
 		 * flush the task_wq, to avoid race with complete_work.
 		 *
@@ -679,26 +833,4 @@ void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force)
 	if (disk_is_running) {
 		del_gendisk(ubbd_dev->disk);
 	}
-}
-
-void ubbd_dev_get(struct ubbd_device *ubbd_dev)
-{
-	kref_get(&ubbd_dev->kref);
-}
-
-int ubbd_dev_get_unless_zero(struct ubbd_device *ubbd_dev)
-{
-	return kref_get_unless_zero(&ubbd_dev->kref);
-}
-
-static void __dev_release(struct kref *kref)
-{
-	struct ubbd_device *ubbd_dev = container_of(kref, struct ubbd_device, kref);
-
-	ubbd_dev_destroy(ubbd_dev);
-}
-
-void ubbd_dev_put(struct ubbd_device *ubbd_dev)
-{
-	kref_put(&ubbd_dev->kref, &__dev_release);
 }
