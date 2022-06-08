@@ -459,7 +459,7 @@ unlock:
 	return ret;
 }
 
-int ubbd_setup_log(char *log_dir)
+int ubbd_setup_log(char *log_dir, char *filename)
 {
 	struct log_buf *logbuf;
 	int ret;
@@ -483,7 +483,7 @@ int ubbd_setup_log(char *log_dir)
 	pthread_mutex_init(&logbuf->file_out_lock, NULL);
 
 	ret = create_file_output(logbuf, UBBD_LOG_DEBUG,
-				 UBBD_LOG_FILENAME);
+				 filename);
 	if (ret < 0)
 		ubbd_err("create file output error \n");
 

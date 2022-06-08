@@ -35,7 +35,7 @@ int main()
 {
 	int ret;
 
-	ret = ubbd_setup_log("/var/log/");
+	ret = ubbd_setup_log("/var/log/ubbd/", "ubbdd.log");
 	if (ret)
 		goto out;
 

@@ -23,7 +23,7 @@ struct ubbd_device;
 
 void ubbd_set_log_level(int level);
 unsigned int ubbd_get_log_level(void);
-int ubbd_setup_log(char *log_dir);
+int ubbd_setup_log(char *log_dir, char *filename);
 void ubbd_destroy_log(void);
 int ubbd_make_absolute_logfile(char *path, const char *filename);
 

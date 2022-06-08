@@ -70,6 +70,7 @@ int main(int argc, char **argv)
 	int b_id = -1;
 	int start_queues = 1;
 	struct ubbd_backend_conf *ubbd_backend_conf;
+	char *log_filename;
 	pid_t pid;
 
 	optopt = 0;
@@ -109,7 +110,13 @@ int main(int argc, char **argv)
 		goto out;
 	}
 
-	ret = ubbd_setup_log("/var/log/");
+	if (asprintf(&log_filename, "backend%d.log", devid) == -1) {
+		ubbd_err("cont init backend log filename\n");
+		goto out;
+	}
+
+	ret = ubbd_setup_log("/var/log/ubbd/", log_filename);
+	free(log_filename);
 	if (ret)
 		goto out;
 
