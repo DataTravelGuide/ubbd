@@ -16,7 +16,7 @@ static int __init ubbd_init(void)
 	ubbd_wq = alloc_workqueue(UBBD_DRV_NAME, WQ_MEM_RECLAIM, 0);
 	if (!ubbd_wq) {
 		rc = -ENOMEM;
-		goto err_out_slab;
+		goto err;
 	}
 
 	ubbd_major = register_blkdev(0, UBBD_DRV_NAME);
@@ -44,7 +44,8 @@ err_out_genl:
 err_out_blkdev:
 	unregister_blkdev(ubbd_major, UBBD_DRV_NAME);
 err_out_wq:
-err_out_slab:
+	destroy_workqueue(ubbd_wq);
+err:
 	return rc;
 }
 
