@@ -751,6 +751,21 @@ static int get_backend_status(struct ubbd_device *ubbd_dev, int backend_id)
 	return backend_rsp.u.get_status.status;
 }
 
+static int wait_for_backend_ready(struct ubbd_device *ubbd_dev, int backend_id)
+{
+	int status;
+	int i;
+
+	for (i = 0; i < 1000; i++) {
+		status = get_backend_status(ubbd_dev, backend_id);
+		if (status > 0)
+			return 0;
+		usleep(100000);
+	}
+
+	return -1;
+}
+
 static int start_kernel_queue(struct ubbd_device *ubbd_dev, int queue_id)
 {
 	int ret;
@@ -815,10 +830,16 @@ static int dev_reset(struct ubbd_device *ubbd_dev)
 		return ret;
 	}
 
+	ret = wait_for_backend_ready(ubbd_dev, ubbd_dev->current_backend_id);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "failed to wait for backend ready in reset.\n");
+		return ret;
+	}
+
 	for (i = 0; i < ubbd_dev->num_queues; i++) {
 		ret = start_kernel_queue(ubbd_dev, i);
 		if (ret) {
-			ubbd_err("failed to start backend queue: %d\n", ret);
+			ubbd_err("failed to start kernel queue: %d\n", ret);
 			return ret;
 		}
 	}
@@ -1106,6 +1127,16 @@ again:
 		}
 
 		ret = backend_start(ubbd_dev, ubbd_dev->new_backend_id, false);
+		if (ret) {
+			ubbd_err("failed to start new backend in restart.\n");
+			goto err;
+		}
+
+		ret = wait_for_backend_ready(ubbd_dev, ubbd_dev->new_backend_id);
+		if (ret) {
+			ubbd_err("failed to wait for new backend ready.\n");
+			goto err;
+		}
 
 		for (i = 0; i < ubbd_dev->num_queues; i++) {
 			ret = stop_kernel_queue(ubbd_dev, i);
