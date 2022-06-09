@@ -44,7 +44,7 @@ int ubbd_backend_request(int *fd, struct ubbd_backend_mgmt_request *req)
 	}
 
 	ret = ubbd_request(fd, backend_mgmt_ns, req, sizeof(*req));
-	ubbd_info("ret of backend_request to backend: %s is %d\n", backend_mgmt_ns, ret);
+	ubbd_info("ret of backend_request %d to backend: %s is %d\n", req->cmd, backend_mgmt_ns, ret);
 
 	free(backend_mgmt_ns);
 
