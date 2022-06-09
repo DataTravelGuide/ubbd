@@ -13,6 +13,8 @@ static void catch_signal(int signo)
 	case SIGINT:
 		ubbdd_mgmt_stop_thread();
 		break;
+	case SIGPIPE:
+		break;
 	default:
 		break;
 	}
@@ -29,6 +31,7 @@ static void setup_signal_handler(void)
 	sa_new.sa_flags = 0;
 	sigaction(SIGTERM, &sa_new, &sa_old );
 	sigaction(SIGINT, &sa_new, &sa_old );
+	sigaction(SIGPIPE, &sa_new, &sa_old );
 }
 
 int main()
