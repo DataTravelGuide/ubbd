@@ -96,8 +96,7 @@ int ubbd_response(int fd, void *rsp, size_t len,
 		pfd.events = POLLIN;
 		err = poll(&pfd, 1, timeout);
 		if (!err) {
-			ubbd_err("poll error %d\n", err);
-			return -ECONNABORTED;
+			continue;
 		} else if (err < 0) {
 			if (errno == EINTR)
 				continue;
