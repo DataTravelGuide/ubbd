@@ -132,7 +132,7 @@ poll:
 		}
 
 		if (ubbd_q->status == UBBD_QUEUE_USTATUS_STOPPING) {
-			ubbd_err("exit cmd_process\n");
+			ubbd_err("queue%d exit cmd_process\n", ubbd_q->index);
 			goto out;
 		}
 
