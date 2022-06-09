@@ -96,19 +96,20 @@ int ubbd_response(int fd, void *rsp, size_t len,
 		pfd.events = POLLIN;
 		err = poll(&pfd, 1, timeout);
 		if (!err) {
-			return -1;
+			ubbd_err("poll error %d\n", err);
+			return -ECONNABORTED;
 		} else if (err < 0) {
 			if (errno == EINTR)
 				continue;
 			ubbd_err("got poll error (%d/%d), daemon died?",
 				  err, errno);
-			return -1;
+			return -ECONNABORTED;
 		} else if (pfd.revents & POLLIN) {
 			err = recv(fd, rsp, len, MSG_WAITALL);
 			if (err <= 0) {
 				ubbd_err("read error (%d/%d), daemon died?",
 					  err, errno);
-				return err;
+				return -ECONNABORTED;
 			}
 			len -= err;
 		}
@@ -123,14 +124,16 @@ int ubbd_request(int *fd, char *sock_name, void *req, size_t len)
 	int err;
 
 	err = ubbd_ipc_connect(fd, sock_name);
-	if (err)
-		return err;
+	if (err) {
+		ubbd_err("failed to connect to %s\n", sock_name);
+		return -ECONNABORTED;
+	}
 
 	if ((err = write(*fd, req, len)) != len) {
 		ubbd_err("got write error (%d/%d), daemon died?",
 			err, errno);
 		close(*fd);
-		return -1;
+		return -ECONNABORTED;
 	}
 
 	return 0;
