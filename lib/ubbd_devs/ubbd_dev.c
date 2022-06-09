@@ -365,9 +365,7 @@ int dev_stop(struct ubbd_device *ubbd_dev)
 		return 0;
 	}
 
-	ret = backend_stop(ubbd_dev, ubbd_dev->current_backend_id);
-	if (ret)
-		return ret;
+	backend_stop(ubbd_dev, ubbd_dev->current_backend_id);
 
 	ret = wait_for_backend_stopped(ubbd_dev);
 	if (ret) {
