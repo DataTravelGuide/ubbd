@@ -22,7 +22,7 @@ static int mgmt_map_finish(struct context *ctx, int ret)
 	int fd = rsp_data->fd;
 	struct ubbdd_mgmt_rsp mgmt_rsp = {0};
 
-	ubbd_info("write rsp to fd: %d, ret: %d, id: %d\n", fd, ret, rsp_data->ubbd_dev->dev_id);
+	ubbd_dev_info(rsp_data->ubbd_dev, "map finish write rsp to fd: %d, ret: %d\n", fd, ret);
 	mgmt_rsp.ret = ret;
 	if (!ret) {
 		sprintf(mgmt_rsp.u.add.path, "/dev/ubbd%d", 
@@ -41,7 +41,7 @@ static int mgmt_generic_finish(struct context *ctx, int ret)
 	int fd = rsp_data->fd;
 	struct ubbdd_mgmt_rsp mgmt_rsp = {0};
 
-	ubbd_info("write rsp to fd: %d, ret: %d\n", fd, ret);
+	ubbd_dev_info(rsp_data->ubbd_dev, "write rsp to fd: %d, ret: %d\n", fd, ret);
 	mgmt_rsp.ret = ret;
 	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
 	close(fd);
@@ -122,7 +122,7 @@ static void *mgmt_thread_fn(void* args)
 			struct context *ctx;
 
 			ubbd_ipc_read_data(read_fd, &mgmt_req, sizeof(mgmt_req));
-			ubbd_info("receive mgmt request: %d.\n", mgmt_req.cmd);
+			ubbd_info("receive mgmt request: %d. fd: %d\n", mgmt_req.cmd, read_fd);
 
 			switch (mgmt_req.cmd) {
 			case UBBDD_MGMT_CMD_MAP:
@@ -210,7 +210,6 @@ static void *mgmt_thread_fn(void* args)
 					struct ubbd_backend_mgmt_rsp backend_rsp;
 					struct ubbd_backend_mgmt_request backend_request = { 0 };
 					int fd;
-					int ret;
 
 					backend_request.dev_id = ubbd_dev->dev_id;
 					backend_request.backend_id = ubbd_dev->current_backend_id;
@@ -241,19 +240,22 @@ static void *mgmt_thread_fn(void* args)
 					struct ubbd_backend_mgmt_rsp backend_rsp;
 					struct ubbd_backend_mgmt_request backend_request = { 0 };
 					int fd;
-					int ret;
 
 					backend_request.dev_id = ubbd_dev->dev_id;
 					backend_request.backend_id = ubbd_dev->current_backend_id;
 					backend_request.cmd = UBBD_BACKEND_MGMT_CMD_REQ_STATS_RESET;
 
 					ret = ubbd_backend_request(&fd, &backend_request);
-					if (ret)
+					if (ret) {
+						ubbd_err("failed to send req-stats to backend: %d:%d\n", ubbd_dev->dev_id, ubbd_dev->current_backend_id);
 						break;
+					}
 
 					ret = ubbd_backend_response(fd, &backend_rsp, 5);
-					if (ret)
+					if (ret) {
+						ubbd_err("failed to wait response req-stats from backend: %d:%d\n", ubbd_dev->dev_id, ubbd_dev->current_backend_id);
 						break;
+					}
 				}
 
 				ret = 0;
@@ -272,6 +274,7 @@ static void *mgmt_thread_fn(void* args)
 				ret = -EINVAL;
 				break;
 			}
+			ubbd_err("write ret: %d to fd: %d\n", ret, read_fd);
 			mgmt_rsp.ret = ret;
 			write(read_fd, &mgmt_rsp, sizeof(mgmt_rsp));
 			close(read_fd);

@@ -26,7 +26,11 @@ static int backend_mgmt_ipc_listen(int dev_id, int backend_id)
 int ubbd_backend_response(int fd, struct ubbd_backend_mgmt_rsp *rsp,
 		    int timeout)
 {
-	return ubbd_response(fd, rsp, sizeof(*rsp), timeout);
+	int ret;
+
+	ret = ubbd_response(fd, rsp, sizeof(*rsp), timeout);
+	ubbd_info("ret of backend response: %d\n", ret);
+	return ret;
 }
 
 int ubbd_backend_request(int *fd, struct ubbd_backend_mgmt_request *req)
@@ -40,6 +44,7 @@ int ubbd_backend_request(int *fd, struct ubbd_backend_mgmt_request *req)
 	}
 
 	ret = ubbd_request(fd, backend_mgmt_ns, req, sizeof(*req));
+	ubbd_info("ret of backend_request to backend: %s is %d\n", backend_mgmt_ns, ret);
 
 	free(backend_mgmt_ns);
 
@@ -158,6 +163,7 @@ static void *mgmt_thread_fn(void* args)
 				ret = -EINVAL;
 				break;
 			}
+			ubbd_info("backend_mgmt: write ret: %d to %d\n", ret, read_fd);
 			mgmt_rsp.ret = ret;
 			write(read_fd, &mgmt_rsp, sizeof(mgmt_rsp));
 			close(read_fd);
