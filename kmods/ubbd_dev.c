@@ -688,6 +688,10 @@ static int queue_stop(struct ubbd_device *ubbd_dev, struct ubbd_queue *ubbd_q)
 
 	mutex_lock(&ubbd_q->state_lock);
 	status = atomic_read(&ubbd_q->status);
+	if (status == UBBD_QUEUE_KSTATUS_STOPPING ||
+			status == UBBD_QUEUE_KSTATUS_STOPPED)
+		goto out;
+
 	if (status != UBBD_QUEUE_KSTATUS_RUNNING) {
 		ubbd_queue_err(ubbd_q, "stop queue expected status running, but \
 				current status is %d.", status);
@@ -750,6 +754,9 @@ static int queue_start(struct ubbd_queue *ubbd_q)
 
 	mutex_lock(&ubbd_q->state_lock);
 	status = atomic_read(&ubbd_q->status);
+	if (status == UBBD_QUEUE_KSTATUS_RUNNING)
+		goto out;
+
 	if (status == UBBD_QUEUE_KSTATUS_REMOVING) {
 		ubbd_queue_err(ubbd_q, "cant start queue in removing status.");
 		ret = -EINVAL;
