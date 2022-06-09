@@ -218,7 +218,7 @@ int ubbd_backend_stop_queue(struct ubbd_backend *ubbd_b, int queue_id)
 	ubbd_q = &ubbd_b->queues[queue_id];
 	ubbd_queue_stop(ubbd_q);
 
-	return 0;
+	return ubbd_queue_wait_stopped(ubbd_q);
 }
 
 int ubbd_backend_start_queue(struct ubbd_backend *ubbd_b, int queue_id)
