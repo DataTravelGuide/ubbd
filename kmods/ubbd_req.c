@@ -709,7 +709,7 @@ enum blk_eh_timer_return ubbd_timeout(struct request *req, bool reserved)
 		return BLK_EH_RESET_TIMER;
 
 	ubbd_dev_err(ubbd_dev, "ubbd timeouted.");
-	ubbd_dev_remove_queues(ubbd_dev, true);
+	ubbd_dev_remove_disk(ubbd_dev, true);
 
 	return BLK_EH_DONE;
 }

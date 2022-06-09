@@ -800,7 +800,7 @@ out:
 	return ret;
 }
 
-void ubbd_dev_remove_queues(struct ubbd_device *ubbd_dev, bool force)
+static void ubbd_dev_remove_queues(struct ubbd_device *ubbd_dev, bool force)
 {
 	int i;
 

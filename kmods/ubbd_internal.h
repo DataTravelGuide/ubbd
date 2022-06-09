@@ -242,7 +242,6 @@ struct ubbd_device *ubbd_dev_add_dev(struct ubbd_dev_add_opts *);
 int ubbd_dev_remove_dev(struct ubbd_device *ubbd_dev);
 int ubbd_dev_config(struct ubbd_device *ubbd_dev, struct ubbd_dev_config_opts *opts);
 void ubbd_dev_remove_disk(struct ubbd_device *ubbd_dev, bool force);
-void ubbd_dev_remove_queues(struct ubbd_device *ubbd_dev, bool force);
 int ubbd_dev_stop_queue(struct ubbd_device *ubbd_dev, int queue_id);
 int ubbd_dev_start_queue(struct ubbd_device *ubbd_dev, int queue_id);
 int ubbd_dev_add_disk(struct ubbd_device *ubbd_dev);
