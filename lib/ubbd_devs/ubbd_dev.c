@@ -1230,6 +1230,9 @@ static void *ubbd_dev_checker_fn(void *arg)
 	while (!dev_checker_stop) {
 		pthread_mutex_lock(&ubbd_dev_list_mutex);
 		list_for_each_entry(ubbd_dev, &ubbd_dev_list, dev_node) {
+			if (ubbd_dev->status != UBBD_DEV_USTATUS_RUNNING)
+				continue;
+
 			if (get_kernel_dev_status(ubbd_dev) == UBBD_DEV_KSTATUS_REMOVING)
 				continue;
 
