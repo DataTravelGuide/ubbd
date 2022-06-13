@@ -652,6 +652,8 @@ void complete_work_fn(struct work_struct *work)
 	}
 
 again:
+	ubbd_flush_dcache_range(ubbd_q->sb_addr, sizeof(*ubbd_q->sb_addr));
+
 	mutex_lock(&ubbd_q->req_lock);
 	ce = get_complete_entry(ubbd_q);
 	if (!ce) {
@@ -675,7 +677,6 @@ advance_compr:
 	UPDATE_COMPR_TAIL(ubbd_q->sb_addr->compr_tail, sizeof(struct ubbd_ce), ubbd_q->sb_addr->compr_size);
 	mutex_unlock(&ubbd_q->req_lock);
 
-	ubbd_flush_dcache_range(ubbd_q->sb_addr, sizeof(*ubbd_q->sb_addr));
 	goto again;
 }
 
