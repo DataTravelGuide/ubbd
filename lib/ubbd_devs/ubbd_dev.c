@@ -180,7 +180,7 @@ extern void ubbdd_mgmt_wait_thread(void);
 static int backend_conf_setup(struct ubbd_device *ubbd_dev)
 {
 	int ret;
-	struct ubbd_backend_conf backend_conf = { 0 };
+	struct ubbd_backend_conf backend_conf = { .conf_header = { 0 }, 0 };
 
 	ubbd_conf_header_init(&backend_conf.conf_header, UBBD_CONF_TYPE_BACKEND);
 
@@ -343,7 +343,7 @@ int wait_for_backend_stopped(struct ubbd_device *ubbd_dev)
 
 static int dev_conf_write(struct ubbd_device *ubbd_dev)
 {
-	struct ubbd_dev_conf dev_conf = { 0 };
+	struct ubbd_dev_conf dev_conf = { .conf_header = { 0 }, 0 };
 
 	ubbd_conf_header_init(&dev_conf.conf_header, UBBD_CONF_TYPE_DEVICE);
 
