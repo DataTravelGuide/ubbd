@@ -872,11 +872,6 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	ubbd_dev->new_backend_id = dev_conf->new_backend_id;
 	free(dev_conf);
 
-	if (dev_status->status != UBBD_DEV_KSTATUS_RUNNING) {
-		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
-		goto out;
-	}
-
 	/* current_backend_id is always not -1 here.*/
 	if (ubbd_dev->new_backend_id == -1 &&
 			(get_backend_status(ubbd_dev, ubbd_dev->current_backend_id) == UBBD_BACKEND_STATUS_RUNNING)) {
@@ -887,6 +882,11 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	if (ret) {
 		ubbd_err("failed to reset dev: %d.", ret);
 		goto release_dev;
+	}
+
+	if (dev_status->status != UBBD_DEV_KSTATUS_RUNNING) {
+		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
+		goto out;
 	}
 
 dev_running:
@@ -926,8 +926,11 @@ int ubbd_dev_reopen_devs(void)
 		if (ret)
 			return ret;
 
-		if (dev_status.status != UBBD_DEV_KSTATUS_RUNNING)
-			ubbd_dev_remove(ubbd_dev, false, NULL);
+		if (dev_status.status != UBBD_DEV_KSTATUS_RUNNING) {
+			ubbd_dev_err(ubbd_dev, "device is not running, remove it.\n");
+			/* If dev is not running, it would be in creating, or in removing. */
+			ubbd_dev_remove(ubbd_dev, true, NULL);
+		}
 	}
 
 	return 0;
