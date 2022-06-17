@@ -517,6 +517,7 @@ struct dev_add_dev_data {
 	struct ubbd_device *ubbd_dev;
 };
 
+static int wait_for_backend_ready(struct ubbd_device *ubbd_dev, int backend_id);
 int dev_add_dev_finish(struct context *ctx, int ret)
 {
 	struct dev_add_dev_data *add_dev_data = (struct dev_add_dev_data *)ctx->data;
@@ -549,6 +550,12 @@ int dev_add_dev_finish(struct context *ctx, int ret)
 
 	ret = backend_start(ubbd_dev, ubbd_dev->current_backend_id, true);
 	if (ret) {
+		goto clean_dev;
+	}
+
+	ret = wait_for_backend_ready(ubbd_dev, ubbd_dev->current_backend_id);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "failed to wait for backend ready in add_dev_finish.\n");
 		goto clean_dev;
 	}
 
