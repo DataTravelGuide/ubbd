@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "ubbd_uio.h"
 #include "ubbd_backend.h"
+#include "ubbd_compat.h"
 #include <libssh/libssh.h>
 
 #define SSH_DEV(ubbd_b) ((struct ubbd_ssh_backend *)container_of(ubbd_b, struct ubbd_ssh_backend, ubbd_b))
@@ -182,11 +183,15 @@ out:
 
 static int ssh_backend_flush(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 {
+	int ret;
+#ifdef HAVE_SFTP_FSYNC
 	struct ubbd_backend *ubbd_b = ubbd_q->ubbd_b;
 	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
-	int ret;
 
 	ret = sftp_fsync(ssh_b->sftp_file);
+#else
+	ret = 0;
+#endif
 
 	ubbd_queue_add_ce(ubbd_q, se->priv_data, ret);
 
