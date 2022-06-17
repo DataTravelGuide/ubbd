@@ -62,6 +62,8 @@ static enum ubbd_dev_type str_to_type(char *str)
 		type = UBBD_DEV_TYPE_RBD;
 	else if (!strcmp("null", str))
 		type = UBBD_DEV_TYPE_NULL;
+	else if (!strcmp("ssh", str))
+		type = UBBD_DEV_TYPE_SSH;
 	else
 		type = -1;
 
@@ -82,11 +84,12 @@ static struct option const long_options[] =
 	{"data-pages-reserve", required_argument, NULL, 'r'},
 	{"num-queues", required_argument, NULL, 'q'},
 	{"restart-mode", required_argument, NULL, 'm'},
+	{"hostname", required_argument, NULL, 'n'},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:t:f:p:i:u:h:s:o:r:q:e:m";
+static char *short_options = "c:t:f:p:i:u:h:s:o:r:q:e:m:n";
 
 static void usage(int status)
 { 
@@ -96,6 +99,7 @@ static void usage(int status)
 		printf("\
 			ubbdadm --command map --type file --filepath PATH --devsize SIZE\n\
 			ubbdadm --command map --type rbd --pool POOL --image IMANGE \n\
+			ubbdadm --command map --type ssh --hostname HOST --filepath REMOTE_PATH --devsize SIZE --num-queues N\n\
 			ubbdadm --command unmap --ubbdid ID\n\
 			ubbdadm --command config --ubbdid ID --data-pages-reserve 50\n\
 			ubbdadm --command list\n\
@@ -188,6 +192,20 @@ static int do_null_map(uint64_t dev_size, uint32_t num_queues)
 	req.u.add.info.num_queues = num_queues;
 	req.u.add.info.type = UBBD_DEV_TYPE_NULL;
 	req.u.add.info.null.size = dev_size;
+
+	return map_request_and_wait(&req);
+}
+
+static int do_ssh_map(char *hostname, char *filepath, uint64_t devsize, uint32_t num_queues)
+{
+	struct ubbdd_mgmt_request req = {0};
+
+	req.cmd = UBBDD_MGMT_CMD_MAP;
+	req.u.add.info.num_queues = num_queues;
+	req.u.add.info.type = UBBD_DEV_TYPE_SSH;
+	strcpy(req.u.add.info.ssh.path, filepath);
+	strcpy(req.u.add.info.ssh.hostname, hostname);
+	req.u.add.info.ssh.size = devsize;
 
 	return map_request_and_wait(&req);
 }
@@ -323,6 +341,7 @@ int main(int argc, char **argv)
 	enum ubbdd_mgmt_cmd command;
 	enum ubbd_dev_type type;
 	char *filepath, *pool, *image, *ceph_conf;
+	char *hostname;
 	uint64_t dev_size;
 	int ubbdid;
 	int data_pages_reserve;
@@ -374,6 +393,9 @@ int main(int argc, char **argv)
 				return -1;
 			}
 			break;
+		case 'n':
+			hostname = optarg;
+			break;
 		case 'h':
 			usage(0);
 		}
@@ -394,6 +416,9 @@ int main(int argc, char **argv)
 			break;
 		case UBBD_DEV_TYPE_NULL:
 			ret = do_null_map(dev_size, num_queues);
+			break;
+		case UBBD_DEV_TYPE_SSH:
+			ret = do_ssh_map(hostname, filepath, dev_size, num_queues);
 			break;
 		default:
 			printf("error type: %d\n", type);

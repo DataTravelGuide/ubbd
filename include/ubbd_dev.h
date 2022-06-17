@@ -18,7 +18,8 @@
 enum ubbd_dev_type {
 	UBBD_DEV_TYPE_FILE,
 	UBBD_DEV_TYPE_RBD,
-	UBBD_DEV_TYPE_NULL
+	UBBD_DEV_TYPE_NULL,
+	UBBD_DEV_TYPE_SSH
 };
 
 enum ubbd_dev_ustatus {
@@ -45,6 +46,11 @@ struct ubbd_dev_info {
 		struct {
 			uint64_t size;
 		} null;
+		struct {
+			char hostname[PATH_MAX];
+			char path[PATH_MAX];
+			uint64_t size;
+		} ssh;
 	};
 };
 
@@ -119,6 +125,10 @@ struct ubbd_null_device {
 	struct ubbd_device ubbd_dev;
 };
 
+struct ubbd_ssh_device {
+	struct ubbd_device ubbd_dev;
+};
+
 
 bool ubbd_dev_get(struct ubbd_device *ubbd_dev);
 void ubbd_dev_put(struct ubbd_device *ubbd_dev);
@@ -146,4 +156,5 @@ int ubbd_dev_checker_wait_thread(void);
 extern struct ubbd_dev_ops rbd_dev_ops;
 extern struct ubbd_dev_ops file_dev_ops;
 extern struct ubbd_dev_ops null_dev_ops;
+extern struct ubbd_dev_ops ssh_dev_ops;
 #endif	/* UBBD_DEV_H */

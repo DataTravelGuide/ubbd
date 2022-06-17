@@ -84,6 +84,22 @@ struct ubbd_file_device *create_file_dev(void)
 	return dev;
 }
 
+struct ubbd_ssh_device *create_ssh_dev(void)
+{
+	struct ubbd_device *ubbd_dev;
+	struct ubbd_ssh_device *dev;
+
+	dev = calloc(1, sizeof(*dev));
+	if (!dev)
+		return NULL;
+
+	ubbd_dev = &dev->ubbd_dev;
+	ubbd_dev->dev_type = UBBD_DEV_TYPE_SSH;
+	ubbd_dev->dev_ops = &ssh_dev_ops;
+
+	return dev;
+}
+
 struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 {
 	struct ubbd_device *ubbd_dev;
@@ -114,6 +130,15 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 			return NULL;
 		ubbd_dev = &null_dev->ubbd_dev;
 		ubbd_dev->dev_size = info->null.size;
+	} else if (info->type == UBBD_DEV_TYPE_SSH){
+		struct ubbd_ssh_device *ssh_dev;
+
+		ssh_dev = create_ssh_dev();
+		if (!ssh_dev)
+			return NULL;
+		ubbd_dev = &ssh_dev->ubbd_dev;
+		ubbd_dev->dev_size = info->ssh.size;
+		ubbd_err("dev_size: %lu\n", ubbd_dev->dev_size);
 	}else {
 		ubbd_err("Unknown dev type\n");
 		return NULL;
@@ -756,7 +781,7 @@ static int wait_for_backend_ready(struct ubbd_device *ubbd_dev, int backend_id)
 	int status;
 	int i;
 
-	for (i = 0; i < 1000; i++) {
+	for (i = 0; i < 100; i++) {
 		status = get_backend_status(ubbd_dev, backend_id);
 		if (status > 0)
 			return 0;
@@ -922,9 +947,7 @@ int ubbd_dev_reopen_devs(void)
 			ubbd_err("failed to get status of dev: %d\n", list_result.dev_ids[i]);
 			return ret;
 		}
-		ret = reopen_dev(&dev_status, &ubbd_dev);
-		if (ret)
-			return ret;
+		reopen_dev(&dev_status, &ubbd_dev);
 
 		if (dev_status.status != UBBD_DEV_KSTATUS_RUNNING) {
 			ubbd_dev_err(ubbd_dev, "device is not running, remove it.\n");

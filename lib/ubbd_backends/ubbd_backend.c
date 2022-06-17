@@ -11,6 +11,22 @@
 #include "ubbd_queue.h"
 
 
+struct ubbd_ssh_backend *create_ssh_backend(void)
+{
+	struct ubbd_backend *ubbd_b;
+	struct ubbd_ssh_backend *dev;
+
+	dev = calloc(1, sizeof(*dev));
+	if (!dev)
+		return NULL;
+
+	ubbd_b = &dev->ubbd_b;
+	ubbd_b->dev_type = UBBD_DEV_TYPE_SSH;
+	ubbd_b->backend_ops = &ssh_backend_ops;
+
+	return dev;
+}
+
 struct ubbd_rbd_backend *create_rbd_backend(void)
 {
 	struct ubbd_backend *ubbd_b;
@@ -123,12 +139,21 @@ struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *conf)
 		if (!null_backend)
 			return NULL;
 		ubbd_b = &null_backend->ubbd_b;
-	}else {
+	}else if (dev_info->type == UBBD_DEV_TYPE_SSH){
+		struct ubbd_ssh_backend *ssh_backend;
+
+		ssh_backend = create_ssh_backend();
+		if (!ssh_backend)
+			return NULL;
+		ubbd_b = &ssh_backend->ubbd_b;
+		pthread_mutex_init(&ssh_backend->lock, NULL);
+		strcpy(ssh_backend->hostname, dev_info->ssh.hostname);
+		strcpy(ssh_backend->path, dev_info->ssh.path);
+	} else {
 		ubbd_err("Unknown dev type\n");
 		return NULL;
 	}
 
-	ubbd_err("before init\n");
 	ubbd_b->dev_id = conf->dev_id;
 	memcpy(&ubbd_b->dev_info, dev_info, sizeof(struct ubbd_dev_info));
 
