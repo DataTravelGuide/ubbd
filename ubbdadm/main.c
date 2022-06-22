@@ -2,11 +2,27 @@
 #include <getopt.h>
 #include <sys/types.h>
 
+#include "ocf/ocf_def.h"
 #include "ubbd_deamon_mgmt.h"
 #include "ubbd_dev.h"
 #include "utils.h"
 #include "ubbd_netlink.h"
 
+
+int str_to_cache_mode(char *str)
+{
+	int cache_mode;
+
+	if (!strcmp("writeback", str)){
+		cache_mode = ocf_cache_mode_wb;
+	} else if (!strcmp("writethrough", str)) {
+		cache_mode = ocf_cache_mode_wt;
+	} else {
+		cache_mode = -1;
+	}
+
+	return cache_mode;
+}
 
 enum ubbdd_mgmt_cmd str_to_cmd(char *str)
 {
@@ -64,6 +80,8 @@ static enum ubbd_dev_type str_to_type(char *str)
 		type = UBBD_DEV_TYPE_NULL;
 	else if (!strcmp("ssh", str))
 		type = UBBD_DEV_TYPE_SSH;
+	else if (!strcmp("cache", str))
+		type = UBBD_DEV_TYPE_CACHE;
 	else
 		type = -1;
 
@@ -74,17 +92,32 @@ static struct option const long_options[] =
 {
 	{"command", required_argument, NULL, 'c'},
 	{"type", required_argument, NULL, 't'},
+	{"cache-type", required_argument, NULL, 0},
+	{"backing-type", required_argument, NULL, 0},
 	{"filepath", required_argument, NULL, 'f'},
+	{"cache-filepath", required_argument, NULL, 0},
+	{"backing-filepath", required_argument, NULL, 0},
 	{"devsize", required_argument, NULL, 's'},
+	{"cache-devsize", required_argument, NULL, 0},
+	{"backing-devsize", required_argument, NULL, 0},
 	{"force", no_argument, NULL, 'o'},
 	{"pool", required_argument, NULL, 'p'},
+	{"cache-pool", required_argument, NULL, 0},
+	{"backing-pool", required_argument, NULL, 0},
 	{"image", required_argument, NULL, 'i'},
+	{"cache-image", required_argument, NULL, 0},
+	{"backing-image", required_argument, NULL, 0},
 	{"ceph-conf", required_argument, NULL, 'e'},
+	{"cache-ceph-conf", required_argument, NULL, 0},
+	{"backing-ceph-conf", required_argument, NULL, 0},
 	{"ubbdid", required_argument, NULL, 'u'},
 	{"data-pages-reserve", required_argument, NULL, 'r'},
 	{"num-queues", required_argument, NULL, 'q'},
 	{"restart-mode", required_argument, NULL, 'm'},
 	{"hostname", required_argument, NULL, 'n'},
+	{"cache-hostname", required_argument, NULL, 0},
+	{"backing-hostname", required_argument, NULL, 0},
+	{"cache-mode", required_argument, NULL, 0},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
@@ -100,6 +133,8 @@ static void usage(int status)
 			ubbdadm --command map --type file --filepath PATH --devsize SIZE\n\
 			ubbdadm --command map --type rbd --pool POOL --image IMANGE \n\
 			ubbdadm --command map --type ssh --hostname HOST --filepath REMOTE_PATH --devsize SIZE --num-queues N\n\
+			ubbdadm --command map --type cache --cache-type file --cache-filepath PATH --backing-type rbd --backing-pool POOL --backing-image IMG\n\
+						--cache-mode [writeback|writethrough] --devsize SIZE --num-queues N\n\
 			ubbdadm --command unmap --ubbdid ID\n\
 			ubbdadm --command config --ubbdid ID --data-pages-reserve 50\n\
 			ubbdadm --command list\n\
@@ -157,17 +192,34 @@ static int map_request_and_wait(struct ubbdd_mgmt_request *req)
 	return 0;
 }
 
+static void file_dev_info_setup(struct ubbd_dev_info *dev_info,
+		char *filepath, uint64_t devsize, uint32_t num_queues)
+{
+	dev_info->num_queues = num_queues;
+	dev_info->type = UBBD_DEV_TYPE_FILE;
+	strcpy(dev_info->file.path, filepath);
+	dev_info->file.size = devsize;
+}
+
 static int do_file_map(char *filepath, uint64_t devsize, uint32_t num_queues)
 {
 	struct ubbdd_mgmt_request req = {0};
 
 	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.info.num_queues = num_queues;
-	req.u.add.info.type = UBBD_DEV_TYPE_FILE;
-	strcpy(req.u.add.info.file.path, filepath);
-	req.u.add.info.file.size = devsize;
+	req.u.add.dev_type = UBBD_DEV_TYPE_FILE;
+	file_dev_info_setup(&req.u.add.info, filepath, devsize, num_queues);
 
 	return map_request_and_wait(&req);
+}
+
+static void rbd_dev_info_setup(struct ubbd_dev_info *dev_info,
+		char *pool, char *image, char *ceph_conf, uint32_t num_queues)
+{
+	dev_info->num_queues = num_queues;
+	dev_info->type = UBBD_DEV_TYPE_RBD;
+	strcpy(dev_info->rbd.pool, pool);
+	strcpy(dev_info->rbd.image, image);
+	strcpy(dev_info->rbd.ceph_conf, ceph_conf);
 }
 
 static int do_rbd_map(char *pool, char *image, char *ceph_conf, uint32_t num_queues)
@@ -175,13 +227,18 @@ static int do_rbd_map(char *pool, char *image, char *ceph_conf, uint32_t num_que
 	struct ubbdd_mgmt_request req = {0};
 
 	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.info.num_queues = num_queues;
-	req.u.add.info.type = UBBD_DEV_TYPE_RBD;
-	strcpy(req.u.add.info.rbd.pool, pool);
-	strcpy(req.u.add.info.rbd.image, image);
-	strcpy(req.u.add.info.rbd.ceph_conf, ceph_conf);
+	req.u.add.dev_type = UBBD_DEV_TYPE_RBD;
+	rbd_dev_info_setup(&req.u.add.info, pool, image, ceph_conf, num_queues);
 
 	return map_request_and_wait(&req);
+}
+
+static void null_dev_info_setup(struct ubbd_dev_info *dev_info,
+		uint64_t dev_size, uint32_t num_queues)
+{
+	dev_info->num_queues = num_queues;
+	dev_info->type = UBBD_DEV_TYPE_NULL;
+	dev_info->null.size = dev_size;
 }
 
 static int do_null_map(uint64_t dev_size, uint32_t num_queues)
@@ -189,11 +246,20 @@ static int do_null_map(uint64_t dev_size, uint32_t num_queues)
 	struct ubbdd_mgmt_request req = {0};
 
 	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.info.num_queues = num_queues;
-	req.u.add.info.type = UBBD_DEV_TYPE_NULL;
-	req.u.add.info.null.size = dev_size;
+	req.u.add.dev_type = UBBD_DEV_TYPE_NULL;
+	null_dev_info_setup(&req.u.add.info, dev_size, num_queues);
 
 	return map_request_and_wait(&req);
+}
+
+static void ssh_dev_info_setup(struct ubbd_dev_info *dev_info,
+		char *hostname, char *filepath, uint64_t devsize, uint32_t num_queues)
+{
+	dev_info->num_queues = num_queues;
+	dev_info->type = UBBD_DEV_TYPE_SSH;
+	strcpy(dev_info->ssh.path, filepath);
+	strcpy(dev_info->ssh.hostname, hostname);
+	dev_info->ssh.size = devsize;
 }
 
 static int do_ssh_map(char *hostname, char *filepath, uint64_t devsize, uint32_t num_queues)
@@ -201,11 +267,25 @@ static int do_ssh_map(char *hostname, char *filepath, uint64_t devsize, uint32_t
 	struct ubbdd_mgmt_request req = {0};
 
 	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.info.num_queues = num_queues;
-	req.u.add.info.type = UBBD_DEV_TYPE_SSH;
-	strcpy(req.u.add.info.ssh.path, filepath);
-	strcpy(req.u.add.info.ssh.hostname, hostname);
-	req.u.add.info.ssh.size = devsize;
+	req.u.add.dev_type = UBBD_DEV_TYPE_SSH;
+	ssh_dev_info_setup(&req.u.add.info, hostname, filepath, devsize, num_queues);
+
+	return map_request_and_wait(&req);
+}
+
+static int do_cache_map(struct ubbd_dev_info *cache_dev_info,
+		struct ubbd_dev_info *backing_dev_info,
+		int cache_mode,
+		uint64_t devsize, uint32_t num_queues)
+{
+	struct ubbdd_mgmt_request req = { 0 };
+
+	req.cmd = UBBDD_MGMT_CMD_MAP;
+	req.u.add.dev_type = UBBD_DEV_TYPE_CACHE;
+	req.u.add.cache.cache_mode = cache_mode;
+	
+	memcpy(&req.u.add.info, backing_dev_info, sizeof(struct ubbd_dev_info));
+	memcpy(&req.u.add.extra_info, cache_dev_info, sizeof(struct ubbd_dev_info));
 
 	return map_request_and_wait(&req);
 }
@@ -340,20 +420,74 @@ int main(int argc, char **argv)
 	int ch, longindex;
 	enum ubbdd_mgmt_cmd command;
 	enum ubbd_dev_type type;
-	char *filepath, *pool, *image, *ceph_conf;
-	char *hostname;
-	uint64_t dev_size;
+	enum ubbd_dev_type cache_type, backing_type;
+	char *filepath, *pool, *image, *ceph_conf, *hostname;
+	char *cache_filepath, *cache_pool, *cache_image, *cache_ceph_conf, *cache_hostname;
+	char *backing_filepath, *backing_pool, *backing_image, *backing_ceph_conf, *backing_hostname;
+	struct ubbd_dev_info cache_dev_info, backing_dev_info;
+	uint64_t dev_size, cache_dev_size, backing_dev_size;
 	int ubbdid;
 	int data_pages_reserve;
 	bool force = false;
 	int ret = 0;
 	uint32_t num_queues = 0;
 	int restart_mode = UBBD_DEV_RESTART_MODE_DEFAULT;
+	int cache_mode = ocf_cache_mode_wb;
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
+		case 0:
+			if (!strcmp(long_options[longindex].name, "cache-type")) {
+				cache_type = str_to_type(optarg);
+				break;
+			} else if (!strcmp(long_options[longindex].name, "backing-type")) {
+				backing_type = str_to_type(optarg);
+				break;
+			} else if (!strcmp(long_options[longindex].name, "cache-filepath")) {
+				cache_filepath = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "backing-filepath")) {
+				backing_filepath = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "cache-pool")) {
+				cache_pool = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "backing-pool")) {
+				backing_pool = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "cache-image")) {
+				cache_image = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "backing-image")) {
+				backing_image = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "cache-ceph-conf")) {
+				cache_ceph_conf = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "backing-ceph-conf")) {
+				backing_ceph_conf = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "cache-hostname")) {
+				cache_hostname = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "backing-hostname")) {
+				backing_hostname = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "cache-devsize")) {
+				cache_dev_size = atoll(optarg);
+				break;
+			} else if (!strcmp(long_options[longindex].name, "backing-devsize")) {
+				backing_dev_size = atoll(optarg);
+				break;
+			} else if (!strcmp(long_options[longindex].name, "cache-mode")) {
+				cache_mode = str_to_cache_mode(optarg);
+				break;
+			} else {
+				printf("error option: %s\n", long_options[longindex].name);
+				exit(-1);
+			}
 		case 'c':
 			command = str_to_cmd(optarg);
 			break;
@@ -419,6 +553,35 @@ int main(int argc, char **argv)
 			break;
 		case UBBD_DEV_TYPE_SSH:
 			ret = do_ssh_map(hostname, filepath, dev_size, num_queues);
+			break;
+		case UBBD_DEV_TYPE_CACHE:
+			if (cache_type == UBBD_DEV_TYPE_FILE) {
+				file_dev_info_setup(&cache_dev_info, cache_filepath, cache_dev_size, num_queues);
+			} else if (cache_type == UBBD_DEV_TYPE_RBD) {
+				rbd_dev_info_setup(&cache_dev_info, cache_pool, cache_image, cache_ceph_conf, num_queues);
+			} else if (cache_type == UBBD_DEV_TYPE_NULL) {
+				null_dev_info_setup(&cache_dev_info, cache_dev_size, num_queues);
+			} else if (cache_type == UBBD_DEV_TYPE_SSH) {
+				ssh_dev_info_setup(&cache_dev_info, cache_hostname, cache_filepath, cache_dev_size, num_queues);
+			} else {
+				ubbd_err("error cache_type: %d\n", cache_type);
+				return -1;
+			}
+
+			if (backing_type == UBBD_DEV_TYPE_FILE) {
+				file_dev_info_setup(&backing_dev_info, backing_filepath, backing_dev_size, num_queues);
+			} else if (backing_type == UBBD_DEV_TYPE_RBD) {
+				rbd_dev_info_setup(&backing_dev_info, backing_pool, backing_image, backing_ceph_conf, num_queues);
+			} else if (backing_type == UBBD_DEV_TYPE_NULL) {
+				null_dev_info_setup(&backing_dev_info, backing_dev_size, num_queues);
+			} else if (backing_type == UBBD_DEV_TYPE_SSH) {
+				ssh_dev_info_setup(&backing_dev_info, backing_hostname, backing_filepath, backing_dev_size, num_queues);
+			} else {
+				ubbd_err("error backing_type: %d\n", backing_type);
+				return -1;
+			}
+
+			ret = do_cache_map(&cache_dev_info, &backing_dev_info, cache_mode, dev_size, num_queues);
 			break;
 		default:
 			printf("error type: %d\n", type);

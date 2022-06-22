@@ -6,16 +6,38 @@
 #include "ubbd_queue.h"
 #include "ubbd_config.h"
 
+enum ubbd_backend_io_type {
+	UBBD_BACKEND_IO_WRITE = 0,
+	UBBD_BACKEND_IO_READ,
+	UBBD_BACKEND_IO_FLUSH,
+	UBBD_BACKEND_IO_DISCARD,
+	UBBD_BACKEND_IO_WRITEZEROS,
+};
+
+struct ubbd_backend_io {
+	struct context *ctx;
+	enum ubbd_backend_io_type io_type;
+	uint64_t offset;
+	uint32_t len;
+	uint32_t iov_cnt;
+	struct iovec iov[0];
+};
+
+static inline void ubbd_backend_io_finish(struct ubbd_backend_io *io, int ret)
+{
+	context_finish(io->ctx, ret);
+}
+
 struct ubbd_backend;
 struct ubbd_backend_ops {
 	int (*open) (struct ubbd_backend *ubbd_b);
 	void (*close) (struct ubbd_backend *ubbd_b);
 	void (*release) (struct ubbd_backend *ubbd_b);
-	int (*writev) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
-	int (*readv) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
-	int (*flush) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
-	int (*discard) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
-	int (*write_zeros) (struct ubbd_queue *ubbd_q, struct ubbd_se *se);
+	int (*writev) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
+	int (*readv) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
+	int (*flush) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
+	int (*discard) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
+	int (*write_zeros) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 };
 
 enum ubbd_backend_status {
@@ -28,12 +50,14 @@ struct ubbd_backend {
 	int				dev_id;
 	int				backend_id;
 	struct ubbd_dev_info		dev_info;
+	struct ubbd_dev_info		extra_info;
 
 	int 				num_queues;
 	struct ubbd_queue 		*queues;
 
 	int				status;
 	struct ubbd_backend_ops		*backend_ops;
+	uint64_t			dev_size;
 };
 
 struct ubbd_null_backend {
@@ -66,6 +90,13 @@ struct ubbd_ssh_backend {
 	pthread_mutex_t			lock;
 };
 
+struct ubbd_cache_backend {
+	struct ubbd_backend ubbd_b;
+	struct ubbd_backend *cache_backend;
+	struct ubbd_backend *backing_backend;
+	int cache_mode;
+};
+
 struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *backend_conf);
 void ubbd_backend_release(struct ubbd_backend *ubbd_b);
 int ubbd_backend_start(struct ubbd_backend *ubbd_b, bool start_queues);
@@ -75,9 +106,4 @@ void ubbd_backend_close(struct ubbd_backend *ubbd_b);
 void ubbd_backend_wait_stopped(struct ubbd_backend *ubbd_b);
 int ubbd_backend_stop_queue(struct ubbd_backend *ubbd_b, int queue_id);
 int ubbd_backend_start_queue(struct ubbd_backend *ubbd_b, int queue_id);
-
-extern struct ubbd_backend_ops rbd_backend_ops;
-extern struct ubbd_backend_ops file_backend_ops;
-extern struct ubbd_backend_ops null_backend_ops;
-extern struct ubbd_backend_ops ssh_backend_ops;
 #endif /* UBBD_BACKEND_H */

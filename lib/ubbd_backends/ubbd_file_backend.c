@@ -27,63 +27,37 @@ static void file_backend_release(struct ubbd_backend *ubbd_b)
 		free(file_b);
 }
 
-static int file_backend_writev(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
+static int file_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_backend *ubbd_b = ubbd_q->ubbd_b;
 	struct ubbd_file_backend *file_b = FILE_DEV(ubbd_b);
 	ssize_t ret;
-	struct iovec *iov;
-	int i;
 
-	iov = malloc(sizeof(struct iovec) * se->iov_cnt);
-	for (i = 0; i < se->iov_cnt; i++) {
-		ubbd_dbg("iov_base: %lu", (size_t)se->iov[i].iov_base);
-		iov[i].iov_base = (void*)ubbd_q->uio_info.map + (size_t)se->iov[i].iov_base;
-		iov[i].iov_len = se->iov[i].iov_len;
-	}
-
-	ret = pwritev(file_b->fd, iov, se->iov_cnt, se->offset);
+	ret = pwritev(file_b->fd, io->iov, io->iov_cnt, io->offset);
 	ubbd_dbg("result of pwritev: %lu\n", ret);
-	free(iov);
-
-	ubbd_queue_add_ce(ubbd_q, se->priv_data, (ret == se->len? 0 : ret));
+	ubbd_backend_io_finish(io, (ret == io->len? 0 : ret));
 
 	return 0;
 }
 
-static int file_backend_readv(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
+static int file_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_backend *ubbd_b = ubbd_q->ubbd_b;
 	struct ubbd_file_backend *file_b = FILE_DEV(ubbd_b);
 	ssize_t ret;
-	struct iovec *iov;
-	int i;
 
-	iov = malloc(sizeof(struct iovec) * se->iov_cnt);
-	for (i = 0; i < se->iov_cnt; i++) {
-		ubbd_dbg("iov_base: %lu", (size_t)se->iov[i].iov_base);
-		iov[i].iov_base = (void*)ubbd_q->uio_info.map + (size_t)se->iov[i].iov_base;
-		iov[i].iov_len = se->iov[i].iov_len;
-	}
-
-	ret = preadv(file_b->fd, iov, se->iov_cnt, se->offset);
+	ret = preadv(file_b->fd, io->iov, io->iov_cnt, io->offset);
 	ubbd_dbg("result of preadv: %lu\n", ret);
-	free(iov);
+	ubbd_backend_io_finish(io, (ret == io->len? 0 : ret));
 	
-	ubbd_queue_add_ce(ubbd_q, se->priv_data, (ret == se->len? 0 : ret));
-
 	return 0;
 }
 
-static int file_backend_flush(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
+static int file_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_backend *ubbd_b = ubbd_q->ubbd_b;
 	struct ubbd_file_backend *file_b = FILE_DEV(ubbd_b);
 	int ret;
 
 	ret = fsync(file_b->fd);
-
-	ubbd_queue_add_ce(ubbd_q, se->priv_data, ret);
+	ubbd_backend_io_finish(io, ret);
 
 	return 0;
 }

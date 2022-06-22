@@ -1,8 +1,10 @@
-#ifndef __LIST_H__
-#define __LIST_H__
+#ifndef __UBBD_LIST_H__
+#define __UBBD_LIST_H__
 
 #include <stddef.h>
-/* taken from linux kernel */
+
+#define LIST_POISON1  ((void *)0x101)
+#define LIST_POISON2  ((void *)0x202)
 
 #undef offsetof
 #ifdef __compiler_offsetof
@@ -46,6 +48,29 @@ static inline int list_empty(const struct list_head *head)
 
 #define list_for_each(pos, head) \
 	for (pos = (head)->next; pos != (head); pos = pos->next)
+
+/**
+ * Safe version of list_for_each which works even if entries are deleted during
+ * loop.
+ * @param iterator uninitialized list_head pointer, to be used as iterator
+ * @param q another uninitialized list_head, used as helper
+ * @param plist list head (main node)
+ */
+/*
+ * Algorithm handles situation, where q is deleted.
+ * consider in example 3 element list with header h:
+ *
+ *   h -> 1 -> 2 -> 3 ->
+ *1.      i    q
+ *
+ *2.           i    q
+ *
+ *3. q              i
+ */
+#define list_for_each_safe(iterator, q, plist) \
+	for (iterator = (q = (plist)->next->next)->prev; \
+	     (q) != (plist)->next; \
+	     iterator = (q = (q)->next)->prev)
 
 #define list_for_each_entry(pos, head, member)				\
 	for (pos = list_entry((head)->next, typeof(*pos), member);	\
@@ -94,6 +119,17 @@ static inline void list_del_init(struct list_head *entry)
 {
 	__list_del(entry->prev, entry->next);
 	INIT_LIST_HEAD(entry);
+}
+
+/**
+ * Move element to list head.
+ * @param it list entry to be moved
+ * @param l1 list main node (head)
+ */
+static inline void list_move(struct list_head *it, struct list_head *l1)
+{
+	list_del(it);
+	list_add(it, l1);
 }
 
 /**

@@ -8,6 +8,8 @@ apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev
 
 apt install -y libcmocka-dev valgrind lcov cmake pkg-config
 
+git submodule update --init --recursive
+
 # build
 make
 

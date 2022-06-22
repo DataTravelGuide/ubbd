@@ -158,6 +158,68 @@ void ubbd_queue_stop(struct ubbd_queue *ubbd_q)
 	pthread_mutex_unlock(&ubbd_q->lock);
 }
 
+struct q_backend_io_ctx_data {
+	struct ubbd_queue *ubbd_q;
+	struct ubbd_backend_io *io;
+	struct ubbd_se *se;
+};
+
+static int q_backend_io_finish(struct context *ctx, int ret)
+{
+	struct q_backend_io_ctx_data *data = (struct q_backend_io_ctx_data *)ctx->data;
+	struct ubbd_queue *ubbd_q = data->ubbd_q;
+	struct ubbd_backend_io *io = data->io;
+	struct ubbd_se *se = data->se;
+
+	ubbd_queue_add_ce(ubbd_q, se->priv_data, ret);
+
+	free(io);
+
+	return 0;
+}
+
+static struct ubbd_backend_io *q_prepare_backend_io(struct ubbd_queue *ubbd_q,
+		struct ubbd_se *se,  enum ubbd_backend_io_type type)
+{
+	struct ubbd_backend_io *io;
+	struct context *ctx;
+	struct q_backend_io_ctx_data *data;
+	int i;
+
+	io = calloc(1, sizeof(struct ubbd_backend_io) + sizeof(struct iovec) * se->iov_cnt);
+	if (!io) {
+		ubbd_err("failed to calloc for backend io\n");
+		return NULL;
+	}
+
+	ctx = context_alloc(sizeof(struct q_backend_io_ctx_data));
+	if (!ctx) {
+		ubbd_err("failed to calloc for backend_io_ctx\n");
+		free(io);
+		return NULL;
+	}
+
+	data = (struct q_backend_io_ctx_data *)ctx->data;
+	data->ubbd_q = ubbd_q;
+	data->io = io;
+	data->se = se;
+
+	ctx->parent = NULL;
+	ctx->finish = q_backend_io_finish;
+
+	io->ctx = ctx;
+	io->io_type = type;
+	io->offset = se->offset;
+	io->len = se->len;
+	io->iov_cnt = se->iov_cnt;
+	for (i = 0; i < se->iov_cnt; i++) {
+		ubbd_dbg("iov_base: %lu", (size_t)se->iov[i].iov_base);
+		io->iov[i].iov_base = (void*)ubbd_q->uio_info.map + (size_t)se->iov[i].iov_base;
+		io->iov[i].iov_len = se->iov[i].iov_len;
+	}
+
+	return io;
+}
 
 static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 {
@@ -167,6 +229,7 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 	uint64_t start_ns = get_ns();
 #endif
 	int ret;
+	struct ubbd_backend_io *io;
 
 	ubbd_dbg("handle_cmd: se: %p\n", se);
 	if (ubbd_se_hdr_flags_test(se, UBBD_SE_HDR_DONE)) {
@@ -183,11 +246,23 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 		break;
 	case UBBD_OP_WRITE:
 		ubbd_dbg("UBBD_OP_WRITE\n");
-		ret = ubbd_b->backend_ops->writev(ubbd_q, se);
+		io = q_prepare_backend_io(ubbd_q, se, UBBD_BACKEND_IO_WRITE);
+		if (!io) {
+			ubbd_err("failed to prepare backend io\n");
+			ret = -ENOMEM;
+			goto out;
+		}
+		ret = ubbd_b->backend_ops->writev(ubbd_b, io);
 		break;
 	case UBBD_OP_READ:
 		ubbd_dbg("UBBD_OP_READ\n");
-		ret = ubbd_b->backend_ops->readv(ubbd_q, se);
+		io = q_prepare_backend_io(ubbd_q, se, UBBD_BACKEND_IO_READ);
+		if (!io) {
+			ubbd_err("failed to prepare backend io\n");
+			ret = -ENOMEM;
+			goto out;
+		}
+		ret = ubbd_b->backend_ops->readv(ubbd_b, io);
 		break;
 	case UBBD_OP_FLUSH:
 		ubbd_dbg("UBBD_OP_FLUSH\n");
@@ -196,7 +271,13 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 			ubbd_err("flush is not supportted.\n");
 			goto out;
 		}
-		ret = ubbd_b->backend_ops->flush(ubbd_q, se);
+		io = q_prepare_backend_io(ubbd_q, se, UBBD_BACKEND_IO_FLUSH);
+		if (!io) {
+			ubbd_err("failed to prepare backend io\n");
+			ret = -ENOMEM;
+			goto out;
+		}
+		ret = ubbd_b->backend_ops->flush(ubbd_b, io);
 		break;
 	case UBBD_OP_DISCARD:
 		ubbd_dbg("UBBD_OP_DISCARD\n");
@@ -205,7 +286,13 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 			ubbd_err("discard is not supportted.\n");
 			goto out;
 		}
-		ret = ubbd_b->backend_ops->discard(ubbd_q, se);
+		io = q_prepare_backend_io(ubbd_q, se, UBBD_BACKEND_IO_DISCARD);
+		if (!io) {
+			ubbd_err("failed to prepare backend io\n");
+			ret = -ENOMEM;
+			goto out;
+		}
+		ret = ubbd_b->backend_ops->discard(ubbd_b, io);
 		break;
 	case UBBD_OP_WRITE_ZEROS:
 		ubbd_dbg("UBBD_OP_WRITE_ZEROS\n");
@@ -214,7 +301,13 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 			ubbd_err("write_zeros is not supportted.\n");
 			goto out;
 		}
-		ret = ubbd_b->backend_ops->write_zeros(ubbd_q, se);
+		io = q_prepare_backend_io(ubbd_q, se, UBBD_BACKEND_IO_WRITEZEROS);
+		if (!io) {
+			ubbd_err("failed to prepare backend io\n");
+			ret = -ENOMEM;
+			goto out;
+		}
+		ret = ubbd_b->backend_ops->write_zeros(ubbd_b, io);
 		break;
 	default:
 		ubbd_err("error handle_cmd\n");

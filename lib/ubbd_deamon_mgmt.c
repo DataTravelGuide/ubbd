@@ -126,9 +126,15 @@ static void *mgmt_thread_fn(void* args)
 
 			switch (mgmt_req.cmd) {
 			case UBBDD_MGMT_CMD_MAP:
-				ubbd_info("map type: %d\n", mgmt_req.u.add.info.type);
+				ubbd_info("map type: %d\n", mgmt_req.u.add.dev_type);
 
-				ubbd_dev = ubbd_dev_create(&mgmt_req.u.add.info);
+				if (mgmt_req.u.add.dev_type == UBBD_DEV_TYPE_CACHE) {
+					ubbd_dev = ubbd_cache_dev_create(&mgmt_req.u.add.info, &mgmt_req.u.add.extra_info,
+							mgmt_req.u.add.cache.cache_mode);
+				} else {
+					ubbd_dev = ubbd_dev_create(&mgmt_req.u.add.info);
+				}
+
 				if (!ubbd_dev) {
 					ubbd_err("error to create ubbd_dev\n");
 					ret = -ENOMEM;

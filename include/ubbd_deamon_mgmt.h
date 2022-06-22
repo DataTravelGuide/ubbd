@@ -23,7 +23,14 @@ struct ubbdd_mgmt_request {
 	enum ubbdd_mgmt_cmd cmd;
 	union {
 		struct {
+			enum ubbd_dev_type dev_type;
 			struct ubbd_dev_info info;
+			struct ubbd_dev_info extra_info;
+			union {
+				struct {
+					int cache_mode;
+				} cache;
+			};
 		} add;
 		struct {
 			int dev_id;

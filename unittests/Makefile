@@ -7,10 +7,11 @@ CMOCKA_CFLAGS := --coverage
 CMOCKA_CALLOC_CFLAGS := -Wl,--wrap=calloc -Wl,--wrap=free
 CMOCKA_OPEN_CFLAGS := -Wl,--wrap,open -Wl,--wrap,close -Wl,--wrap,mmap -Wl,--wrap,munmap -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,asprintf
 SOURCES := $(shell find ../lib/ -name '*.c')
+SOURCES += $(shell find ../src/ -name '*.c')
 
 all:
-	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_CALLOC_CFLAGS) -g  utils_test.c -I /usr/include/libnl3/ -I ../include/  -lnl-3 -lnl-genl-3 -lrbd -lrados -lpthread -lssh $(LDLIBS_CMOCKA) -o utils_test
-	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_OPEN_CFLAGS) -g ubbd_uio_test.c $(SOURCES) -I /usr/include/libnl3/ -I ../include/  -lnl-3 -lnl-genl-3 -lrbd -lrados -lpthread -lssh $(LDLIBS_CMOCKA) -o ubbd_uio_test
+	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_CALLOC_CFLAGS) -g  utils_test.c -I /usr/include/libnl3/ -I ../include/ -I../src/ocf/env/ -I../src/ocf/ -lnl-3 -lnl-genl-3 -lrbd -lrados -lpthread -lm -lz -lssh $(LDLIBS_CMOCKA) -o utils_test
+	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_OPEN_CFLAGS) -g ubbd_uio_test.c $(SOURCES) -I /usr/include/libnl3/ -I ../include/ -I../src/ocf/env/ -I../src/ocf/ -lnl-3 -lnl-genl-3 -lrbd -lrados -lpthread -lm -lz -lssh $(LDLIBS_CMOCKA) -o ubbd_uio_test
 
 clean:
 	rm -rf utils_test
