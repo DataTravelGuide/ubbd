@@ -151,3 +151,13 @@ ubbd-tests is a test-suite runnnig via avocado which is a gread test framework.
 result like that:
 
 ![test result](doc/ubbd_tests_result.PNG)
+
+
+# 9 package build
+
+rpm build:
+
+	$ make dist
+	$ cp ubbd-0.0.1.tar.gz ~/rpmbuild/SOURCES/
+	$ cp rhel/ubbd.spec ~/rpmbuild/SPECS/
+	$ rpmbuild -ba ~/rpmbuild/SPECS/ubbd.spec
