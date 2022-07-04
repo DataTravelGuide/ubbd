@@ -37,18 +37,18 @@ Who should not use UBBD?
 	    apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev  
 
     b) compile  
-	   $ make
+	   $ make install
 
     c) insert kernel module  
 	   $ modprobe uio  
 	   $ insmod kmods/ubbd.ko  
 
     d) start ubbdd daemon  
-	   $ ./ubbdd/ubbdd &  
+	   $ ubbdd &  
 
     e) setup a ramdisk and map ubbd device by ubbdadm  
 	   $ modprobe brd rd_nr=1 rd_size=2048000 max_part=0  
-	   $ ./ubbdadm/ubbdadm --command map --type file --filepath /dev/ram0 --devsize $((1*1024*1024*1024))  
+	   $ ubbdadm --command map --type file --filepath /dev/ram0 --devsize $((1*1024*1024*1024))  
 
     f) use the /dev/ubbd0 device  
 	   $ mkfs.xfs /dev/ubbd0  `
