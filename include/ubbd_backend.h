@@ -1,5 +1,6 @@
 #ifndef UBBD_BACKEND_H
 #define UBBD_BACKEND_H
+#include <libssh/sftp.h>
 
 #include "ubbd_dev.h"
 #include "ubbd_queue.h"
@@ -57,6 +58,14 @@ struct ubbd_rbd_backend {
 	uint64_t flags;
 };
 
+struct ubbd_ssh_backend {
+	struct ubbd_backend ubbd_b;
+	char hostname[PATH_MAX];
+	char path[PATH_MAX];
+	struct sftp_file_struct *sftp_file;
+	pthread_mutex_t			lock;
+};
+
 struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *backend_conf);
 void ubbd_backend_release(struct ubbd_backend *ubbd_b);
 int ubbd_backend_start(struct ubbd_backend *ubbd_b, bool start_queues);
@@ -70,4 +79,5 @@ int ubbd_backend_start_queue(struct ubbd_backend *ubbd_b, int queue_id);
 extern struct ubbd_backend_ops rbd_backend_ops;
 extern struct ubbd_backend_ops file_backend_ops;
 extern struct ubbd_backend_ops null_backend_ops;
+extern struct ubbd_backend_ops ssh_backend_ops;
 #endif /* UBBD_BACKEND_H */

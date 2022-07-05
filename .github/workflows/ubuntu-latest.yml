@@ -14,6 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: install dependency
-      run: sudo add-apt-repository "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse"; sudo apt update; sudo apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev
+      run: sudo add-apt-repository "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse"; sudo apt update; sudo apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev libssh-dev
     - name: run_check
       run: sudo ./run_check.sh

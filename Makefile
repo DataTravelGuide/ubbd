@@ -6,8 +6,19 @@ KTF_SRC := $(shell pwd)/unittests/ktf
 EXTRA_CFLAGS += $(call cc-option,-Wno-tautological-compare) -Wall -Wmaybe-uninitialized -Werror
 VERSION ?= $(shell cat VERSION)
 UBBD_VERSION ?= ubbd-$(VERSION)
+$(shell rm -rf include/ubbd_compat.h)
+UBBDCONF_HEADER := include/ubbd_compat.h
 
-all:
+.DEFAULT_GOAL := all
+
+$(UBBDCONF_HEADER):
+	@> $@
+	@echo $(CHECK_BUILD) compat-tests/have_sftp_fsync.c
+	@if $(CC) compat-tests/have_sftp_fsync.c -lssh > /dev/null 2>&1; then echo "#define HAVE_SFTP_FSYNC 1"; else echo "/*#undefined HAVE_SFTP_FSYNC*/"; fi >> $@
+	@>> $@
+
+
+all: $(UBBDCONF_HEADER)
 	$(MAKE) -C ubbdadm
 	$(MAKE) -C ubbdd
 	$(MAKE) -C backend
