@@ -7,7 +7,7 @@ Group: Applications/System
 License: LGPL
 URL: https://github.com/ubbd/ubbd
 BuildRequires: librbd-devel glibc-devel libnl3-devel
-Requires: librbd libnl3
+Requires: librbd libnl3 libssh >= 0.9.3
 
 %description
 UBBD's Project Software
