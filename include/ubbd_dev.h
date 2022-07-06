@@ -19,7 +19,8 @@ enum ubbd_dev_type {
 	UBBD_DEV_TYPE_FILE,
 	UBBD_DEV_TYPE_RBD,
 	UBBD_DEV_TYPE_NULL,
-	UBBD_DEV_TYPE_SSH
+	UBBD_DEV_TYPE_SSH,
+	UBBD_DEV_TYPE_CACHE,
 };
 
 enum ubbd_dev_ustatus {
@@ -77,6 +78,7 @@ struct ubbd_device {
 	uint64_t dev_size;
 	enum ubbd_dev_type dev_type;
 	struct ubbd_dev_info dev_info;
+	struct ubbd_dev_info extra_info;
 	char dev_name[16];
 	struct ubbd_dev_ops *dev_ops;
 
@@ -129,15 +131,22 @@ struct ubbd_ssh_device {
 	struct ubbd_device ubbd_dev;
 };
 
+struct ubbd_cache_device {
+	struct ubbd_device ubbd_dev;
+	struct ubbd_device *backing_device;
+	struct ubbd_device *cache_device;
+	int cache_mode;
+};
+
 
 bool ubbd_dev_get(struct ubbd_device *ubbd_dev);
 void ubbd_dev_put(struct ubbd_device *ubbd_dev);
 
 struct ubbd_device *find_ubbd_dev(int dev_id);
-struct ubbd_rbd_device *create_rbd_dev(void);
-struct ubbd_file_device *create_file_dev(void);
-struct ubbd_null_device *create_null_dev(void);
 struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info);
+int ubbd_dev_init(struct ubbd_device *ubbd_dev);
+struct ubbd_device *ubbd_cache_dev_create(struct ubbd_dev_info *backing_dev_info,
+		struct ubbd_dev_info *cache_dev_info, int cache_mode);
 int ubbd_dev_restart(struct ubbd_device *ubbd_dev, int restart_mode);
 int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx);
 int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ctx);
@@ -157,4 +166,5 @@ extern struct ubbd_dev_ops rbd_dev_ops;
 extern struct ubbd_dev_ops file_dev_ops;
 extern struct ubbd_dev_ops null_dev_ops;
 extern struct ubbd_dev_ops ssh_dev_ops;
+extern struct ubbd_dev_ops cache_dev_ops;
 #endif	/* UBBD_DEV_H */

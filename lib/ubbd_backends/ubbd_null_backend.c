@@ -23,23 +23,23 @@ static void null_backend_release(struct ubbd_backend *ubbd_b)
 		free(null_backend);
 }
 
-static int null_backend_writev(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
+static int null_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	ubbd_queue_add_ce(ubbd_q, se->priv_data, 0);
+	ubbd_backend_io_finish(io, 0);
 
 	return 0;
 }
 
-static int null_backend_readv(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
+static int null_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	ubbd_queue_add_ce(ubbd_q, se->priv_data, 0);
+	ubbd_backend_io_finish(io, 0);
 
 	return 0;
 }
 
-static int null_backend_flush(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
+static int null_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	ubbd_queue_add_ce(ubbd_q, se->priv_data, 0);
+	ubbd_backend_io_finish(io, 0);
 
 	return 0;
 }

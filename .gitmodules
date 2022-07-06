@@ -4,3 +4,6 @@
 [submodule "unittests/ktf"]
 	path = unittests/ktf
 	url = https://github.com/ubbd/ktf.git
+[submodule "ocf"]
+	path = ocf
+	url = https://github.com/ubbd/ocf.git

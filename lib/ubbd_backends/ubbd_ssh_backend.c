@@ -115,9 +115,8 @@ static void ssh_backend_release(struct ubbd_backend *ubbd_b)
 		free(ssh_b);
 }
 
-static int ssh_backend_writev(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
+static int ssh_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_backend *ubbd_b = ubbd_q->ubbd_b;
 	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
 	int ret;
 	ssize_t count = 0;
@@ -126,11 +125,11 @@ static int ssh_backend_writev(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 	int i;
 
 	pthread_mutex_lock(&ssh_b->lock);
-	sftp_seek(ssh_b->sftp_file, se->offset);
+	sftp_seek(ssh_b->sftp_file, io->offset);
 
-	for (i = 0; i < se->iov_cnt; i++) {
-		base = (void*)ubbd_q->uio_info.map + (size_t)se->iov[i].iov_base;
-		len = se->iov[i].iov_len;
+	for (i = 0; i < io->iov_cnt; i++) {
+		base = io->iov[i].iov_base;
+		len = io->iov[i].iov_len;
 		ret = sftp_write(ssh_b->sftp_file, base, len);
 		if (ret < 0) {
 			ubbd_err("error in sftp_write: %d\n", ret);
@@ -141,16 +140,16 @@ static int ssh_backend_writev(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 	}
 	pthread_mutex_unlock(&ssh_b->lock);
 
-	ubbd_queue_add_ce(ubbd_q, se->priv_data, (count == se->len? 0 : -5));
+	ret = count == io->len? 0 : -5;
+	ubbd_backend_io_finish(io, ret);
 
 	return 0;
 out:
 	return ret;
 }
 
-static int ssh_backend_readv(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
+static int ssh_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_backend *ubbd_b = ubbd_q->ubbd_b;
 	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
 	int ret;
 	ssize_t count = 0;
@@ -159,14 +158,14 @@ static int ssh_backend_readv(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 	int i;
 
 	pthread_mutex_lock(&ssh_b->lock);
-	sftp_seek(ssh_b->sftp_file, se->offset);
+	sftp_seek(ssh_b->sftp_file, io->offset);
 
-	for (i = 0; i < se->iov_cnt; i++) {
-		base = (void*)ubbd_q->uio_info.map + (size_t)se->iov[i].iov_base;
-		len = se->iov[i].iov_len;
+	for (i = 0; i < io->iov_cnt; i++) {
+		base = io->iov[i].iov_base;
+		len = io->iov[i].iov_len;
 		ret = sftp_read(ssh_b->sftp_file, base, len);
 		if (ret < 0) {
-			ubbd_err("error in sftp_write: %d\n", ret);
+			ubbd_err("error in sftp_read: %d\n", ret);
 			pthread_mutex_unlock(&ssh_b->lock);
 			goto out;
 		}
@@ -174,18 +173,18 @@ static int ssh_backend_readv(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 	}
 	pthread_mutex_unlock(&ssh_b->lock);
 
-	ubbd_queue_add_ce(ubbd_q, se->priv_data, (count == se->len? 0 : -5));
+	ret = count == io->len? 0 : -5;
+	ubbd_backend_io_finish(io, ret);
 
 	return 0;
 out:
 	return ret;
 }
 
-static int ssh_backend_flush(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
+static int ssh_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
 	int ret;
 #ifdef HAVE_SFTP_FSYNC
-	struct ubbd_backend *ubbd_b = ubbd_q->ubbd_b;
 	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
 
 	ret = sftp_fsync(ssh_b->sftp_file);
@@ -193,7 +192,7 @@ static int ssh_backend_flush(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 	ret = 0;
 #endif
 
-	ubbd_queue_add_ce(ubbd_q, se->priv_data, ret);
+	ubbd_backend_io_finish(io, ret);
 
 	return 0;
 }

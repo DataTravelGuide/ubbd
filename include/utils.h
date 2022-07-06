@@ -11,8 +11,6 @@
 #include <errno.h>
 #include <stdbool.h>
 
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-
 #define container_of(ptr, type, member) ({                      \
         const typeof(((type *)0)->member) *__mptr = (ptr);      \
         (type *)((char *)__mptr - offsetof(type, member));      \
@@ -70,7 +68,6 @@ static inline int context_finish(struct context *ctx, int ret)
 		context_finish(ctx->parent, ret);
 
 	context_free(ctx);
-
 	return ret;
 }
 

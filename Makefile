@@ -8,6 +8,7 @@ VERSION ?= $(shell cat VERSION)
 UBBD_VERSION ?= ubbd-$(VERSION)
 $(shell rm -rf include/ubbd_compat.h)
 UBBDCONF_HEADER := include/ubbd_compat.h
+OCFDIR = ocf/
 
 .DEFAULT_GOAL := all
 
@@ -19,6 +20,9 @@ $(UBBDCONF_HEADER):
 
 
 all: $(UBBDCONF_HEADER)
+	@$(MAKE) -C ${OCFDIR} inc O=$(PWD)
+	@$(MAKE) -C ${OCFDIR} src O=$(PWD)
+	@$(MAKE) -C ${OCFDIR} env O=$(PWD) OCF_ENV=posix
 	$(MAKE) -C ubbdadm
 	$(MAKE) -C ubbdd
 	$(MAKE) -C backend
