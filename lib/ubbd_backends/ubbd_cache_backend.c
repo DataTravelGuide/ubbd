@@ -43,13 +43,13 @@ ctx_data_t *ctx_data_alloc(uint32_t pages)
 
 	data = calloc(1, sizeof(*data));
 	if (!data) {
-		printf("malloc failed\n");
+		ubbd_err("malloc failed\n");
 		return NULL;
 	}
 
 	posix_memalign((void**)&buf, PAGE_SIZE, PAGE_SIZE * pages);
 	if (!buf) {
-		printf("malloc buf failed.\n");
+		ubbd_err("malloc buf failed.\n");
 		free(data);
 		return NULL;
 	}
@@ -65,7 +65,7 @@ ctx_data_t *ctx_data_alloc(uint32_t pages)
 	data->iov[0].iov_base = buf;
 	data->iov[0].iov_len = pages * PAGE_SIZE;
 
-	data->size = 0;
+	data->size = pages * PAGE_SIZE;
 	data->seek = 0;
 
 	return data;
@@ -509,7 +509,7 @@ static void volume_io_ctx_finish(struct ocf_io *io, int ret)
 	struct volume_io_ctx *volume_io_ctx = ocf_io_get_priv(io);
 
 	if (ret) {
-		printf("volume io failed: %d\n", ret);
+		ubbd_err("volume io failed: %d\n", ret);
 		if (!volume_io_ctx->error) {
 			volume_io_ctx->error = ret;
 		}
@@ -593,12 +593,12 @@ static struct ubbd_backend_io *prepare_submit(struct ocf_io *io)
 	data = ocf_io_get_data(io);
 	ret = get_vec_index(data->iov, data->iov_cnt, offset, &start_vec, &off_in_start);
 	if (ret) {
-		printf("failed to get vec index of start vec.\n");
+		ubbd_err("failed to get vec index of start vec.\n");
 		return NULL;
 	}
 	ret = get_vec_index(data->iov, data->iov_cnt, offset + len - 1, &end_vec, &off_in_end);
 	if (ret) {
-		printf("failed to get vec index of end vec.\n");
+		ubbd_err("failed to get vec index of end vec.\n");
 		return NULL;
 	}
 
@@ -626,6 +626,7 @@ static void volume_submit_io(struct ocf_io *io)
 {
 	struct ubbd_backend *ubbd_b;
 	struct ubbd_backend_io *backend_io;
+	const struct ocf_volume_uuid *uuid = ocf_volume_get_uuid(ocf_io_get_volume(io));
 
 	backend_io = prepare_submit(io);
 	if (!backend_io) {
@@ -636,8 +637,10 @@ static void volume_submit_io(struct ocf_io *io)
 	ubbd_b = *(struct ubbd_backend **)ocf_volume_get_priv(ocf_io_get_volume(io));
 
 	if (io->dir == OCF_WRITE) {
+		ubbd_dbg("%s write %lu %u\n", ocf_uuid_to_str(uuid), io->addr, io->bytes);
 		ubbd_b->backend_ops->writev(ubbd_b, backend_io);
 	} else {
+		ubbd_dbg("%s read %lu %u\n", ocf_uuid_to_str(uuid), io->addr, io->bytes);
 		ubbd_b->backend_ops->readv(ubbd_b, backend_io);
 	}
 
