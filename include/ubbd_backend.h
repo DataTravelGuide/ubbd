@@ -97,6 +97,17 @@ struct ubbd_cache_backend {
 	int cache_mode;
 };
 
+struct ubbd_s3_backend {
+	struct ubbd_backend ubbd_b;
+	uint32_t block_size;
+	int port;
+	char hostname[UBBD_S3_LEN_MAX];
+	char accessid[UBBD_S3_LEN_MAX];
+	char accesskey[UBBD_S3_LEN_MAX];
+	char volume_name[UBBD_S3_LEN_MAX];
+	char bucket_name[UBBD_S3_LEN_MAX];
+};
+
 struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *backend_conf);
 void ubbd_backend_release(struct ubbd_backend *ubbd_b);
 int ubbd_backend_start(struct ubbd_backend *ubbd_b, bool start_queues);

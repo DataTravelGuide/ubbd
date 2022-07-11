@@ -82,42 +82,91 @@ static enum ubbd_dev_type str_to_type(char *str)
 		type = UBBD_DEV_TYPE_SSH;
 	else if (!strcmp("cache", str))
 		type = UBBD_DEV_TYPE_CACHE;
+	else if (!strcmp("s3", str))
+		type = UBBD_DEV_TYPE_S3;
 	else
 		type = -1;
 
 	return type;
 }
 
+struct ubbdadm_map_options {
+	enum ubbd_dev_type type;
+	char *filepath;
+	char *pool;
+	char *image;
+	char *ceph_conf;
+	char *hostname;
+	uint64_t dev_size;
+	uint32_t block_size;
+	char *accessid;
+	char *accesskey;
+	char *volume_name;
+	char *bucket_name;
+	int port;
+};
+
 static struct option const long_options[] =
 {
 	{"command", required_argument, NULL, 'c'},
-	{"type", required_argument, NULL, 't'},
-	{"cache-type", required_argument, NULL, 0},
-	{"backing-type", required_argument, NULL, 0},
-	{"filepath", required_argument, NULL, 'f'},
-	{"cache-filepath", required_argument, NULL, 0},
-	{"backing-filepath", required_argument, NULL, 0},
-	{"devsize", required_argument, NULL, 's'},
-	{"cache-devsize", required_argument, NULL, 0},
-	{"backing-devsize", required_argument, NULL, 0},
 	{"force", no_argument, NULL, 'o'},
-	{"pool", required_argument, NULL, 'p'},
-	{"cache-pool", required_argument, NULL, 0},
-	{"backing-pool", required_argument, NULL, 0},
-	{"image", required_argument, NULL, 'i'},
-	{"cache-image", required_argument, NULL, 0},
-	{"backing-image", required_argument, NULL, 0},
-	{"ceph-conf", required_argument, NULL, 'e'},
-	{"cache-ceph-conf", required_argument, NULL, 0},
-	{"backing-ceph-conf", required_argument, NULL, 0},
 	{"ubbdid", required_argument, NULL, 'u'},
 	{"data-pages-reserve", required_argument, NULL, 'r'},
 	{"num-queues", required_argument, NULL, 'q'},
 	{"restart-mode", required_argument, NULL, 'm'},
-	{"hostname", required_argument, NULL, 'n'},
-	{"cache-hostname", required_argument, NULL, 0},
-	{"backing-hostname", required_argument, NULL, 0},
-	{"cache-mode", required_argument, NULL, 0},
+
+	{"type", required_argument, NULL, 0},
+	{"cache-dev-type", required_argument, NULL, 0},
+	{"backing-dev-type", required_argument, NULL, 0},
+
+	{"filepath", required_argument, NULL, 0},
+	{"cache-dev-filepath", required_argument, NULL, 0},
+	{"backing-dev-filepath", required_argument, NULL, 0},
+
+	{"devsize", required_argument, NULL, 0},
+	{"cache-dev-devsize", required_argument, NULL, 0},
+	{"backing-dev-devsize", required_argument, NULL, 0},
+
+	{"pool", required_argument, NULL, 0},
+	{"cache-dev-pool", required_argument, NULL, 0},
+	{"backing-dev-pool", required_argument, NULL, 0},
+
+	{"image", required_argument, NULL, 0},
+	{"cache-dev-image", required_argument, NULL, 0},
+	{"backing-dev-image", required_argument, NULL, 0},
+
+	{"ceph-conf", required_argument, NULL, 0},
+	{"cache-dev-ceph-conf", required_argument, NULL, 0},
+	{"backing-dev-ceph-conf", required_argument, NULL, 0},
+
+	{"hostname", required_argument, NULL, 0},
+	{"cache-dev-hostname", required_argument, NULL, 0},
+	{"backing-dev-hostname", required_argument, NULL, 0},
+
+	{"cache-mode", required_argument, NULL, 'a'},
+
+	{"accessid", required_argument, NULL, 0},
+	{"accesskey", required_argument, NULL, 0},
+	{"volume-name", required_argument, NULL, 0},
+	{"cache-dev-accessid", required_argument, NULL, 0},
+	{"cache-dev-accesskey", required_argument, NULL, 0},
+	{"cache-dev-volume-name", required_argument, NULL, 0},
+	{"backing-dev-accessid", required_argument, NULL, 0},
+	{"backing-dev-accesskey", required_argument, NULL, 0},
+	{"backing-dev-volume-name", required_argument, NULL, 0},
+
+	{"port", required_argument, NULL, 0},
+	{"cache-dev-port", required_argument, NULL, 0},
+	{"backing-dev-port", required_argument, NULL, 0},
+
+	{"block-size", required_argument, NULL, 0},
+	{"cache-dev-block-size", required_argument, NULL, 0},
+	{"backing-dev-block-size", required_argument, NULL, 0},
+
+	{"bucket-name", required_argument, NULL, 0},
+	{"cache-dev-bucket-name", required_argument, NULL, 0},
+	{"backing-dev-bucket-name", required_argument, NULL, 0},
+
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
@@ -133,6 +182,7 @@ static void usage(int status)
 			ubbdadm --command map --type file --filepath PATH --devsize SIZE\n\
 			ubbdadm --command map --type rbd --pool POOL --image IMANGE \n\
 			ubbdadm --command map --type ssh --hostname HOST --filepath REMOTE_PATH --devsize SIZE --num-queues N\n\
+			ubbdadm --command map --type s3 --hostname IP/URL --port PORT --accessid ID --accesskey KEY --volume-name VOL_NAME --devsize SIZE --num-queues N\n\
 			ubbdadm --command map --type cache --cache-type file --cache-filepath PATH --backing-type rbd --backing-pool POOL --backing-image IMG\n\
 						--cache-mode [writeback|writethrough] --devsize SIZE --num-queues N\n\
 			ubbdadm --command unmap --ubbdid ID\n\
@@ -248,6 +298,39 @@ static int do_null_map(uint64_t dev_size, uint32_t num_queues)
 	req.cmd = UBBDD_MGMT_CMD_MAP;
 	req.u.add.dev_type = UBBD_DEV_TYPE_NULL;
 	null_dev_info_setup(&req.u.add.info, dev_size, num_queues);
+
+	return map_request_and_wait(&req);
+}
+
+static void s3_dev_info_setup(struct ubbd_dev_info *dev_info,
+		char *hostname, int port, char *accessid,
+		char *accesskey, char *bucket_name,
+		char *volume_name, uint64_t dev_size, 
+		uint32_t block_size, uint32_t num_queues)
+{
+	dev_info->num_queues = num_queues;
+	dev_info->type = UBBD_DEV_TYPE_S3;
+	dev_info->s3.size = dev_size;
+	dev_info->s3.block_size = block_size;
+	dev_info->s3.port = port;
+	strcpy(dev_info->s3.hostname, hostname);
+	strcpy(dev_info->s3.accessid, accessid);
+	strcpy(dev_info->s3.accesskey, accesskey);
+	strcpy(dev_info->s3.volume_name, volume_name);
+	strcpy(dev_info->s3.bucket_name, bucket_name);
+}
+
+static int do_s3_map(char *hostname, int port, char *accessid, char *accesskey,
+		char *bucket_name, char *volume_name, uint64_t dev_size,
+		uint32_t block_size, uint32_t num_queues)
+{
+	struct ubbdd_mgmt_request req = {0};
+
+	req.cmd = UBBDD_MGMT_CMD_MAP;
+	req.u.add.dev_type = UBBD_DEV_TYPE_S3;
+	s3_dev_info_setup(&req.u.add.info, hostname, port, accessid,
+			accesskey, bucket_name, volume_name,
+			dev_size, block_size, num_queues);
 
 	return map_request_and_wait(&req);
 }
@@ -415,102 +498,109 @@ int str_to_restart_mode(char *str)
 
 }
 
+static void options_init(struct ubbdadm_map_options *opts){
+	memset(opts, 0, sizeof(*opts));
+}
+
+static int parse_options(struct ubbdadm_map_options *opts, const char *name, char *optarg)
+{
+	if (!strcmp(name, "type")) {
+		opts->type = str_to_type(optarg);
+	} else if (!strcmp(name, "filepath")) {
+		opts->filepath = optarg;
+	} else if (!strcmp(name, "pool")) {
+		opts->pool = optarg;
+	} else if (!strcmp(name, "image")) {
+		opts->image = optarg;
+	} else if (!strcmp(name, "ceph-conf")) {
+		opts->ceph_conf = optarg;
+	} else if (!strcmp(name, "hostname")) {
+		opts->hostname = optarg;
+	} else if (!strcmp(name, "devsize")) {
+		opts->dev_size = atoll(optarg);
+	} else if (!strcmp(name, "accessid")) {
+		opts->accessid = optarg;
+	} else if (!strcmp(name, "accesskey")) {
+		opts->accesskey = optarg;
+	} else if (!strcmp(name, "volume-name")) {
+		opts->volume_name = optarg;
+	} else if (!strcmp(name, "bucket-name")) {
+		opts->bucket_name = optarg;
+	} else if (!strcmp(name, "port")) {
+		opts->port = atoi(optarg);
+	} else if (!strcmp(name, "block-size")) {
+		opts->block_size = atoi(optarg);
+	} else {
+		ubbd_err("unrecognized option: %s\n", name);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int dev_info_setup(struct ubbd_dev_info *dev_info,
+		enum ubbd_dev_type dev_type, struct ubbdadm_map_options *opts,
+		int num_queues)
+{
+	if (dev_type == UBBD_DEV_TYPE_FILE) {
+		file_dev_info_setup(dev_info, opts->filepath, opts->dev_size, num_queues);
+	} else if (dev_type == UBBD_DEV_TYPE_RBD) {
+		rbd_dev_info_setup(dev_info, opts->pool, opts->image, opts->ceph_conf, num_queues);
+	} else if (dev_type == UBBD_DEV_TYPE_NULL) {
+		null_dev_info_setup(dev_info, opts->dev_size, num_queues);
+	} else if (dev_type == UBBD_DEV_TYPE_SSH) {
+		ssh_dev_info_setup(dev_info, opts->hostname, opts->filepath, opts->dev_size, num_queues);
+	} else if (dev_type == UBBD_DEV_TYPE_S3) {
+		s3_dev_info_setup(dev_info, opts->hostname, opts->port, opts->accessid, opts->accesskey,
+				opts->bucket_name, opts->volume_name, opts->dev_size, opts->block_size,
+				num_queues);
+	} else {
+		ubbd_err("error dev_type: %d\n", dev_type);
+		return -1;
+	}
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	int ch, longindex;
 	enum ubbdd_mgmt_cmd command;
-	enum ubbd_dev_type type;
-	enum ubbd_dev_type cache_type, backing_type;
-	char *filepath, *pool, *image, *ceph_conf, *hostname;
-	char *cache_filepath, *cache_pool, *cache_image, *cache_ceph_conf, *cache_hostname;
-	char *backing_filepath, *backing_pool, *backing_image, *backing_ceph_conf, *backing_hostname;
 	struct ubbd_dev_info cache_dev_info, backing_dev_info;
-	uint64_t dev_size, cache_dev_size, backing_dev_size;
 	int ubbdid;
 	int data_pages_reserve;
 	bool force = false;
 	int ret = 0;
 	uint32_t num_queues = 0;
 	int restart_mode = UBBD_DEV_RESTART_MODE_DEFAULT;
+	struct ubbdadm_map_options cache_opts, backing_opts, opts;
 	int cache_mode = ocf_cache_mode_wb;
+
+	options_init(&cache_opts);
+	options_init(&backing_opts);
+	options_init(&opts);
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 0:
-			if (!strcmp(long_options[longindex].name, "cache-type")) {
-				cache_type = str_to_type(optarg);
-				break;
-			} else if (!strcmp(long_options[longindex].name, "backing-type")) {
-				backing_type = str_to_type(optarg);
-				break;
-			} else if (!strcmp(long_options[longindex].name, "cache-filepath")) {
-				cache_filepath = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "backing-filepath")) {
-				backing_filepath = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "cache-pool")) {
-				cache_pool = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "backing-pool")) {
-				backing_pool = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "cache-image")) {
-				cache_image = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "backing-image")) {
-				backing_image = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "cache-ceph-conf")) {
-				cache_ceph_conf = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "backing-ceph-conf")) {
-				backing_ceph_conf = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "cache-hostname")) {
-				cache_hostname = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "backing-hostname")) {
-				backing_hostname = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "cache-devsize")) {
-				cache_dev_size = atoll(optarg);
-				break;
-			} else if (!strcmp(long_options[longindex].name, "backing-devsize")) {
-				backing_dev_size = atoll(optarg);
-				break;
-			} else if (!strcmp(long_options[longindex].name, "cache-mode")) {
-				cache_mode = str_to_cache_mode(optarg);
-				break;
+			if (!strncmp(long_options[longindex].name, "cache-dev-", 10)) {
+				ret = parse_options(&cache_opts, long_options[longindex].name + 10, optarg);
+			} else if (!strncmp(long_options[longindex].name, "backing-dev-", 12)) {
+				ret = parse_options(&backing_opts, long_options[longindex].name + 12, optarg);
 			} else {
-				printf("error option: %s\n", long_options[longindex].name);
-				exit(-1);
+				ret = parse_options(&opts, long_options[longindex].name, optarg);
 			}
+			if (ret) {
+				return -1;
+			}
+			break;
 		case 'c':
 			command = str_to_cmd(optarg);
 			break;
-		case 't':
-			type = str_to_type(optarg);
-			break;
-		case 'f':
-			filepath = optarg;
-			break;
-		case 's':
-			dev_size = atoll(optarg);
-			break;
 		case 'o':
 			force = true;
-			break;
-		case 'p':
-			pool = optarg;
-			break;
-		case 'i':
-			image = optarg;
-			break;
-		case 'e':
-			ceph_conf = optarg;
 			break;
 		case 'u':
 			ubbdid = atoi(optarg);
@@ -527,8 +617,8 @@ int main(int argc, char **argv)
 				return -1;
 			}
 			break;
-		case 'n':
-			hostname = optarg;
+		case 'a':
+			cache_mode = str_to_cache_mode(optarg);
 			break;
 		case 'h':
 			usage(0);
@@ -541,50 +631,40 @@ int main(int argc, char **argv)
 	}
 
 	if (command == UBBDD_MGMT_CMD_MAP) {
-		switch (type) {
+		switch (opts.type) {
 		case UBBD_DEV_TYPE_FILE:
-			ret = do_file_map(filepath, dev_size, num_queues);
+			ret = do_file_map(opts.filepath, opts.dev_size, num_queues);
 			break;
 		case UBBD_DEV_TYPE_RBD:
-			ret = do_rbd_map(pool, image, ceph_conf, num_queues);
+			ret = do_rbd_map(opts.pool, opts.image, opts.ceph_conf, num_queues);
 			break;
 		case UBBD_DEV_TYPE_NULL:
-			ret = do_null_map(dev_size, num_queues);
+			ret = do_null_map(opts.dev_size, num_queues);
 			break;
 		case UBBD_DEV_TYPE_SSH:
-			ret = do_ssh_map(hostname, filepath, dev_size, num_queues);
+			ret = do_ssh_map(opts.hostname, opts.filepath, opts.dev_size, num_queues);
+			break;
+		case UBBD_DEV_TYPE_S3:
+			ret = do_s3_map(opts.hostname, opts.port, opts.accessid,
+					opts.accesskey, opts.bucket_name,
+					opts.volume_name, opts.dev_size,
+					opts.block_size, num_queues);
 			break;
 		case UBBD_DEV_TYPE_CACHE:
-			if (cache_type == UBBD_DEV_TYPE_FILE) {
-				file_dev_info_setup(&cache_dev_info, cache_filepath, cache_dev_size, num_queues);
-			} else if (cache_type == UBBD_DEV_TYPE_RBD) {
-				rbd_dev_info_setup(&cache_dev_info, cache_pool, cache_image, cache_ceph_conf, num_queues);
-			} else if (cache_type == UBBD_DEV_TYPE_NULL) {
-				null_dev_info_setup(&cache_dev_info, cache_dev_size, num_queues);
-			} else if (cache_type == UBBD_DEV_TYPE_SSH) {
-				ssh_dev_info_setup(&cache_dev_info, cache_hostname, cache_filepath, cache_dev_size, num_queues);
-			} else {
-				ubbd_err("error cache_type: %d\n", cache_type);
-				return -1;
+			ret = dev_info_setup(&cache_dev_info, cache_opts.type, &cache_opts, num_queues);
+			if (ret) {
+				exit(-1);
 			}
 
-			if (backing_type == UBBD_DEV_TYPE_FILE) {
-				file_dev_info_setup(&backing_dev_info, backing_filepath, backing_dev_size, num_queues);
-			} else if (backing_type == UBBD_DEV_TYPE_RBD) {
-				rbd_dev_info_setup(&backing_dev_info, backing_pool, backing_image, backing_ceph_conf, num_queues);
-			} else if (backing_type == UBBD_DEV_TYPE_NULL) {
-				null_dev_info_setup(&backing_dev_info, backing_dev_size, num_queues);
-			} else if (backing_type == UBBD_DEV_TYPE_SSH) {
-				ssh_dev_info_setup(&backing_dev_info, backing_hostname, backing_filepath, backing_dev_size, num_queues);
-			} else {
-				ubbd_err("error backing_type: %d\n", backing_type);
-				return -1;
+			ret = dev_info_setup(&backing_dev_info, backing_opts.type, &backing_opts, num_queues);
+			if (ret) {
+				exit(-1);
 			}
 
-			ret = do_cache_map(&cache_dev_info, &backing_dev_info, cache_mode, dev_size, num_queues);
+			ret = do_cache_map(&cache_dev_info, &backing_dev_info, cache_mode, opts.dev_size, num_queues);
 			break;
 		default:
-			printf("error type: %d\n", type);
+			printf("error type: %d\n", opts.type);
 			exit(-1);
 		}
 	} else if (command == UBBDD_MGMT_CMD_UNMAP) {

@@ -10,8 +10,8 @@ SOURCES := $(shell find ../lib/ -name '*.c')
 SOURCES += $(shell find ../src/ -name '*.c')
 
 all:
-	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_CALLOC_CFLAGS) -g  utils_test.c -I /usr/include/libnl3/ -I ../include/ -I../src/ocf/env/ -I../src/ocf/ -lnl-3 -lnl-genl-3 -lrbd -lrados -lpthread -lm -lz -lssh $(LDLIBS_CMOCKA) -o utils_test
-	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_OPEN_CFLAGS) -g ubbd_uio_test.c $(SOURCES) -I /usr/include/libnl3/ -I ../include/ -I../src/ocf/env/ -I../src/ocf/ -lnl-3 -lnl-genl-3 -lrbd -lrados -lpthread -lm -lz -lssh $(LDLIBS_CMOCKA) -o ubbd_uio_test
+	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_CALLOC_CFLAGS) -g  utils_test.c $(UBBD_FLAGS) $(LDLIBS_CMOCKA) -o utils_test
+	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_OPEN_CFLAGS) -g ubbd_uio_test.c $(SOURCES) $(UBBD_FLAGS) $(LDLIBS_CMOCKA) -o ubbd_uio_test
 
 clean:
 	rm -rf utils_test
