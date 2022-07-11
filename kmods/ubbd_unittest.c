@@ -189,6 +189,6 @@ static void __exit ubbd_kmod_unittest_exit(void)
 module_init(ubbd_kmod_unittest_init);
 module_exit(ubbd_kmod_unittest_exit);
 
-MODULE_AUTHOR("Dongsheng Yang <dongsheng.yang@easystack.com>");
+MODULE_AUTHOR("Dongsheng Yang <dongsheng.yang.linux@gmail.com>");
 MODULE_DESCRIPTION("Unittest for UBBD");
 MODULE_LICENSE("GPL");

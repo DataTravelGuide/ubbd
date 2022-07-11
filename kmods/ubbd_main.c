@@ -22,6 +22,6 @@ static void __exit ubbd_exit(void)
 module_init(ubbd_init);
 module_exit(ubbd_exit);
 
-MODULE_AUTHOR("Dongsheng Yang <dongsheng.yang@easystack.com>");
+MODULE_AUTHOR("Dongsheng Yang <dongsheng.yang.linux@gmail.com>");
 MODULE_DESCRIPTION("Userspace Backend Block Device (UBBD) driver");
 MODULE_LICENSE("GPL");
