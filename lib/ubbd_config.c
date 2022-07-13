@@ -294,3 +294,54 @@ int ubbd_conf_write_dev_conf(struct ubbd_dev_conf *dev_conf)
 {
 	return write_dev_conf(dev_conf->dev_id, dev_conf, sizeof(*dev_conf));
 }
+
+
+int ubbd_conf_lock_backend_conf(int dev_id, int *fd) {
+	char *conf_path;
+	int ret = -ENOMEM;
+
+	conf_path = get_dev_conf_path(dev_id);
+	if (!conf_path)
+		goto out;
+
+	*fd = open(conf_path, O_RDWR);
+	if (*fd < 0) {
+		ubbd_err("failed to open conf_path %s\n", conf_path);
+		ret = -errno;
+		goto free_path;
+	}
+
+	ret = lockf(*fd, F_LOCK, 0);
+	if (ret) {
+		ubbd_err("failed to flock %s\n", conf_path);
+		goto free_path;
+	}
+
+	return 0;
+
+free_path:
+	free(conf_path);
+out:
+	return ret;
+}
+
+void ubbd_conf_unlock_backend_conf(int fd)
+{
+	lockf(fd, F_ULOCK, 0);
+	close(fd);
+}
+
+int ubbd_conf_testlock_backend_conf(int dev_id)
+{
+	int ret;
+	int fd;
+
+	ret = ubbd_conf_lock_backend_conf(dev_id, &fd);
+	if (ret) {
+		return ret;
+	}
+
+	ubbd_conf_unlock_backend_conf(fd);
+
+	return 0;
+}
