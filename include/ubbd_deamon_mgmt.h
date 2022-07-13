@@ -35,6 +35,7 @@ struct ubbdd_mgmt_request {
 		struct {
 			int dev_id;
 			bool force;
+			bool detach;
 		} remove;
 		struct {
 			int dev_id;

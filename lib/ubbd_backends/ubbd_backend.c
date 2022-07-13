@@ -368,3 +368,11 @@ int ubbd_backend_start_queue(struct ubbd_backend *ubbd_b, int queue_id)
 
 	return 0;
 }
+
+int ubbd_backend_set_opts(struct ubbd_backend *ubbd_b, struct ubbd_backend_opts *opts)
+{
+	if (!ubbd_b->backend_ops->set_opts)
+		return 0;
+
+	return ubbd_b->backend_ops->set_opts(ubbd_b, opts);
+}

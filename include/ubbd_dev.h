@@ -163,7 +163,7 @@ struct ubbd_device *ubbd_cache_dev_create(struct ubbd_dev_info *backing_dev_info
 		struct ubbd_dev_info *cache_dev_info, int cache_mode);
 int ubbd_dev_restart(struct ubbd_device *ubbd_dev, int restart_mode);
 int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx);
-int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ctx);
+int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, bool detach, struct context *ctx);
 int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct context *ctx);
 
 struct ubbd_nl_dev_status;

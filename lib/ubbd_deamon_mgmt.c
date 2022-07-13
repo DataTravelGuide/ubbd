@@ -165,7 +165,9 @@ static void *mgmt_thread_fn(void* args)
 					ret = -ENOMEM;
 					break;
 				}
-				ret = ubbd_dev_remove(ubbd_dev, mgmt_req.u.remove.force, ctx);
+
+				ret = ubbd_dev_remove(ubbd_dev, mgmt_req.u.remove.force,
+					       mgmt_req.u.remove.detach, ctx);
 				if (ret) {
 					context_free(ctx);
 					break;

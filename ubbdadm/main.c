@@ -167,11 +167,13 @@ static struct option const long_options[] =
 	{"cache-dev-bucket-name", required_argument, NULL, 0},
 	{"backing-dev-bucket-name", required_argument, NULL, 0},
 
+	{"detach", no_argument, NULL, 'd'},
+
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:t:f:p:i:u:h:s:o:r:q:e:m:n";
+static char *short_options = "c:t:f:p:i:u:h:s:o:r:q:e:m:n:d";
 
 static void usage(int status)
 { 
@@ -183,8 +185,10 @@ static void usage(int status)
 			ubbdadm --command map --type rbd --pool POOL --image IMANGE \n\
 			ubbdadm --command map --type ssh --hostname HOST --filepath REMOTE_PATH --devsize SIZE --num-queues N\n\
 			ubbdadm --command map --type s3 --hostname IP/URL --port PORT --accessid ID --accesskey KEY --volume-name VOL_NAME --devsize SIZE --num-queues N\n\
-			ubbdadm --command map --type cache --cache-type file --cache-filepath PATH --backing-type rbd --backing-pool POOL --backing-image IMG\n\
-						--cache-mode [writeback|writethrough] --devsize SIZE --num-queues N\n\
+			ubbdadm --command map --type cache --devsize SIZE --num-queues N\n\
+						--cache-dev-type file --cache-dev-filepath PATH --cache-dev-devsize SIZE\n\
+						--backing-dev-type rbd --backing-dev-pool POOL --backing-dev-image IMG\n\
+						--cache-mode [writeback|writethrough]\n\
 			ubbdadm --command unmap --ubbdid ID\n\
 			ubbdadm --command config --ubbdid ID --data-pages-reserve 50\n\
 			ubbdadm --command list\n\
@@ -373,13 +377,14 @@ static int do_cache_map(struct ubbd_dev_info *cache_dev_info,
 	return map_request_and_wait(&req);
 }
 
-static int do_unmap(int ubbdid, bool force)
+static int do_unmap(int ubbdid, bool force, bool detach)
 {
 	struct ubbdd_mgmt_request req = {0};
 
 	req.cmd = UBBDD_MGMT_CMD_UNMAP;
 	req.u.remove.dev_id = ubbdid;
 	req.u.remove.force = force;
+	req.u.remove.detach = detach;
 
 	return generic_request_and_wait(&req);
 }
@@ -575,6 +580,7 @@ int main(int argc, char **argv)
 	int restart_mode = UBBD_DEV_RESTART_MODE_DEFAULT;
 	struct ubbdadm_map_options cache_opts, backing_opts, opts;
 	int cache_mode = ocf_cache_mode_wb;
+	bool detach = false;
 
 	options_init(&cache_opts);
 	options_init(&backing_opts);
@@ -620,6 +626,9 @@ int main(int argc, char **argv)
 		case 'a':
 			cache_mode = str_to_cache_mode(optarg);
 			break;
+		case 'd':
+			detach = true;
+			break;
 		case 'h':
 			usage(0);
 		}
@@ -661,14 +670,15 @@ int main(int argc, char **argv)
 				exit(-1);
 			}
 
-			ret = do_cache_map(&cache_dev_info, &backing_dev_info, cache_mode, opts.dev_size, num_queues);
+			ret = do_cache_map(&cache_dev_info, &backing_dev_info,
+					cache_mode, opts.dev_size, num_queues);
 			break;
 		default:
 			printf("error type: %d\n", opts.type);
 			exit(-1);
 		}
 	} else if (command == UBBDD_MGMT_CMD_UNMAP) {
-		ret = do_unmap(ubbdid, force);
+		ret = do_unmap(ubbdid, force, detach);
 	} else if (command == UBBDD_MGMT_CMD_CONFIG) {
 		if (data_pages_reserve < 0 ||
 				data_pages_reserve > 100) {

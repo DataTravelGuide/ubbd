@@ -26,6 +26,7 @@ enum ubbd_backend_mgmt_cmd {
 	UBBD_BACKEND_MGMT_CMD_GET_QUEUE_STATUS,
 	UBBD_BACKEND_MGMT_CMD_REQ_STATS,
 	UBBD_BACKEND_MGMT_CMD_REQ_STATS_RESET,
+	UBBD_BACKEND_MGMT_CMD_SET_OPTS,
 };
 
 struct ubbd_backend_mgmt_request {
@@ -42,6 +43,7 @@ struct ubbd_backend_mgmt_request {
 		struct {
 			int queue_id;
 		} get_queue_status;
+		struct ubbd_backend_opts set_opts;
 	} u;
 };
 
