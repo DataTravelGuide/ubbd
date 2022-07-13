@@ -74,6 +74,7 @@ int main(int argc, char **argv)
 	char *log_filename;
 	int deamon = 1;
 	pid_t pid;
+	int fd;
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
@@ -127,11 +128,18 @@ int main(int argc, char **argv)
 	if (ret)
 		goto out;
 
+	ret = ubbd_conf_lock_backend_conf(devid, &fd);
+	if (ret) {
+		ubbd_err("cant lock backend conf file\n");
+		ret = -EBUSY;
+		goto err_destroy_log;
+	}
+
 	ubbd_backend_conf = ubbd_conf_read_backend_conf(devid);
 	if (!ubbd_backend_conf) {
 		ubbd_err("cant get backend info\n");
 		ret = -EINVAL;
-		goto err_destroy_log;
+		goto err_unlock_conf;
 	}
 
 	ubbd_backend = ubbd_backend_create(ubbd_backend_conf);
@@ -139,7 +147,7 @@ int main(int argc, char **argv)
 	if (!ubbd_backend) {
 		ret = -ENOMEM;
 		ubbd_err("failed to create backend\n");
-		goto err_destroy_log;
+		goto err_unlock_conf;
 	}
 
 	ubbd_backend->backend_id = b_id;
@@ -177,6 +185,8 @@ err_close_backend:
 	ubbd_backend_close(ubbd_backend);
 err_destroy_backend:
 	ubbd_backend_release(ubbd_backend);
+err_unlock_conf:
+	ubbd_conf_unlock_backend_conf(fd);
 err_destroy_log:
 	ubbd_destroy_log();
 out:
