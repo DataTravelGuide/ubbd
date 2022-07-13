@@ -55,7 +55,7 @@ clean:
 	cd kmods; $(MAKE) clean
 	rm -vf rhed/ubbd.spec
 
-install: all
+install:
 	mkdir -p $(DESTDIR)/usr/bin
 	install ubbdadm/ubbdadm $(DESTDIR)/usr/bin/ubbdadm
 	install ubbdd/ubbdd $(DESTDIR)/usr/bin/ubbdd

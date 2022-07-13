@@ -37,6 +37,7 @@ Who should not use UBBD?
 	    apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev libssh-dev
 
     b) compile  
+	   $ make
 	   $ make install
 
     c) insert kernel module  
