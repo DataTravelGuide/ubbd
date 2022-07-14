@@ -60,10 +60,6 @@ static inline void ubbd_conf_header_init(struct ubbd_conf_header *header, int co
 int ubbd_conf_write_backend_conf(struct ubbd_backend_conf *conf);
 struct ubbd_backend_conf *ubbd_conf_read_backend_conf(int dev_id);
 
-int ubbd_conf_lock_backend_conf(int dev_id, int *fd);
-void ubbd_conf_unlock_backend_conf(int fd);
-int ubbd_conf_testlock_backend_conf(int dev_id);
-
 int ubbd_conf_write_dev_conf(struct ubbd_dev_conf *conf);
 struct ubbd_dev_conf *ubbd_conf_read_dev_conf(int dev_id);
 #endif /* UBBD_CONF_H */

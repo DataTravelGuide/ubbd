@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <stdbool.h>
 
+#define UBBD_LIB_DIR	"/var/lib/ubbd/"
 
 #ifndef MAX
 #define MAX(a,b)            (((a) > (b)) ? (a) : (b))

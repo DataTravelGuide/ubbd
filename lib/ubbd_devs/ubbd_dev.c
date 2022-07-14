@@ -496,7 +496,7 @@ bool backend_stopped(void *data)
 		}
 	}
 
-	ret = ubbd_conf_testlock_backend_conf(ubbd_dev->dev_id);
+	ret = ubbd_backend_testlock(ubbd_dev->dev_id, ubbd_dev->current_backend_id);
 	if (ret) {
 		goto out;
 	}

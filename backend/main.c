@@ -128,7 +128,7 @@ int main(int argc, char **argv)
 	if (ret)
 		goto out;
 
-	ret = ubbd_conf_lock_backend_conf(devid, &fd);
+	ret = ubbd_backend_lock(devid, b_id, &fd);
 	if (ret) {
 		ubbd_err("cant lock backend conf file\n");
 		ret = -EBUSY;
@@ -186,7 +186,7 @@ err_close_backend:
 err_destroy_backend:
 	ubbd_backend_release(ubbd_backend);
 err_unlock_conf:
-	ubbd_conf_unlock_backend_conf(fd);
+	ubbd_backend_unlock(fd);
 err_destroy_log:
 	ubbd_destroy_log();
 out:
