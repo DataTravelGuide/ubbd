@@ -31,10 +31,10 @@ Who should not use UBBD?
     install requirement packages:  
 
 	   [centos]  
-	    yum install librbd-devel glibc-devel libnl3-devel libssh-devel
+	    yum install librbd-devel glibc-devel libnl3-devel libssh-devel libcurl-devel libxml2-devel
 
 	   [ubuntu]  
-	    apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev libssh-dev
+	    apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev libssh-dev libcurl4-openssl-dev libxml2-dev
 
     b) compile  
 	   $ make
