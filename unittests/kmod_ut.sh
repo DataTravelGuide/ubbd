@@ -26,7 +26,7 @@ insmod kernel/ktf.ko
 make install
 
 cd ${unittest_dir}/../
-make unittest
+make kmod_ut
 modprobe uio
 insmod kmods/ubbd_ut.ko
 

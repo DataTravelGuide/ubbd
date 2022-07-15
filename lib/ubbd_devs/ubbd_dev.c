@@ -15,6 +15,13 @@
 #include "ubbd_netlink.h"
 #include "ubbd_backend.h"
 
+extern struct ubbd_dev_ops rbd_dev_ops;
+extern struct ubbd_dev_ops file_dev_ops;
+extern struct ubbd_dev_ops null_dev_ops;
+extern struct ubbd_dev_ops ssh_dev_ops;
+extern struct ubbd_dev_ops cache_dev_ops;
+extern struct ubbd_dev_ops s3_dev_ops;
+
 LIST_HEAD(ubbd_dev_list);
 pthread_mutex_t ubbd_dev_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 bool dev_checker_stop = false;
@@ -100,6 +107,22 @@ struct ubbd_ssh_device *create_ssh_dev(void)
 	return dev;
 }
 
+struct ubbd_s3_device *create_s3_dev(void)
+{
+	struct ubbd_device *ubbd_dev;
+	struct ubbd_s3_device *dev;
+
+	dev = calloc(1, sizeof(*dev));
+	if (!dev)
+		return NULL;
+
+	ubbd_dev = &dev->ubbd_dev;
+	ubbd_dev->dev_type = UBBD_DEV_TYPE_S3;
+	ubbd_dev->dev_ops = &s3_dev_ops;
+
+	return dev;
+}
+
 static void ubbd_dev_set_default(struct ubbd_device *ubbd_dev)
 {
 	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
@@ -147,6 +170,14 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 		ubbd_dev = &ssh_dev->ubbd_dev;
 		ubbd_dev->dev_size = info->ssh.size;
 		ubbd_err("dev_size: %lu\n", ubbd_dev->dev_size);
+	} else if (info->type == UBBD_DEV_TYPE_S3){
+		struct ubbd_s3_device *s3_dev;
+
+		s3_dev = create_s3_dev();
+		if (!s3_dev)
+			return NULL;
+		ubbd_dev = &s3_dev->ubbd_dev;
+		ubbd_dev->dev_size = info->s3.size;
 	} else {
 		ubbd_err("Unknown dev type\n");
 		return NULL;

@@ -11,6 +11,27 @@
 #include <errno.h>
 #include <stdbool.h>
 
+
+#ifndef MAX
+#define MAX(a,b)            (((a) > (b)) ? (a) : (b))
+#endif
+
+#ifndef MIN
+#define MIN(a,b)            (((a) < (b)) ? (a) : (b))
+#endif
+
+# define do_div(n,base) ({                                      \
+        uint32_t __base = (base);                               \
+        uint32_t __rem;                                         \
+        __rem = ((uint64_t)(n)) % __base;                       \
+        (n) = ((uint64_t)(n)) / __base;                         \
+        __rem;                                                  \
+ })
+
+#define __round_mask(x, y) ((__typeof__(x))((y)-1))
+#define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
+#define round_down(x, y) ((x) & ~__round_mask(x, y))
+
 #define container_of(ptr, type, member) ({                      \
         const typeof(((type *)0)->member) *__mptr = (ptr);      \
         (type *)((char *)__mptr - offsetof(type, member));      \

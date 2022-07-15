@@ -7,3 +7,6 @@
 [submodule "ocf"]
 	path = ocf
 	url = https://github.com/ubbd/ocf.git
+[submodule "libs3"]
+	path = libs3
+	url = https://github.com/ubbd/libs3.git

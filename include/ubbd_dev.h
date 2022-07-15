@@ -21,6 +21,7 @@ enum ubbd_dev_type {
 	UBBD_DEV_TYPE_NULL,
 	UBBD_DEV_TYPE_SSH,
 	UBBD_DEV_TYPE_CACHE,
+	UBBD_DEV_TYPE_S3,
 };
 
 enum ubbd_dev_ustatus {
@@ -52,6 +53,16 @@ struct ubbd_dev_info {
 			char path[PATH_MAX];
 			uint64_t size;
 		} ssh;
+		struct {
+			uint64_t size;
+			uint32_t block_size;
+			int port;
+			char hostname[PATH_MAX];
+			char accessid[UBBD_S3_LEN_MAX];
+			char accesskey[UBBD_S3_LEN_MAX];
+			char volume_name[UBBD_S3_LEN_MAX];
+			char bucket_name[UBBD_S3_LEN_MAX];
+		} s3;
 	};
 };
 
@@ -138,6 +149,9 @@ struct ubbd_cache_device {
 	int cache_mode;
 };
 
+struct ubbd_s3_device {
+	struct ubbd_device ubbd_dev;
+};
 
 bool ubbd_dev_get(struct ubbd_device *ubbd_dev);
 void ubbd_dev_put(struct ubbd_device *ubbd_dev);
@@ -161,10 +175,4 @@ void ubbd_dev_release(struct ubbd_device *ubbd_dev);
 int ubbd_dev_checker_start_thread();
 void ubbd_dev_checker_stop_thread(void);
 int ubbd_dev_checker_wait_thread(void);
-
-extern struct ubbd_dev_ops rbd_dev_ops;
-extern struct ubbd_dev_ops file_dev_ops;
-extern struct ubbd_dev_ops null_dev_ops;
-extern struct ubbd_dev_ops ssh_dev_ops;
-extern struct ubbd_dev_ops cache_dev_ops;
 #endif	/* UBBD_DEV_H */

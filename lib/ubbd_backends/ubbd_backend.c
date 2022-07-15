@@ -15,6 +15,7 @@ extern struct ubbd_backend_ops file_backend_ops;
 extern struct ubbd_backend_ops null_backend_ops;
 extern struct ubbd_backend_ops ssh_backend_ops;
 extern struct ubbd_backend_ops cache_backend_ops;
+extern struct ubbd_backend_ops s3_backend_ops;
 
 struct ubbd_ssh_backend *create_ssh_backend(void)
 {
@@ -96,6 +97,22 @@ struct ubbd_file_backend *create_file_backend(void)
 	return dev;
 }
 
+struct ubbd_s3_backend *create_s3_backend(void)
+{
+	struct ubbd_backend *ubbd_b;
+	struct ubbd_s3_backend *s3_b;
+
+	s3_b = calloc(1, sizeof(*s3_b));
+	if (!s3_b)
+		return NULL;
+
+	ubbd_b = &s3_b->ubbd_b;
+	ubbd_b->dev_type = UBBD_DEV_TYPE_S3;
+	ubbd_b->backend_ops = &s3_backend_ops;
+
+	return s3_b;
+}
+
 static int ubbd_backend_init(struct ubbd_backend *ubbd_b, struct ubbd_backend_conf *conf)
 {
 	int ret;
@@ -171,6 +188,21 @@ struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
 		strcpy(ssh_backend->hostname, dev_info->ssh.hostname);
 		strcpy(ssh_backend->path, dev_info->ssh.path);
 		ubbd_b->dev_size = dev_info->ssh.size;
+	}else if (dev_info->type == UBBD_DEV_TYPE_S3){
+		struct ubbd_s3_backend *s3_backend;
+
+		s3_backend = create_s3_backend();
+		if (!s3_backend)
+			return NULL;
+		ubbd_b = &s3_backend->ubbd_b;
+		strcpy(s3_backend->hostname, dev_info->s3.hostname);
+		strcpy(s3_backend->accessid, dev_info->s3.accessid);
+		strcpy(s3_backend->accesskey, dev_info->s3.accesskey);
+		strcpy(s3_backend->volume_name, dev_info->s3.volume_name);
+		strcpy(s3_backend->bucket_name, dev_info->s3.bucket_name);
+		s3_backend->port = dev_info->s3.port;
+		s3_backend->block_size = dev_info->s3.block_size;
+		ubbd_b->dev_size = dev_info->s3.size;
 	} else {
 		ubbd_err("Unknown dev type\n");
 		return NULL;

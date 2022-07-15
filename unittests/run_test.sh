@@ -1,6 +1,12 @@
 #!/bin/bash
 
-make
+unittest_dir=`pwd`
+
+cd ${unittest_dir}/../
+
+make ubbd_ut
+
+cd ${unittest_dir}
 
 valgrind --leak-check=full ./utils_test
 if [ $? -ne 0 ]; then

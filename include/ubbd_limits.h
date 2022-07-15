@@ -1,6 +1,8 @@
 #ifndef UBBD_LIMITS
 #define UBBD_LIMITS
 
+#define UBBD_S3_LEN_MAX	1024
+
 #define UBBD_DEV_MAX	1024
 #define UBBD_QUEUE_MAX	1024
 

@@ -10,6 +10,8 @@ $(shell rm -rf include/ubbd_compat.h)
 UBBDCONF_HEADER := include/ubbd_compat.h
 OCFDIR = ocf/
 
+UBBD_FLAGS = "-I /usr/include/libnl3/ -I$(UBBD_SRC)/libs3/inc -I $(UBBD_SRC)/include/ -I$(UBBD_SRC)/src/ocf/env/ -I$(UBBD_SRC)/src/ocf/ -L$(UBBD_SRC)/libs3/build/lib/ -ls3 -lcurl -lcrypto -lxml2 -lnl-3 -lnl-genl-3 -lrbd -lrados -lpthread -lm -lz -lssh"
+
 .DEFAULT_GOAL := all
 
 $(UBBDCONF_HEADER):
@@ -18,22 +20,32 @@ $(UBBDCONF_HEADER):
 	@if $(CC) compat-tests/have_sftp_fsync.c -lssh > /dev/null 2>&1; then echo "#define HAVE_SFTP_FSYNC 1"; else echo "/*#undefined HAVE_SFTP_FSYNC*/"; fi >> $@
 	@>> $@
 
+ubbdadm: $(UBBDCONF_HEADER)
+	UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C ubbdadm
+
+backend: $(UBBDCONF_HEADER)
+	UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C backend
 
 all: $(UBBDCONF_HEADER)
 	@$(MAKE) -C ${OCFDIR} inc O=$(PWD)
 	@$(MAKE) -C ${OCFDIR} src O=$(PWD)
 	@$(MAKE) -C ${OCFDIR} env O=$(PWD) OCF_ENV=posix
-	$(MAKE) -C ubbdadm
-	$(MAKE) -C ubbdd
-	$(MAKE) -C backend
+	@$(MAKE) -C libs3/ clean
+	@$(MAKE) -C libs3/
+	UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C ubbdadm
+	UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C ubbdd
+	UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C backend
 	@echo
 	@rm -rf kmods/compat.h
 	cd kmods; KMODS_SRC=$(KMODS_SRC) UBBD_KMODS_UT="n" KTF_SRC=$(KTF_SRC) $(MAKE) -C $(KERNEL_TREE) M=$(PWD)/kmods modules V=0
 	@echo "Compile completed."
 
-unittest:
+kmod_ut: $(UBBDCONF_HEADER)
 	@rm -rf kmods/compat.h
 	cd kmods; KMODS_SRC=$(KMODS_SRC) UBBD_KMODS_UT="m" KTF_SRC=$(KTF_SRC) $(MAKE) -C $(KERNEL_TREE) M=$(PWD)/kmods modules V=0
+
+ubbd_ut: $(UBBDCONF_HEADER)
+	UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C unittests
 
 clean:
 	$(MAKE) -C ubbdadm clean
