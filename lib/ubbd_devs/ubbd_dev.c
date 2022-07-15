@@ -943,7 +943,7 @@ static int wait_for_backend_ready(struct ubbd_device *ubbd_dev, int backend_id)
 	int status;
 	int i;
 
-	for (i = 0; i < 100; i++) {
+	for (i = 0; i < 1000; i++) {
 		status = get_backend_status(ubbd_dev, backend_id);
 		if (status > 0)
 			return 0;
