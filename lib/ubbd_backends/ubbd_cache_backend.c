@@ -1196,11 +1196,12 @@ int submit_io(ocf_core_t core, struct io_ctx_data *data,
 	return 0;
 }
 
-static void stop_core_complete(void *priv, int error)
+static void detach_core_complete(void *priv, int error)
 {
 	struct simple_context *context = priv;
 
 	*context->error = error;
+	sem_post(&context->sem);
 }
 
 ocf_ctx_t ctx = NULL;
@@ -1343,15 +1344,19 @@ static void cache_backend_close(struct ubbd_backend *ubbd_b)
 		}
 	}
 
-
+	sem_init(&context.sem, 0, 0);
 	context.error = &ret;
 
-	ocf_mngt_cache_detach_core(core1, stop_core_complete, &context);
+	ocf_mngt_cache_detach_core(core1, detach_core_complete, &context);
+	sem_wait(&context.sem);
+
 	if (ret)
 		error("Unable to stop core\n");
 
 	/* Stop cache */
 	ocf_mngt_cache_stop(cache1, simple_complete, &context);
+	sem_wait(&context.sem);
+
 	if (ret)
 		error("Unable to stop cache\n");
 
