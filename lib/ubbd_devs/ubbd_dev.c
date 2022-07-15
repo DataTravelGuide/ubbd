@@ -1118,7 +1118,7 @@ int ubbd_dev_reopen_devs(void)
 		ret = reopen_dev(&dev_status, &ubbd_dev);
 		if (ret) {
 			ubbd_err("failed to reopen dev.\n");
-			return ret;
+			continue;
 		}
 
 		if (dev_status.status != UBBD_DEV_KSTATUS_RUNNING) {
