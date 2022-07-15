@@ -343,7 +343,7 @@ static int write_object(char *oid, uint64_t off, uint64_t len, struct obj_io_ctx
 	char useServerSideEncryption = 0;
 	struct obj_io_ctx internal_ctx;
 	struct obj_io_ctx *write_ctx;
-	void *obj_buf;
+	void *obj_buf = NULL;
 
 	ubbd_dbg("write_object: %s, off: %lu, len: %lu\n", oid, off, len);
 
@@ -397,21 +397,24 @@ static int write_object(char *oid, uint64_t off, uint64_t len, struct obj_io_ctx
 		useServerSideEncryption
 	};
 
-		S3PutObjectHandler putObjectHandler =
-		{
-			{ &rsp_prop_cb, &rsp_comp_cb },
-			&put_obj_data_cb
-		};
+	S3PutObjectHandler putObjectHandler =
+	{
+		{ &rsp_prop_cb, &rsp_comp_cb },
+		&put_obj_data_cb
+	};
 
-		do {
-			S3_put_object(&bucketContext, oid, s3_block_size, &putProperties, 0,
-				          0, &putObjectHandler, write_ctx);
-		} while (S3_status_is_retryable(s3_status) && should_retry());
+	do {
+		S3_put_object(&bucketContext, oid, s3_block_size, &putProperties, 0,
+				  0, &putObjectHandler, write_ctx);
+	} while (S3_status_is_retryable(s3_status) && should_retry());
 
 
-		if (s3_status != S3StatusOK) {
-			printError();
-		}
+	if (s3_status != S3StatusOK) {
+		printError();
+	}
+
+	if (obj_buf)
+		free(obj_buf);
 
 	return s3_status;
 }
