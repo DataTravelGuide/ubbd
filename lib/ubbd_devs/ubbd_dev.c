@@ -508,7 +508,7 @@ out:
 
 int wait_for_backend_stopped(struct ubbd_device *ubbd_dev)
 {
-	return wait_condition(1000, 10000, backend_stopped, ubbd_dev);
+	return wait_condition(INT_MAX, 10000, backend_stopped, ubbd_dev);
 }
 
 static int dev_conf_write(struct ubbd_device *ubbd_dev)
@@ -820,7 +820,11 @@ static int dev_remove_disk_finish(struct context *ctx, int ret)
 
 	pthread_mutex_lock(&ubbd_dev->lock);
 
-	dev_stop(ubbd_dev);
+	ret = dev_stop(ubbd_dev);
+	if (ret) {
+		ubbd_err("failed to stop dev in removing.\n");
+		return ret;
+	}
 
 	dev_remove_dev(ubbd_dev, ctx->parent);
 	ctx->parent = NULL;
