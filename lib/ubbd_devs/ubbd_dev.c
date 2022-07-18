@@ -1077,15 +1077,15 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 		goto dev_running;
 	}
 
+	if (dev_status->status != UBBD_DEV_KSTATUS_RUNNING) {
+		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
+		goto out;
+	}
+
 	ret = dev_reset(ubbd_dev);
 	if (ret) {
 		ubbd_err("failed to reset dev: %d.", ret);
 		goto release_dev;
-	}
-
-	if (dev_status->status != UBBD_DEV_KSTATUS_RUNNING) {
-		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
-		goto out;
 	}
 
 dev_running:
