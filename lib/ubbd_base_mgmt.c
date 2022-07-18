@@ -102,12 +102,14 @@ int ubbd_response(int fd, void *rsp, size_t len,
 				continue;
 			ubbd_err("got poll error (%d/%d), daemon died?",
 				  err, errno);
+			close(fd);
 			return -ECONNABORTED;
 		} else if (pfd.revents & POLLIN) {
 			err = recv(fd, rsp, len, MSG_WAITALL);
 			if (err <= 0) {
 				ubbd_err("read error (%d/%d), daemon died?",
 					  err, errno);
+				close(fd);
 				return -ECONNABORTED;
 			}
 			len -= err;
