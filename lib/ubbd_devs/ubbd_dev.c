@@ -840,10 +840,12 @@ static int dev_remove_disk(struct ubbd_device *ubbd_dev, bool force,
 	struct ubbd_backend_opts backend_opts;
 	int ret;
 
-	backend_opts.cache.detach_on_close = detach;
-	ret = backend_set_opts(ubbd_dev, &backend_opts);
-	if (ret)
-		return ret;
+	if (detach) {
+		backend_opts.cache.detach_on_close = detach;
+		ret = backend_set_opts(ubbd_dev, &backend_opts);
+		if (ret)
+			return ret;
+	}
 
 	remove_disk_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_remove_disk_finish);
 	if (!remove_disk_ctx)
