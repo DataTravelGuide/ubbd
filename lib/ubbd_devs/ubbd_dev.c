@@ -184,6 +184,7 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 	}
 
 	ubbd_dev->num_queues = info->num_queues;
+	ubbd_dev->sh_mem_size = info->sh_mem_size;
 	memcpy(&ubbd_dev->dev_info, info, sizeof(*info));
 
 	ubbd_dev_set_default(ubbd_dev);
@@ -233,6 +234,7 @@ struct ubbd_device *create_cache_dev(struct ubbd_dev_info *backing_dev_info,
 
 	ubbd_dev = &cache_dev->ubbd_dev;
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_CACHE;
+	ubbd_dev->sh_mem_size = backing_dev_info->sh_mem_size;
 	ubbd_dev->dev_ops = &cache_dev_ops;
 
 	return ubbd_dev;
@@ -256,6 +258,7 @@ struct ubbd_device *ubbd_cache_dev_create(struct ubbd_dev_info *backing_dev_info
 
 	ubbd_dev_set_default(ubbd_dev);
 	ubbd_dev->num_queues = backing_dev_info->num_queues;
+	ubbd_dev->sh_mem_size = backing_dev_info->sh_mem_size;
 	memcpy(&ubbd_dev->dev_info, backing_dev_info, sizeof(struct ubbd_dev_info));
 	memcpy(&ubbd_dev->extra_info, cache_dev_info, sizeof(struct ubbd_dev_info));
 

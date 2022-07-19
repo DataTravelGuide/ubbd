@@ -12,6 +12,7 @@
 #include <stdbool.h>
 
 #define UBBD_LIB_DIR	"/var/lib/ubbd/"
+#define PAGE_SIZE	4096
 
 #ifndef MAX
 #define MAX(a,b)            (((a) > (b)) ? (a) : (b))

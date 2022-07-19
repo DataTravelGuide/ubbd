@@ -35,6 +35,7 @@ enum ubbd_dev_ustatus {
 struct ubbd_dev_info {
 	enum ubbd_dev_type type;
 	uint32_t num_queues;
+	uint32_t sh_mem_size;
 	union {
 		struct {
 			char path[PATH_MAX];
@@ -92,6 +93,7 @@ struct ubbd_device {
 	struct ubbd_dev_info extra_info;
 	char dev_name[16];
 	struct ubbd_dev_ops *dev_ops;
+	uint32_t sh_mem_size;
 
 	enum ubbd_dev_ustatus status;
 	pthread_mutex_t lock;
