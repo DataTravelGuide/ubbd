@@ -55,12 +55,13 @@ clean:
 	cd kmods; $(MAKE) clean
 	rm -vf rhed/ubbd.spec
 
-install: all
+install:
 	mkdir -p $(DESTDIR)/usr/bin
 	install ubbdadm/ubbdadm $(DESTDIR)/usr/bin/ubbdadm
 	install ubbdd/ubbdd $(DESTDIR)/usr/bin/ubbdd
 	install backend/ubbd-backend $(DESTDIR)/usr/bin/ubbd-backend
 	cd kmods; KMODS_SRC=$(KMODS_SRC) UBBD_KMODS_UT="n" KTF_SRC=$(KTF_SRC) $(MAKE) -C $(KERNEL_TREE) M=$(PWD)/kmods modules_install V=0
+	depmod -a
 
 uninstall:
 	rm -vf $(DESTDIR)/usr/bin/ubbdadm

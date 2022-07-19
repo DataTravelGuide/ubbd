@@ -8,6 +8,7 @@
 #include <ocf_def_priv.h>
 
 #include "ocf_env.h"
+#include "ocf/ocf_volume.h"
 #include "ubbd_uio.h"
 #include "ubbd_backend.h"
 
@@ -43,13 +44,13 @@ ctx_data_t *ctx_data_alloc(uint32_t pages)
 
 	data = calloc(1, sizeof(*data));
 	if (!data) {
-		printf("malloc failed\n");
+		ubbd_err("malloc failed\n");
 		return NULL;
 	}
 
 	posix_memalign((void**)&buf, PAGE_SIZE, PAGE_SIZE * pages);
 	if (!buf) {
-		printf("malloc buf failed.\n");
+		ubbd_err("malloc buf failed.\n");
 		free(data);
 		return NULL;
 	}
@@ -65,7 +66,7 @@ ctx_data_t *ctx_data_alloc(uint32_t pages)
 	data->iov[0].iov_base = buf;
 	data->iov[0].iov_len = pages * PAGE_SIZE;
 
-	data->size = 0;
+	data->size = pages * PAGE_SIZE;
 	data->seek = 0;
 
 	return data;
@@ -104,6 +105,148 @@ static int ctx_data_mlock(ctx_data_t *ctx_data)
  */
 static void ctx_data_munlock(ctx_data_t *ctx_data)
 {
+}
+
+/* queue thread main function */
+static void* run(void *);
+
+/* helper class to store all synchronization related objects */
+struct queue_thread
+{
+	/* thread running the queue */
+	pthread_t thread;
+	/* kick sets true, queue thread sets to false */
+	bool signalled;
+	/* request thread to exit */
+	bool stop;
+	/* conditional variable to sync queue thread and kick thread */
+	pthread_cond_t cv;
+	/* mutex for variables shared across threads */
+	pthread_mutex_t mutex;
+	/* associated OCF queue */
+	struct ocf_queue *queue;
+};
+
+struct queue_thread *queue_thread_init(struct ocf_queue *q)
+{
+	struct queue_thread *qt = malloc(sizeof(*qt));
+	int ret;
+
+	if (!qt)
+		return NULL;
+
+	ret = pthread_cond_init(&qt->cv, NULL);
+	if (ret)
+		goto err_mem;
+
+	ret = pthread_mutex_init(&qt->mutex, NULL);
+	if (ret)
+		goto err_cond;
+
+	qt->signalled = false;
+	qt->stop = false;
+	qt->queue = q;
+
+	ret = pthread_create(&qt->thread, NULL, run, qt);
+	if (ret)
+		goto err_mutex;
+
+	return qt;
+
+err_mutex:
+	pthread_mutex_destroy(&qt->mutex);
+err_cond:
+	pthread_cond_destroy(&qt->cv);
+err_mem:
+	free(qt);
+
+	return NULL;
+}
+
+void queue_thread_signal(struct queue_thread *qt, bool stop)
+{
+	pthread_mutex_lock(&qt->mutex);
+	qt->signalled = true;
+	qt->stop = stop;
+	pthread_cond_signal(&qt->cv);
+	pthread_mutex_unlock(&qt->mutex);
+}
+
+void queue_thread_destroy(struct queue_thread *qt)
+{
+	if (!qt)
+		return;
+
+	queue_thread_signal(qt, true);
+	pthread_join(qt->thread, NULL);
+
+	pthread_mutex_destroy(&qt->mutex);
+	pthread_cond_destroy(&qt->cv);
+	free(qt);
+}
+
+/* queue thread main function */
+static void* run(void *arg)
+{
+	struct queue_thread *qt = arg;
+	struct ocf_queue *q = qt->queue;
+
+	pthread_mutex_lock(&qt->mutex);
+
+	while (!qt->stop) {
+		if (qt->signalled) {
+			qt->signalled = false;
+			pthread_mutex_unlock(&qt->mutex);
+
+			/* execute items on the queue */
+			ocf_queue_run(q);
+
+			pthread_mutex_lock(&qt->mutex);
+		}
+
+		if (!qt->stop && !qt->signalled) 
+			pthread_cond_wait(&qt->cv, &qt->mutex);
+	}
+
+	pthread_mutex_unlock(&qt->mutex);
+
+	pthread_exit(0);
+}
+
+/* initialize I/O queue and management queue thread */
+int initialize_threads(struct ocf_queue *mngt_queue, struct ocf_queue *io_queue)
+{
+	int ret = 0;
+
+	struct queue_thread* mngt_queue_thread = queue_thread_init(mngt_queue);
+	struct queue_thread* io_queue_thread = queue_thread_init(io_queue);
+
+	if (!mngt_queue_thread || !io_queue_thread) {
+		queue_thread_destroy(io_queue_thread);
+		queue_thread_destroy(mngt_queue_thread);
+		return 1;
+	}
+
+	ocf_queue_set_priv(mngt_queue, mngt_queue_thread);
+	ocf_queue_set_priv(io_queue, io_queue_thread);
+
+	return ret;
+}
+
+/* callback for OCF to kick the queue thread */
+void queue_thread_kick(ocf_queue_t q)
+{
+	struct queue_thread *qt = ocf_queue_get_priv(q);
+
+	queue_thread_signal(qt, false);
+}
+
+/* callback for OCF to stop the queue thread */
+void queue_thread_stop(ocf_queue_t q)
+{
+	struct queue_thread *qt = ocf_queue_get_priv(q);
+
+	queue_thread_destroy(qt);
 }
 
 static size_t
@@ -509,7 +652,7 @@ static void volume_io_ctx_finish(struct ocf_io *io, int ret)
 	struct volume_io_ctx *volume_io_ctx = ocf_io_get_priv(io);
 
 	if (ret) {
-		printf("volume io failed: %d\n", ret);
+		ubbd_err("volume io failed: %d\n", ret);
 		if (!volume_io_ctx->error) {
 			volume_io_ctx->error = ret;
 		}
@@ -593,12 +736,12 @@ static struct ubbd_backend_io *prepare_submit(struct ocf_io *io)
 	data = ocf_io_get_data(io);
 	ret = get_vec_index(data->iov, data->iov_cnt, offset, &start_vec, &off_in_start);
 	if (ret) {
-		printf("failed to get vec index of start vec.\n");
+		ubbd_err("failed to get vec index of start vec.\n");
 		return NULL;
 	}
 	ret = get_vec_index(data->iov, data->iov_cnt, offset + len - 1, &end_vec, &off_in_end);
 	if (ret) {
-		printf("failed to get vec index of end vec.\n");
+		ubbd_err("failed to get vec index of end vec.\n");
 		return NULL;
 	}
 
@@ -626,6 +769,7 @@ static void volume_submit_io(struct ocf_io *io)
 {
 	struct ubbd_backend *ubbd_b;
 	struct ubbd_backend_io *backend_io;
+	const struct ocf_volume_uuid *uuid = ocf_volume_get_uuid(ocf_io_get_volume(io));
 
 	backend_io = prepare_submit(io);
 	if (!backend_io) {
@@ -636,8 +780,10 @@ static void volume_submit_io(struct ocf_io *io)
 	ubbd_b = *(struct ubbd_backend **)ocf_volume_get_priv(ocf_io_get_volume(io));
 
 	if (io->dir == OCF_WRITE) {
+		ubbd_dbg("%s write %lu %u\n", ocf_uuid_to_str(uuid), io->addr, io->bytes);
 		ubbd_b->backend_ops->writev(ubbd_b, backend_io);
 	} else {
+		ubbd_dbg("%s read %lu %u\n", ocf_uuid_to_str(uuid), io->addr, io->bytes);
 		ubbd_b->backend_ops->readv(ubbd_b, backend_io);
 	}
 
@@ -799,43 +945,13 @@ void error(char *msg)
 }
 
 /*
- * Trigger queue asynchronously. Made synchronous for simplicity.
- * Notice that it makes all asynchronous calls synchronous, because
- * asynchronism in OCF is achieved mostly by using queues.
- */
-static inline void queue_kick_async(ocf_queue_t q)
-{
-	ocf_queue_run(q);
-}
-
-/*
- * Trigger queue synchronously. May be implemented as asynchronous as well,
- * but in some environments kicking queue synchronously may reduce latency,
- * so to take advantage of such situations OCF call synchronous variant of
- * queue kick callback where possible.
- */
-static void queue_kick_sync(ocf_queue_t q)
-{
-	ocf_queue_run(q);
-}
-
-/*
- * Stop queue thread. To keep this example simple we handle queues
- * synchronously, thus it's left non-implemented.
- */
-static void queue_stop(ocf_queue_t q)
-{
-}
-
-/*
  * Queue ops providing interface for running queue thread in both synchronous
  * and asynchronous way. The stop() operation in called just before queue is
  * being destroyed.
  */
 const struct ocf_queue_ops queue_ops = {
-	.kick_sync = queue_kick_sync,
-	.kick = queue_kick_async,
-	.stop = queue_stop,
+	.kick = queue_thread_kick,
+	.stop = queue_thread_stop,
 };
 
 /*
@@ -846,6 +962,7 @@ const struct ocf_queue_ops queue_ops = {
  */
 struct simple_context {
 	int *error;
+	sem_t sem;
 };
 
 /*
@@ -856,6 +973,15 @@ static void simple_complete(ocf_cache_t cache, void *priv, int error)
 	struct simple_context *context= priv;
 
 	*context->error = error;
+	sem_post(&context->sem);
+}
+
+static void purge_cb(ocf_core_t core, void *priv, int error)
+{
+	struct simple_context *context= priv;
+
+	*context->error = error;
+	sem_post(&context->sem);
 }
 
 /*
@@ -864,10 +990,18 @@ static void simple_complete(ocf_cache_t cache, void *priv, int error)
 int initialize_cache(ocf_ctx_t ctx, ocf_cache_t *cache, bool cache_exist, int cache_mode)
 {
 	struct ocf_mngt_cache_config cache_cfg = { .name = "cache1" };
-	struct ocf_mngt_cache_device_config device_cfg = {};
+	struct ocf_mngt_cache_attach_config attach_cfg = { };
+	ocf_volume_t volume;
+	ocf_volume_type_t type;
+	struct ocf_volume_uuid uuid;
 	struct cache_priv *cache_priv;
 	struct simple_context context;
 	int ret, err;
+
+	/* Initialize completion semaphore */
+	ret = sem_init(&context.sem, 0, 0);
+	if (ret)
+		return ret;
 
 	/*
 	 * Asynchronous callbacks will assign error code to ret. That
@@ -881,15 +1015,21 @@ int initialize_cache(ocf_ctx_t ctx, ocf_cache_t *cache, bool cache_exist, int ca
 	cache_cfg.cache_mode = cache_mode;
 
 	/* Cache deivce (volume) configuration */
-	ocf_mngt_cache_device_config_set_default(&device_cfg);
-	device_cfg.volume_type = VOL_TYPE;
-	device_cfg.cache_line_size = ocf_cache_line_size_4;
-	device_cfg.open_cores = false;
-	device_cfg.perform_test = false;
-	device_cfg.discard_on_start = false;
-	ret = ocf_uuid_set_str(&device_cfg.uuid, "cache");
+	type = ocf_ctx_get_volume_type(ctx, VOL_TYPE);
+	ret = ocf_uuid_set_str(&uuid, "cache");
 	if (ret)
-		return ret;
+		goto err_sem;
+
+	ret = ocf_volume_create(&volume, type, &uuid);
+	if (ret)
+		goto err_sem;
+
+	ocf_mngt_cache_attach_config_set_default(&attach_cfg);
+	attach_cfg.device.volume = volume;
+	attach_cfg.cache_line_size = ocf_cache_line_size_32;
+	attach_cfg.open_cores = false;
+	attach_cfg.discard_on_start = false;
+	attach_cfg.device.perform_test = false;
 
 	/*
 	 * Allocate cache private structure. We can not initialize it
@@ -897,8 +1037,10 @@ int initialize_cache(ocf_ctx_t ctx, ocf_cache_t *cache, bool cache_exist, int ca
 	 * throughout the entire live span of cache object.
 	 */
 	cache_priv = malloc(sizeof(*cache_priv));
-	if (!cache_priv)
-		return -ENOMEM;
+	if (!cache_priv) {
+		ret = -ENOMEM;
+		goto err_vol;
+	}
 
 	/* Start cache */
 	ret = ocf_mngt_cache_start(ctx, cache, &cache_cfg, NULL);
@@ -933,12 +1075,18 @@ int initialize_cache(ocf_ctx_t ctx, ocf_cache_t *cache, bool cache_exist, int ca
 	if (ret)
 		goto err_cache;
 
+	ret = initialize_threads(cache_priv->mngt_queue, cache_priv->io_queue);
+	if (ret)
+		goto err_cache;
+
 	/* Attach volume to cache */
 	if (cache_exist) {
-		ocf_mngt_cache_load(*cache, &device_cfg, simple_complete, &context);
+		ocf_mngt_cache_load(*cache, &attach_cfg, simple_complete, &context);
 	} else {
-		ocf_mngt_cache_attach(*cache, &device_cfg, simple_complete, &context);
+		ocf_mngt_cache_attach(*cache, &attach_cfg, simple_complete, &context);
 	}
+
+	sem_wait(&context.sem);
 
 	if (ret) {
 		err = ret;
@@ -952,19 +1100,22 @@ err_cache:
 	ocf_queue_put(cache_priv->mngt_queue);
 err_priv:
 	free(cache_priv);
+err_vol:
+	ocf_volume_destroy(volume);
+err_sem:
+	sem_destroy(&context.sem);
 	return err;
 }
 
-/*
- * Add core completion callback context. We need this to propagate error code
- * and handle to freshly initialized core object.
- */
 struct add_core_context {
 	ocf_core_t *core;
 	int *error;
+	sem_t sem;
 };
 
-/* Add core complete callback. Just rewrite args to context structure. */
+/* Add core complete callback. Just rewrite args to context structure and
+ * up the semaphore.
+ */
 static void add_core_complete(ocf_cache_t cache, ocf_core_t core,
 		void *priv, int error)
 {
@@ -972,6 +1123,7 @@ static void add_core_complete(ocf_cache_t cache, ocf_core_t core,
 
 	*context->core = core;
 	*context->error = error;
+	sem_post(&context->sem);
 }
 
 /*
@@ -982,6 +1134,10 @@ int initialize_core(ocf_cache_t cache, ocf_core_t *core, bool cache_exist)
 	struct ocf_mngt_core_config core_cfg = { };
 	struct add_core_context context;
 	int ret;
+
+	ret = sem_init(&context.sem, 0, 0);
+	if (ret)
+		return ret;
 
 	/*
 	 * Asynchronous callback will assign core handle to core,
@@ -1002,6 +1158,7 @@ int initialize_core(ocf_cache_t cache, ocf_core_t *core, bool cache_exist)
 
 	/* Add core to cache */
 	ocf_mngt_cache_add_core(cache, &core_cfg, add_core_complete, &context);
+	sem_wait(&context.sem);
 
 	return ret;
 }
@@ -1020,11 +1177,12 @@ int submit_io(ocf_core_t core, struct io_ctx_data *data,
 		uint64_t addr, uint64_t len, int dir)
 {
 	ocf_cache_t cache = ocf_core_get_cache(core);
+	ocf_volume_t core_vol = ocf_core_get_front_volume(core);
 	struct cache_priv *cache_priv = ocf_cache_get_priv(cache);
 	struct ocf_io *io;
 
 	/* Allocate new io */
-	io = ocf_core_new_io(core, cache_priv->io_queue, addr, len, dir, 0, 0);
+	io = ocf_volume_new_io(core_vol, cache_priv->io_queue, addr, len, dir, 0, 0);
 	if (!io)
 		return -ENOMEM;
 
@@ -1038,16 +1196,17 @@ int submit_io(ocf_core_t core, struct io_ctx_data *data,
 	return 0;
 }
 
-static void stop_core_complete(void *priv, int error)
+static void detach_core_complete(void *priv, int error)
 {
 	struct simple_context *context = priv;
 
 	*context->error = error;
+	sem_post(&context->sem);
 }
 
-ocf_ctx_t ctx;
-ocf_cache_t cache1;
-ocf_core_t core1;
+ocf_ctx_t ctx = NULL;
+ocf_cache_t cache1 = NULL;
+ocf_core_t core1 = NULL;
 
 #define CACHE_DEV(ubbd_b) ((struct ubbd_cache_backend *)container_of(ubbd_b, struct ubbd_cache_backend, ubbd_b))
 
@@ -1098,6 +1257,7 @@ static int cache_probe(ocf_ctx_t ctx)
 
 	return probe_ctx.ret;
 }
+
 
 static int cache_backend_open(struct ubbd_backend *ubbd_b)
 {
@@ -1166,14 +1326,37 @@ static void cache_backend_close(struct ubbd_backend *ubbd_b)
 	struct cache_priv *cache_priv;
 	struct simple_context context;
 
+	if (cache_b->detach_on_close) {
+		struct simple_context ctx = { 0 };
+
+		ret = sem_init(&ctx.sem, 0, 0);
+		if (ret)
+			ubbd_err("failed to init sem\n");
+
+		ctx.error = &ret;
+
+		ocf_mngt_core_purge(core1, purge_cb, &ctx);
+
+		sem_wait(&ctx.sem);
+
+		if (*ctx.error) {
+			ubbd_err("failed to purge cache data\n");
+		}
+	}
+
+	sem_init(&context.sem, 0, 0);
 	context.error = &ret;
 
-	ocf_mngt_cache_detach_core(core1, stop_core_complete, &context);
+	ocf_mngt_cache_detach_core(core1, detach_core_complete, &context);
+	sem_wait(&context.sem);
+
 	if (ret)
 		error("Unable to stop core\n");
 
 	/* Stop cache */
 	ocf_mngt_cache_stop(cache1, simple_complete, &context);
+	sem_wait(&context.sem);
+
 	if (ret)
 		error("Unable to stop cache\n");
 
@@ -1255,6 +1438,15 @@ static int cache_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_
 	return 0;
 }
 
+static int cache_backend_set_opts(struct ubbd_backend *ubbd_b, struct ubbd_backend_opts *opts)
+{
+	struct ubbd_cache_backend *cache_b = CACHE_DEV(ubbd_b);
+
+	cache_b->detach_on_close = opts->cache.detach_on_close;
+
+	return 0;
+}
+
 struct ubbd_backend_ops cache_backend_ops = {
 	.open = cache_backend_open,
 	.close = cache_backend_close,
@@ -1262,4 +1454,5 @@ struct ubbd_backend_ops cache_backend_ops = {
 	.writev = cache_backend_writev,
 	.readv = cache_backend_readv,
 	.flush = cache_backend_flush,
+	.set_opts = cache_backend_set_opts,
 };

@@ -28,11 +28,20 @@ static inline void ubbd_backend_io_finish(struct ubbd_backend_io *io, int ret)
 	context_finish(io->ctx, ret);
 }
 
+struct ubbd_backend_opts {
+	union {
+		struct {
+			bool detach_on_close;
+		} cache;
+	};
+};
+
 struct ubbd_backend;
 struct ubbd_backend_ops {
 	int (*open) (struct ubbd_backend *ubbd_b);
 	void (*close) (struct ubbd_backend *ubbd_b);
 	void (*release) (struct ubbd_backend *ubbd_b);
+	int (*set_opts) (struct ubbd_backend *ubbd_b, struct ubbd_backend_opts *opts);
 	int (*writev) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 	int (*readv) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 	int (*flush) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
@@ -95,6 +104,7 @@ struct ubbd_cache_backend {
 	struct ubbd_backend *cache_backend;
 	struct ubbd_backend *backing_backend;
 	int cache_mode;
+	bool detach_on_close;
 };
 
 struct ubbd_s3_backend {
@@ -113,8 +123,12 @@ void ubbd_backend_release(struct ubbd_backend *ubbd_b);
 int ubbd_backend_start(struct ubbd_backend *ubbd_b, bool start_queues);
 void ubbd_backend_stop(struct ubbd_backend *ubbd_b);
 int ubbd_backend_open(struct ubbd_backend *ubbd_b);
+int ubbd_backend_set_opts(struct ubbd_backend *ubbd_b, struct ubbd_backend_opts *opts);
 void ubbd_backend_close(struct ubbd_backend *ubbd_b);
 void ubbd_backend_wait_stopped(struct ubbd_backend *ubbd_b);
 int ubbd_backend_stop_queue(struct ubbd_backend *ubbd_b, int queue_id);
 int ubbd_backend_start_queue(struct ubbd_backend *ubbd_b, int queue_id);
+int ubbd_backend_lock(int dev_id, int backend_id, int *fd);
+void ubbd_backend_unlock(int fd);
+int ubbd_backend_testlock(int dev_id, int backend_id);
 #endif /* UBBD_BACKEND_H */

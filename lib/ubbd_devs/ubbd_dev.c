@@ -184,6 +184,7 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 	}
 
 	ubbd_dev->num_queues = info->num_queues;
+	ubbd_dev->sh_mem_size = info->sh_mem_size;
 	memcpy(&ubbd_dev->dev_info, info, sizeof(*info));
 
 	ubbd_dev_set_default(ubbd_dev);
@@ -233,6 +234,7 @@ struct ubbd_device *create_cache_dev(struct ubbd_dev_info *backing_dev_info,
 
 	ubbd_dev = &cache_dev->ubbd_dev;
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_CACHE;
+	ubbd_dev->sh_mem_size = backing_dev_info->sh_mem_size;
 	ubbd_dev->dev_ops = &cache_dev_ops;
 
 	return ubbd_dev;
@@ -256,6 +258,7 @@ struct ubbd_device *ubbd_cache_dev_create(struct ubbd_dev_info *backing_dev_info
 
 	ubbd_dev_set_default(ubbd_dev);
 	ubbd_dev->num_queues = backing_dev_info->num_queues;
+	ubbd_dev->sh_mem_size = backing_dev_info->sh_mem_size;
 	memcpy(&ubbd_dev->dev_info, backing_dev_info, sizeof(struct ubbd_dev_info));
 	memcpy(&ubbd_dev->extra_info, cache_dev_info, sizeof(struct ubbd_dev_info));
 
@@ -434,6 +437,27 @@ static int stop_backend_queue(struct ubbd_device *ubbd_dev, int backend_id, int 
 	return ret;
 }
 
+static int backend_set_opts(struct ubbd_device *ubbd_dev, struct ubbd_backend_opts *opts)
+{
+	struct ubbd_backend_mgmt_rsp backend_rsp;
+	struct ubbd_backend_mgmt_request backend_request = { 0 };
+	int fd;
+	int ret;
+
+	backend_request.dev_id = ubbd_dev->dev_id;
+	backend_request.backend_id = ubbd_dev->current_backend_id;
+	backend_request.cmd = UBBD_BACKEND_MGMT_CMD_SET_OPTS;
+	memcpy(&backend_request.u.set_opts, opts, sizeof(struct ubbd_backend_opts));
+
+	ret = ubbd_backend_request(&fd, &backend_request);
+	if (ret)
+		return ret;
+
+	ret = ubbd_backend_response(fd, &backend_rsp, 5);
+
+	return ret;
+}
+
 static int backend_stop(struct ubbd_device *ubbd_dev, int backend_id)
 {
 	struct ubbd_backend_mgmt_rsp backend_rsp;
@@ -474,6 +498,12 @@ bool backend_stopped(void *data)
 			goto out;
 		}
 	}
+
+	ret = ubbd_backend_testlock(ubbd_dev->dev_id, ubbd_dev->current_backend_id);
+	if (ret) {
+		goto out;
+	}
+
 	stopped = true;
 out:
 	return stopped;
@@ -481,9 +511,8 @@ out:
 
 int wait_for_backend_stopped(struct ubbd_device *ubbd_dev)
 {
-	return wait_condition(1000, 10000, backend_stopped, ubbd_dev);
+	return wait_condition(INT_MAX, 10000, backend_stopped, ubbd_dev);
 }
-
 
 static int dev_conf_write(struct ubbd_device *ubbd_dev)
 {
@@ -600,7 +629,7 @@ int dev_add_disk_finish(struct context *ctx, int ret)
 
 clean_dev:
 	ubbd_dev_err(ubbd_dev, "clean dev up.\n");
-	if (ubbd_dev_remove(ubbd_dev, false, NULL))
+	if (ubbd_dev_remove(ubbd_dev, false, false, NULL))
 		ubbd_err("failed to cleanup dev.\n");
 	return ret;
 }
@@ -697,7 +726,7 @@ int dev_add_dev_finish(struct context *ctx, int ret)
 clean_dev:
 	pthread_mutex_unlock(&ubbd_dev->lock);
 	ubbd_dev_err(ubbd_dev, "clean dev up.\n");
-	if (ubbd_dev_remove(ubbd_dev, false, NULL))
+	if (ubbd_dev_remove(ubbd_dev, false, false, NULL))
 		ubbd_err("failed to cleanup dev.\n");
 	return ret;
 }
@@ -794,7 +823,11 @@ static int dev_remove_disk_finish(struct context *ctx, int ret)
 
 	pthread_mutex_lock(&ubbd_dev->lock);
 
-	dev_stop(ubbd_dev);
+	ret = dev_stop(ubbd_dev);
+	if (ret) {
+		ubbd_err("failed to stop dev in removing.\n");
+		return ret;
+	}
 
 	dev_remove_dev(ubbd_dev, ctx->parent);
 	ctx->parent = NULL;
@@ -803,10 +836,19 @@ static int dev_remove_disk_finish(struct context *ctx, int ret)
 	return 0;
 }
 
-static int dev_remove_disk(struct ubbd_device *ubbd_dev, bool force, struct context *ctx)
+static int dev_remove_disk(struct ubbd_device *ubbd_dev, bool force,
+		bool detach, struct context *ctx)
 {
 	struct context *remove_disk_ctx;
+	struct ubbd_backend_opts backend_opts;
 	int ret;
+
+	if (detach) {
+		backend_opts.cache.detach_on_close = detach;
+		ret = backend_set_opts(ubbd_dev, &backend_opts);
+		if (ret)
+			return ret;
+	}
 
 	remove_disk_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_remove_disk_finish);
 	if (!remove_disk_ctx)
@@ -819,7 +861,8 @@ static int dev_remove_disk(struct ubbd_device *ubbd_dev, bool force, struct cont
 	return ret;
 }
 
-int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ctx)
+int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force,
+		bool detach, struct context *ctx)
 {
 	int ret = 0;
 
@@ -837,7 +880,7 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, struct context *ct
 	case UBBD_DEV_USTATUS_PREPARED:
 	case UBBD_DEV_USTATUS_RUNNING:
 	case UBBD_DEV_USTATUS_STOPPING:
-		ret = dev_remove_disk(ubbd_dev, force, ctx);
+		ret = dev_remove_disk(ubbd_dev, force, detach, ctx);
 		break;
 	default:
 		ubbd_dev_err(ubbd_dev, "Unknown status: %d\n", ubbd_dev->status);
@@ -909,7 +952,7 @@ static int wait_for_backend_ready(struct ubbd_device *ubbd_dev, int backend_id)
 	int status;
 	int i;
 
-	for (i = 0; i < 100; i++) {
+	for (i = 0; i < 1000; i++) {
 		status = get_backend_status(ubbd_dev, backend_id);
 		if (status > 0)
 			return 0;
@@ -1032,19 +1075,20 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 
 	/* current_backend_id is always not -1 here.*/
 	if (ubbd_dev->new_backend_id == -1 &&
-			(get_backend_status(ubbd_dev, ubbd_dev->current_backend_id) == UBBD_BACKEND_STATUS_RUNNING)) {
+			(get_backend_status(ubbd_dev, ubbd_dev->current_backend_id) ==
+			 UBBD_BACKEND_STATUS_RUNNING)) {
 		goto dev_running;
+	}
+
+	if (dev_status->status != UBBD_DEV_KSTATUS_RUNNING) {
+		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
+		goto out;
 	}
 
 	ret = dev_reset(ubbd_dev);
 	if (ret) {
 		ubbd_err("failed to reset dev: %d.", ret);
 		goto release_dev;
-	}
-
-	if (dev_status->status != UBBD_DEV_KSTATUS_RUNNING) {
-		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
-		goto out;
 	}
 
 dev_running:
@@ -1083,13 +1127,13 @@ int ubbd_dev_reopen_devs(void)
 		ret = reopen_dev(&dev_status, &ubbd_dev);
 		if (ret) {
 			ubbd_err("failed to reopen dev.\n");
-			return ret;
+			continue;
 		}
 
 		if (dev_status.status != UBBD_DEV_KSTATUS_RUNNING) {
 			ubbd_dev_err(ubbd_dev, "device is not running, remove it.\n");
 			/* If dev is not running, it would be in creating, or in removing. */
-			ubbd_dev_remove(ubbd_dev, true, NULL);
+			ubbd_dev_remove(ubbd_dev, true, false, NULL);
 		}
 	}
 

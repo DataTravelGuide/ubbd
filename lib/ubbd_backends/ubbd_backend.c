@@ -368,3 +368,77 @@ int ubbd_backend_start_queue(struct ubbd_backend *ubbd_b, int queue_id)
 
 	return 0;
 }
+
+int ubbd_backend_set_opts(struct ubbd_backend *ubbd_b, struct ubbd_backend_opts *opts)
+{
+	if (!ubbd_b->backend_ops->set_opts)
+		return 0;
+
+	return ubbd_b->backend_ops->set_opts(ubbd_b, opts);
+}
+
+static char *get_backend_lock_path(int dev_id, int backend_id)
+{
+	char *path;
+
+	if (asprintf(&path, "%s/ubbd%d_backend%d.lock", UBBD_LIB_DIR, dev_id, backend_id) == -1) {
+		ubbd_err("failed to init backend config path.\n");
+		return NULL;
+	}
+
+	return path;
+}
+
+int _backend_lock(int dev_id, int backend_id, int *fd, bool test) {
+	char *lock_path;
+	int ret = -ENOMEM;
+
+	lock_path = get_backend_lock_path(dev_id, backend_id);
+	if (!lock_path)
+		goto out;
+
+	*fd = open(lock_path, O_RDWR|O_CREAT);
+	if (*fd < 0) {
+		ubbd_err("failed to open lock_path %s\n", lock_path);
+		ret = -errno;
+		goto free_path;
+	}
+
+	if (!test) {
+		ret = lockf(*fd, F_LOCK, 0);
+
+		if (ret) {
+			ubbd_err("failed to flock %s\n", lock_path);
+			goto close;
+		}
+
+		return 0;
+	}
+
+	ret = lockf(*fd, F_TEST, 0);
+
+close:
+	close(*fd);
+free_path:
+	free(lock_path);
+out:
+	return ret;
+}
+
+int ubbd_backend_lock(int dev_id, int backend_id, int *fd)
+{
+	return _backend_lock(dev_id, backend_id, fd, false);
+}
+
+void ubbd_backend_unlock(int fd)
+{
+	lockf(fd, F_ULOCK, 0);
+	close(fd);
+}
+
+int ubbd_backend_testlock(int dev_id, int backend_id)
+{
+	int fd;
+
+	return _backend_lock(dev_id, backend_id, &fd, true);
+}

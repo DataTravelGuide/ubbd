@@ -377,6 +377,12 @@ int send_netlink_add_dev(struct ubbd_nl_req *req)
 	if (ret < 0)
 		goto free_msg;
 
+	if (ubbd_dev->sh_mem_size) {
+		ret = nla_put_u32(msg, UBBD_DEV_OPTS_DATA_PAGES, ubbd_dev->sh_mem_size / PAGE_SIZE);
+		if (ret < 0)
+			goto free_msg;
+	}
+
 	nla_nest_end(msg, dev_opts_attr);
 
 	ret = nl_send_sync(socket, msg);

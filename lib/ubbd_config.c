@@ -7,13 +7,11 @@
 #include "ubbd_backend.h"
 #include "ubbd_config.h"
 
-#define UBBD_CONF_DIR	"/var/lib/ubbd/"
-
 static char *get_backend_conf_path(int dev_id)
 {
 	char *path;
 
-	if (asprintf(&path, "%s/ubbd%d_backend_config", UBBD_CONF_DIR, dev_id) == -1) {
+	if (asprintf(&path, "%s/ubbd%d_backend_config", UBBD_LIB_DIR, dev_id) == -1) {
 		ubbd_err("failed to init backend config path.\n");
 		return NULL;
 	}
@@ -25,7 +23,7 @@ static char *get_dev_conf_path(int dev_id)
 {
 	char *path;
 
-	if (asprintf(&path, "%s/ubbd%d_dev_config", UBBD_CONF_DIR, dev_id) == -1) {
+	if (asprintf(&path, "%s/ubbd%d_dev_config", UBBD_LIB_DIR, dev_id) == -1) {
 		ubbd_err("failed to init dev config path.\n");
 		return NULL;
 	}
@@ -49,8 +47,8 @@ static void check_conf_dir(void)
 {
 	struct stat st = {0};
 
-	if (stat(UBBD_CONF_DIR, &st) == -1)
-		mkdir(UBBD_CONF_DIR, 0644);
+	if (stat(UBBD_LIB_DIR, &st) == -1)
+		mkdir(UBBD_LIB_DIR, 0644);
 }
 
 

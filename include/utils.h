@@ -11,6 +11,8 @@
 #include <errno.h>
 #include <stdbool.h>
 
+#define UBBD_LIB_DIR	"/var/lib/ubbd/"
+#define PAGE_SIZE	4096
 
 #ifndef MAX
 #define MAX(a,b)            (((a) > (b)) ? (a) : (b))
@@ -31,6 +33,8 @@
 #define __round_mask(x, y) ((__typeof__(x))((y)-1))
 #define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
 #define round_down(x, y) ((x) & ~__round_mask(x, y))
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #define container_of(ptr, type, member) ({                      \
         const typeof(((type *)0)->member) *__mptr = (ptr);      \
