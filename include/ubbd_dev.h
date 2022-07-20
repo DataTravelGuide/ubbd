@@ -30,6 +30,7 @@ enum ubbd_dev_ustatus {
 	UBBD_DEV_USTATUS_PREPARED,
 	UBBD_DEV_USTATUS_RUNNING,
 	UBBD_DEV_USTATUS_STOPPING,
+	UBBD_DEV_USTATUS_ERROR,
 };
 
 struct ubbd_dev_info {

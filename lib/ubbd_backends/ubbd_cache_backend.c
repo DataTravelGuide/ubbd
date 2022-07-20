@@ -479,7 +479,7 @@ static void ctx_cleaner_stop(ocf_cleaner_t c)
 static int ctx_logger_print(ocf_logger_t logger, ocf_logger_lvl_t lvl,
 		const char *fmt, va_list args)
 {
-	if (lvl > log_info)
+	if (lvl >= log_info)
 		return 0;
 
 	return vfprintf(stderr, fmt, args);

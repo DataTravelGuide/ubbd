@@ -180,7 +180,13 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 		ubbd_dev->dev_size = info->s3.size;
 	} else {
 		ubbd_err("Unknown dev type\n");
-		return NULL;
+		/* incorrect dev_conf. just create
+		 * a ubbd_device to do latter cleanup.
+		 * */
+		ubbd_dev = calloc(1, sizeof(struct ubbd_device));
+		if (!ubbd_dev)
+			return NULL;
+		ubbd_dev->status = UBBD_DEV_USTATUS_ERROR;
 	}
 
 	ubbd_dev->num_queues = info->num_queues;
@@ -236,6 +242,11 @@ struct ubbd_device *create_cache_dev(struct ubbd_dev_info *backing_dev_info,
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_CACHE;
 	ubbd_dev->sh_mem_size = backing_dev_info->sh_mem_size;
 	ubbd_dev->dev_ops = &cache_dev_ops;
+
+	if (cache_dev->backing_device->status == UBBD_DEV_USTATUS_ERROR ||
+			cache_dev->cache_device->status == UBBD_DEV_USTATUS_ERROR) {
+		ubbd_dev->status = UBBD_DEV_USTATUS_ERROR;
+	}
 
 	return ubbd_dev;
 
@@ -1073,16 +1084,19 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	ubbd_dev->new_backend_id = dev_conf->new_backend_id;
 	free(dev_conf);
 
+	if (ubbd_dev->status == UBBD_DEV_USTATUS_ERROR)
+		goto out;
+
+	if (dev_status->status != UBBD_DEV_KSTATUS_RUNNING) {
+		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
+		goto out;
+	}
+
 	/* current_backend_id is always not -1 here.*/
 	if (ubbd_dev->new_backend_id == -1 &&
 			(get_backend_status(ubbd_dev, ubbd_dev->current_backend_id) ==
 			 UBBD_BACKEND_STATUS_RUNNING)) {
 		goto dev_running;
-	}
-
-	if (dev_status->status != UBBD_DEV_KSTATUS_RUNNING) {
-		ubbd_dev->status = UBBD_DEV_USTATUS_STOPPING;
-		goto out;
 	}
 
 	ret = dev_reset(ubbd_dev);
