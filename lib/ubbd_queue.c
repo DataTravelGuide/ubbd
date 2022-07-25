@@ -317,7 +317,6 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 out:
 	if (ret) {
 		ubbd_err("ret of se: %llu: %d", se->priv_data, ret);
-		exit(EXIT_FAILURE);
 #ifdef	UBBD_REQUEST_STATS
 	} else {
 		pthread_mutex_lock(&ubbd_q->req_stats_lock);
