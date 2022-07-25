@@ -640,7 +640,7 @@ int dev_add_disk_finish(struct context *ctx, int ret)
 
 clean_dev:
 	ubbd_dev_err(ubbd_dev, "clean dev up.\n");
-	if (ubbd_dev_remove(ubbd_dev, false, false, NULL))
+	if (ubbd_dev_remove(ubbd_dev, true, false, NULL))
 		ubbd_err("failed to cleanup dev.\n");
 	return ret;
 }
@@ -737,7 +737,7 @@ int dev_add_dev_finish(struct context *ctx, int ret)
 clean_dev:
 	pthread_mutex_unlock(&ubbd_dev->lock);
 	ubbd_dev_err(ubbd_dev, "clean dev up.\n");
-	if (ubbd_dev_remove(ubbd_dev, false, false, NULL))
+	if (ubbd_dev_remove(ubbd_dev, true, false, NULL))
 		ubbd_err("failed to cleanup dev.\n");
 	return ret;
 }
