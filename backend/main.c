@@ -155,7 +155,7 @@ int main(int argc, char **argv)
 	ret = ubbd_backend_open(ubbd_backend);
 	if (ret) {
 		ubbd_err("failed to open backend\n");
-		goto err_destroy_backend;
+		ubbd_backend->status = UBBD_BACKEND_STATUS_ERROR;
 	}
 
 	ret = ubbd_backend_start(ubbd_backend, start_queues);
@@ -183,7 +183,6 @@ err_stop_backend:
 	ubbd_backend_wait_stopped(ubbd_backend);
 err_close_backend:
 	ubbd_backend_close(ubbd_backend);
-err_destroy_backend:
 	ubbd_backend_release(ubbd_backend);
 err_unlock_conf:
 	ubbd_backend_unlock(fd);

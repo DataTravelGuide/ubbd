@@ -936,15 +936,6 @@ struct cache_priv {
 };
 
 /*
- * Helper function for error handling.
- */
-void error(char *msg)
-{
-	ubbd_err("ERROR: %s", msg);
-	exit(1);
-}
-
-/*
  * Queue ops providing interface for running queue thread in both synchronous
  * and asynchronous way. The stop() operation in called just before queue is
  * being destroyed.
@@ -1281,7 +1272,7 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 
 	/* Initialize OCF context */
 	if (ctx_init(&ctx)) {
-		error("Unable to initialize context\n");
+		ubbd_err("Unable to initialize context\n");
 		ret = -1;
 		goto out;
 	}
@@ -1300,7 +1291,7 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 
 	/* Start cache */
 	if (initialize_cache(ctx, &cache1, cache_exist, cache_b->cache_mode)) {
-		error("Unable to start cache\n");
+		ubbd_err("Unable to start cache\n");
 		ret = -1;
 		goto out;
 	}
@@ -1309,7 +1300,7 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 
 	/* Add core */
 	if (initialize_core(cache1, &core1, cache_exist)) {
-		error("Unable to add core\n");
+		ubbd_err("Unable to add core\n");
 		ret = -1;
 		goto out;
 	}
@@ -1351,14 +1342,14 @@ static void cache_backend_close(struct ubbd_backend *ubbd_b)
 	sem_wait(&context.sem);
 
 	if (ret)
-		error("Unable to stop core\n");
+		ubbd_err("Unable to stop core\n");
 
 	/* Stop cache */
 	ocf_mngt_cache_stop(cache1, simple_complete, &context);
 	sem_wait(&context.sem);
 
 	if (ret)
-		error("Unable to stop cache\n");
+		ubbd_err("Unable to stop cache\n");
 
 	cache_priv = ocf_cache_get_priv(cache1);
 
@@ -1397,7 +1388,7 @@ static int cache_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend
 	/* Allocate data buffer and fill it with example data */
 	data1 = ctx_data_alloc(BYTES_TO_PAGES(io->len));
 	if (!data1)
-		error("Unable to allocate data1\n");
+		ubbd_err("Unable to allocate data1\n");
 
 	data1->iov = io->iov;
 	data1->iov_cnt = io->iov_cnt;
@@ -1418,7 +1409,7 @@ static int cache_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_
 	/* Allocate data buffer and fill it with example data */
 	data1 = ctx_data_alloc(BYTES_TO_PAGES(io->len));
 	if (!data1)
-		error("Unable to allocate data1\n");
+		ubbd_err("Unable to allocate data1\n");
 
 	data1->iov = io->iov;
 	data1->iov_cnt = io->iov_cnt;

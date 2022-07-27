@@ -232,6 +232,12 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 	struct ubbd_backend_io *io;
 
 	ubbd_dbg("handle_cmd: se: %p\n", se);
+
+	if (ubbd_b->status == UBBD_BACKEND_STATUS_ERROR) {
+		ubbd_queue_add_ce(ubbd_q, se->priv_data, -EIO);
+		return;
+	}
+
 	if (ubbd_se_hdr_flags_test(se, UBBD_SE_HDR_DONE)) {
 		ubbd_dbg("flags is done\n");
 		return;
@@ -311,7 +317,6 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 		break;
 	default:
 		ubbd_err("error handle_cmd\n");
-		exit(EXIT_FAILURE);
 	}
 
 out:

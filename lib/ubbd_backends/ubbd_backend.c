@@ -313,7 +313,9 @@ int ubbd_backend_start(struct ubbd_backend *ubbd_b, bool start_queues)
 		}
 	}
 
-	ubbd_b->status = UBBD_BACKEND_STATUS_RUNNING;
+	if (ubbd_b->status == UBBD_BACKEND_STATUS_INIT) {
+		ubbd_b->status = UBBD_BACKEND_STATUS_RUNNING;
+	}
 
 out:
 	return ret;

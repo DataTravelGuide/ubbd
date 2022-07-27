@@ -757,7 +757,6 @@ static int handle_nl_req(struct ubbd_nl_req *req)
 		break;
 	default:
 		ubbd_err("unknown netlink request type: %d\n", req->type);
-		exit(-1);
 	}
 
 	ubbd_err("return ret: %d\n", ret);

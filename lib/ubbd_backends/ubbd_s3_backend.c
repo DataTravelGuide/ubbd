@@ -40,7 +40,7 @@ static char err_details[4096] = { 0 };
 // Other globals -------------------------------------------------------------
 
 extern int s3_port;
-static void S3_init(struct ubbd_s3_backend *s3_b)
+static int S3_init(struct ubbd_s3_backend *s3_b)
 {
 	S3Status status;
 	s3_port = s3_b->port;
@@ -54,8 +54,10 @@ static void S3_init(struct ubbd_s3_backend *s3_b)
 		!= S3StatusOK) {
 		ubbd_info("Failed to initialize libs3: %s\n",
 		S3_get_status_name(status));
-		exit(-1);
+		return -1;
 	}
+
+	return 0;
 }
 
 static S3Status rsp_prop_cb(const S3ResponseProperties *properties,
@@ -425,9 +427,7 @@ static int s3_backend_open(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_s3_backend *s3_b = S3_BACKEND(ubbd_b);
 
-	S3_init(s3_b);
-
-	return 0;
+	return S3_init(s3_b);
 }
 
 static void s3_backend_close(struct ubbd_backend *ubbd_b)

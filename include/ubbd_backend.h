@@ -52,6 +52,7 @@ struct ubbd_backend_ops {
 enum ubbd_backend_status {
 	UBBD_BACKEND_STATUS_INIT = 0,
 	UBBD_BACKEND_STATUS_RUNNING,
+	UBBD_BACKEND_STATUS_ERROR,
 };
 
 struct ubbd_backend {
