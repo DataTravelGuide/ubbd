@@ -69,8 +69,9 @@ uninstall:
 	rm -vf $(DESTDIR)/usr/bin/ubbd-backend
 
 dist:
+	git submodule update --init --recursive
 	sed "s/@VERSION@/$(VERSION)/g" rhel/ubbd.spec.in > rhel/ubbd.spec
 	cd /tmp && mkdir -p $(UBBD_VERSION) && \
-	cp -rf $(UBBD_SRC)/{ubbdadm,ubbdd,backend,lib,include,doc,kmods,Makefile} $(UBBD_VERSION) && \
+	cp -rf $(UBBD_SRC)/{ubbdadm,ubbdd,backend,lib,include,doc,kmods,Makefile,ocf,libs3} $(UBBD_VERSION) && \
 	tar --format=posix -chf - $(UBBD_VERSION) | gzip -c > $(UBBD_SRC)/$(UBBD_VERSION).tar.gz && \
 	rm -rf $(UBBD_VERSION)
