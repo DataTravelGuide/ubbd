@@ -626,6 +626,10 @@ int main(int argc, char **argv)
 			break;
 		case 'h':
 			usage(0);
+			return 0;
+		default:
+			ubbd_err("unrecognized ubbd option.\n");
+			return -1;
 		}
 	}
 
