@@ -6,8 +6,8 @@ Summary: UBBD's Project Software
 Group: Applications/System
 License: LGPL
 URL: https://github.com/ubbd/ubbd
-BuildRequires: librbd-devel glibc-devel libnl3-devel
-Requires: librbd libnl3 libssh >= 0.9.3
+BuildRequires: librbd-devel glibc-devel libnl3-devel libcurl-devel openssl-devel libxml2-devel
+Requires: librbd1 libnl3 libssh >= 0.9.3 libcurl openssl libxml2
 
 %description
 UBBD's Project Software
