@@ -8,6 +8,8 @@
 #include "utils.h"
 #include "ubbd_netlink.h"
 
+#define DEFAULT_CEPH_CONF "/etc/ceph/ceph.conf"
+
 
 int str_to_cache_mode(char *str)
 {
@@ -261,7 +263,10 @@ static void rbd_dev_info_setup(struct ubbd_dev_info *dev_info,
 {
 	strcpy(dev_info->rbd.pool, opts->pool);
 	strcpy(dev_info->rbd.image, opts->image);
-	strcpy(dev_info->rbd.ceph_conf, opts->ceph_conf);
+	if (opts->ceph_conf)
+		strcpy(dev_info->rbd.ceph_conf, opts->ceph_conf);
+	else
+		strcpy(dev_info->rbd.ceph_conf, DEFAULT_CEPH_CONF);
 }
 
 static void null_dev_info_setup(struct ubbd_dev_info *dev_info,
