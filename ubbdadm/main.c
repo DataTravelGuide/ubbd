@@ -187,7 +187,7 @@ static void usage(int status)
 	else {
 		printf("\
 			ubbdadm --command map --type file --filepath PATH --devsize SIZE --dev-share-memory-size [4194304 - 1073741824]\n\
-			ubbdadm --command map --type rbd --pool POOL --image IMANGE \n\
+			ubbdadm --command map --type rbd --pool POOL --image IMAGE \n\
 			ubbdadm --command map --type ssh --hostname HOST --filepath REMOTE_PATH --devsize SIZE --num-queues N\n\
 			ubbdadm --command map --type s3 --hostname IP/URL --port PORT --accessid ID --accesskey KEY --volume-name VOL_NAME --devsize SIZE --num-queues N\n\
 			ubbdadm --command map --type cache --devsize SIZE --num-queues N\n\
