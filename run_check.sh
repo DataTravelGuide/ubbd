@@ -8,7 +8,7 @@ apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev
 
 apt install -y libcmocka-dev valgrind lcov cmake pkg-config
 
-apt install -y libcurl4-openssl-dev libxml2-dev
+apt install -y libcurl4-openssl-dev libxml2-dev libssl-dev libssh-dev
 
 git submodule update --init --recursive
 

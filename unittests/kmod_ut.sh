@@ -28,6 +28,7 @@ make install
 cd ${unittest_dir}/../
 make kmod_ut
 modprobe uio
+rmmod ubbd_ut
 insmod kmods/ubbd_ut.ko
 
 LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib/ ktfrun

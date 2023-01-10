@@ -13,7 +13,7 @@ if [ $? -ne 0 ]; then
 	exit -1
 fi
 
-valgrind --leak-check=full ./ubbd_uio_test
+LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:../lib/:../libs3/build/lib/" valgrind --leak-check=full ./ubbd_uio_test
 if [ $? -ne 0 ]; then
 	exit -1
 fi
