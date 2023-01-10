@@ -20,6 +20,10 @@ $(UBBDCONF_HEADER):
 	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_genl_validate.c > /dev/null 2>&1; then echo "#define HAVE_GENL_VALIDATE 1"; else echo "/*#undefined HAVE_GENL_VALIDATE*/"; fi >> $@
 	@echo $(CHECK_BUILD) compat-tests/have_alloc_disk.c
 	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_alloc_disk.c > /dev/null 2>&1; then echo "#define HAVE_ALLOC_DISK 1"; else echo "/*#undefined HAVE_ALLOC_DISK*/"; fi >> $@
+	@echo $(CHECK_BUILD) compat-tests/have_EXT_DEVT.c
+	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_EXT_DEVT.c > /dev/null 2>&1; then echo "#define HAVE_EXT_DEVT 1"; else echo "/*#undefined HAVE_EXT_DEVT*/"; fi >> $@
+	@echo $(CHECK_BUILD) compat-tests/have_flag_discard.c
+	@if $(CHECK_BUILD) $(KMODS_SRC)/compat-tests/have_flag_discard.c > /dev/null 2>&1; then echo "#define HAVE_FLAG_DISCARD 1"; else echo "/*#undefined HAVE_FLAG_DISCARD*/"; fi >> $@
 	@>> $@
 
 EXTRA_CFLAGS += -include $(UBBDCONF_HEADER)

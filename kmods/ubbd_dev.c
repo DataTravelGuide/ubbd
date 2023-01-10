@@ -320,7 +320,9 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	disk->major = ubbd_dev->major;
 	disk->first_minor = ubbd_dev->minor;
 	disk->minors = (1 << UBBD_SINGLE_MAJOR_PART_SHIFT);
+#ifdef HAVE_EXT_DEVT
 	disk->flags |= GENHD_FL_EXT_DEVT;
+#endif
 	disk->fops = &ubbd_bd_ops;
 	disk->private_data = ubbd_dev;
 
@@ -365,7 +367,9 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	blk_queue_io_min(q, 4096);
 	blk_queue_io_opt(q, 4096);
 
+#ifdef HVAE_FLAG_DISCARD
 	blk_queue_flag_clear(QUEUE_FLAG_DISCARD, q);
+#endif
 	q->limits.discard_granularity = 0;
 	blk_queue_max_discard_sectors(q, 0);
 	blk_queue_max_write_zeroes_sectors(q, 0);
@@ -443,7 +447,9 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	disk->major = ubbd_dev->major;
 	disk->first_minor = ubbd_dev->minor;
 	disk->minors = (1 << UBBD_SINGLE_MAJOR_PART_SHIFT);
+#ifdef HAVE_EXT_DEVT
 	disk->flags |= GENHD_FL_EXT_DEVT;
+#endif
 	disk->fops = &ubbd_bd_ops;
 	disk->private_data = ubbd_dev;
  
@@ -456,7 +462,9 @@ static int ubbd_init_disk(struct ubbd_device *ubbd_dev)
 	blk_queue_io_min(q, 4096);
 	blk_queue_io_opt(q, 4096);
 
+#ifdef HVAE_FLAG_DISCARD
 	blk_queue_flag_clear(QUEUE_FLAG_DISCARD, q);
+#endif
 	q->limits.discard_granularity = 0;
 	blk_queue_max_discard_sectors(q, 0);
 	blk_queue_max_write_zeroes_sectors(q, 0);
@@ -557,7 +565,9 @@ int ubbd_dev_device_setup(struct ubbd_device *ubbd_dev,
 	}
 
 	if (dev_features & UBBD_ATTR_FLAGS_ADD_DISCARD) {
+#ifdef HVAE_FLAG_DISCARD
 		blk_queue_flag_set(QUEUE_FLAG_DISCARD, ubbd_dev->disk->queue);
+#endif
 		ubbd_dev->disk->queue->limits.discard_granularity = 4096;
 		blk_queue_max_discard_sectors(ubbd_dev->disk->queue, 8 * 1024);
 	}
