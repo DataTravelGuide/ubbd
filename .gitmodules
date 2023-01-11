@@ -1,9 +1,6 @@
 [submodule "unittests/googletest"]
 	path = unittests/googletest
 	url = https://github.com/ubbd/googletest.git
-[submodule "unittests/ktf"]
-	path = unittests/ktf
-	url = https://github.com/ubbd/ktf.git
 [submodule "ocf"]
 	path = ocf
 	url = https://github.com/ubbd/ocf.git

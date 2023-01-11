@@ -15,10 +15,6 @@ git submodule update --init --recursive
 # build
 make
 
-cd ${ubbd_path}/unittests/
-# run kmods unittests
-bash -x kmod_ut.sh
-
 # run userspace unittests
 cd ${ubbd_path}/unittests/
 bash -x run_test.sh

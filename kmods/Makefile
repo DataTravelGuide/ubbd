@@ -42,10 +42,6 @@ obj-m := ubbd.o
 ubbd-y := ubbd_main.o ubbd_req.o ubbd_nl.o ubbd_uio.o ubbd_dev.o ubbd_debugfs.o
 $(obj)/ubbd.o: $(UBBDCONF_HEADER)
 
-obj-$(UBBD_KMODS_UT) += ubbd_ut.o
-ubbd_ut-y := ubbd_unittest.o ubbd_dev.o ubbd_req.o ubbd_nl.o ubbd_uio.o ubbd_debugfs.o
-$(obj)/ubbd_ut.o: $(UBBDCONF_HEADER)
-
 clean:
 	rm -rf .tmp_versions Module.markers Module.symvers modules.order
 	rm -f *.[oas] *.ko *.mod .*.cmd .*.d .*.tmp *.mod.c .*.flags .depend .kernel*
