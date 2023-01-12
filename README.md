@@ -102,7 +102,7 @@ driver out of kernel module. That means we can upgrade our driver with io inflig
 
 When you are going to upgrade ubbd, you can upgrade it as below: 
 
-(1) upgrade ubbdd, it is a deamon to do management for ubbd, there is no IO be handled in this process, 
+(1) upgrade ubbdd, it is a daemon to do management for ubbd, there is no IO be handled in this process, 
 
 then you can upgrade it with IO inflight. 
 

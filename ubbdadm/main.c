@@ -3,7 +3,7 @@
 #include <sys/types.h>
 
 #include "ocf/ocf_def.h"
-#include "ubbd_deamon_mgmt.h"
+#include "ubbd_daemon_mgmt.h"
 #include "ubbd_dev.h"
 #include "utils.h"
 #include "ubbd_netlink.h"

@@ -3,7 +3,7 @@
 
 #include "utils.h"
 #include "ubbd_dev.h"
-#include "ubbd_deamon_mgmt.h"
+#include "ubbd_daemon_mgmt.h"
 
 static int setup_abstract_addr(struct sockaddr_un *addr, char *unix_sock_name)
 {

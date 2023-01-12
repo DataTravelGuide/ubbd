@@ -5,7 +5,7 @@
 
 #include "utils.h"
 #include "ubbd_dev.h"
-#include "ubbd_deamon_mgmt.h"
+#include "ubbd_daemon_mgmt.h"
 #include "ubbd_backend_mgmt.h"
 
 extern struct list_head ubbd_dev_list;

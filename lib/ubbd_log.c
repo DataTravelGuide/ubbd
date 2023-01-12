@@ -156,7 +156,7 @@ log_internal(int pri, struct ubbd_device *dev, const char *funcname,
 		return;
 
 	if (!ubbd_logbuf) {
-		/* handle early log calls by config and deamon setup */
+		/* handle early log calls by config and daemon setup */
 		vfprintf(stderr, fmt, args);
 		return;
 	}

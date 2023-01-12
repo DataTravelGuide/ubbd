@@ -1,7 +1,7 @@
 #include <pthread.h>
 #include <signal.h>
 
-#include "ubbd_deamon_mgmt.h"
+#include "ubbd_daemon_mgmt.h"
 #include "ubbd_netlink.h"
 #include "utils.h"
 #include "ubbd_log.h"

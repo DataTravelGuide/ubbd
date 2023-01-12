@@ -41,7 +41,7 @@ static void setup_signal_handler(void)
 static struct option const long_options[] =
 {
 	{"dev-id", required_argument, NULL, 'i'},
-	{"deamon", required_argument, NULL, 'd'},
+	{"daemon", required_argument, NULL, 'd'},
 	{"backend-id", required_argument, NULL, 'b'},
 	{"start-queues", required_argument, NULL, 'q'},
 	{"help", no_argument, NULL, 'h'},
@@ -72,7 +72,7 @@ int main(int argc, char **argv)
 	int start_queues = 1;
 	struct ubbd_backend_conf *ubbd_backend_conf;
 	char *log_filename;
-	int deamon = 1;
+	int daemon = 1;
 	pid_t pid;
 	int fd;
 
@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 			start_queues = atoi(optarg);
 			break;
 		case 'd':
-			deamon = atoi(optarg);
+			daemon = atoi(optarg);
 			break;
 		case 'h':
 			usage(0);
@@ -107,7 +107,7 @@ int main(int argc, char **argv)
 		usage(-1);
 	}
 
-	if (deamon) {
+	if (daemon) {
 		/* daemonize */
 		pid = fork();
 		if (pid < 0) {
