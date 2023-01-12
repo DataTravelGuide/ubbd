@@ -41,7 +41,7 @@ static void setup_signal_handler(void)
 static struct option const long_options[] =
 {
 	{"dev-id", required_argument, NULL, 'i'},
-	{"daemon", required_argument, NULL, 'd'},
+	{"daemon", no_argument, NULL, 'd'},
 	{"backend-id", required_argument, NULL, 'b'},
 	{"start-queues", required_argument, NULL, 'q'},
 	{"help", no_argument, NULL, 'h'},
@@ -114,6 +114,7 @@ int main(int argc, char **argv)
 			ret = -errno;
 			goto out;
 		} else if (pid > 0) {
+			ret = 0;
 			goto out;
 		}
 	}
