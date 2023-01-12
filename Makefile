@@ -32,6 +32,9 @@ lib: $(UBBDCONF_HEADER)
 backend: $(UBBDCONF_HEADER)
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C backend
 
+ubbdd: $(UBBDCONF_HEADER)
+	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C ubbdd
+
 all: $(UBBDCONF_HEADER)
 	git submodule update --init --recursive
 	@$(MAKE) -C ${OCFDIR} inc O=$(PWD)

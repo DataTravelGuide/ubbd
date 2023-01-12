@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <getopt.h>
 #include <signal.h>
 
 #include "ubbd_daemon_mgmt.h"
@@ -34,9 +35,60 @@ static void setup_signal_handler(void)
 	sigaction(SIGPIPE, &sa_new, &sa_old );
 }
 
-int main()
+static struct option const long_options[] =
+{
+	{"daemon", required_argument, NULL, 'd'},
+	{"help", no_argument, NULL, 'h'},
+	{NULL, 0, NULL, 0},
+};
+
+static char *short_options = "d:h";
+
+static void usage(int status)
+{ 
+	if (status != 0)
+		fprintf(stderr, "Try `ubbdd --help' for more information.\n");
+	else {
+		printf("\
+			Usage: \n\
+				ubbdd [--daemon]\n\n");
+	}
+	exit(status);
+}
+
+int main(int argc, char **argv)
 {
 	int ret;
+	int ch, longindex;
+	int daemon = 1;
+
+	optopt = 0;
+	while ((ch = getopt_long(argc, argv, short_options,
+				 long_options, &longindex)) >= 0) {
+		switch (ch) {
+		case 'd':
+			daemon = atoi(optarg);
+			break;
+		case 'h':
+			usage(0);
+		}
+	}
+
+	if (optopt) {
+		ubbd_err("unrecognized character '%c'\n", optopt);
+		usage(-1);
+	}
+
+	if (daemon) {
+		/* daemonize */
+		int pid = fork();
+		if (pid < 0) {
+			ret = -errno;
+			goto out;
+		} else if (pid > 0) {
+			goto out;
+		}
+	}
 
 	ret = ubbd_setup_log("/var/log/ubbd/", "ubbdd.log");
 	if (ret)
