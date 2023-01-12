@@ -1101,7 +1101,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 
 	ret = dev_reset(ubbd_dev);
 	if (ret) {
-		ubbd_err("failed to reset dev: %d.", ret);
+		ubbd_err("failed to reset dev: %d.\n", ret);
 		goto release_dev;
 	}
 
@@ -1131,7 +1131,7 @@ int ubbd_dev_reopen_devs(void)
 		return ret;
 	}
 
-	ubbd_debug("num_devs: %d\n", list_result.num_devs);
+	ubbd_dbg("num_devs: %d\n", list_result.num_devs);
 	for (i = 0; i < list_result.num_devs; i++) {
 		ret = ubbd_nl_dev_status(list_result.dev_ids[i], &dev_status);
 		if (ret) {

@@ -162,7 +162,7 @@ static void *mgmt_thread_fn(void* args)
 				ret = ubbd_backend_set_opts(ubbd_backend, &mgmt_req.u.set_opts);
 				break;
 			default:
-				ubbd_err("unrecognized command: %d", mgmt_req.cmd);
+				ubbd_err("unrecognized command: %d\n", mgmt_req.cmd);
 				ret = -EINVAL;
 				break;
 			}

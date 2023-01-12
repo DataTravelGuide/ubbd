@@ -102,7 +102,7 @@ static void *mgmt_thread_fn(void* args)
 
 	fd = ubbdd_mgmt_ipc_listen();
 	if (fd < 0) {
-		ubbd_err("failed to listen mgmt ipc.");
+		ubbd_err("failed to listen mgmt ipc.\n");
 		*retp = fd;
 		return NULL;
 	}
@@ -203,7 +203,7 @@ static void *mgmt_thread_fn(void* args)
 				list_for_each_entry(ubbd_dev, &ubbd_dev_list, dev_node) {
 					if (mgmt_rsp.u.list.dev_num  >= UBBD_DEV_MAX) {
 						ret = -E2BIG;
-						ubbd_err("ubbd device is too much than %d.", UBBD_DEV_MAX);
+						ubbd_err("ubbd device is too much than %d.\n", UBBD_DEV_MAX);
 						break;
 					}
 					mgmt_rsp.u.list.dev_list[mgmt_rsp.u.list.dev_num++] = ubbd_dev->dev_id;
@@ -284,7 +284,7 @@ static void *mgmt_thread_fn(void* args)
 				ret = ubbd_dev_restart(ubbd_dev, mgmt_req.u.dev_restart.restart_mode);
 				break;
 			default:
-				ubbd_err("unrecognized command: %d", mgmt_req.cmd);
+				ubbd_err("unrecognized command: %d\n", mgmt_req.cmd);
 				ret = -EINVAL;
 				break;
 			}

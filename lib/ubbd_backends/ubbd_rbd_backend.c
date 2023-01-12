@@ -106,7 +106,6 @@ static int rbd_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_i
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ubbd_dbg("writev");
 	ret = rbd_aio_writev(rbd_b->image, io->iov, io->iov_cnt, io->offset, completion);
 
 	return ret;
@@ -124,7 +123,6 @@ static int rbd_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ubbd_dbg("readv");
 	ret = rbd_aio_readv(rbd_b->image, io->iov, io->iov_cnt, io->offset, completion);
 
 	return ret;
@@ -142,7 +140,6 @@ static int rbd_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ubbd_dbg("flush");
 	ret = rbd_aio_flush(rbd_b->image, completion);
 
 	return ret;
@@ -160,7 +157,6 @@ static int rbd_backend_discard(struct ubbd_backend *ubbd_b, struct ubbd_backend_
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ubbd_dbg("discard");
 	ret = rbd_aio_discard(rbd_b->image, io->offset, io->len, completion);
 
 	return ret;
@@ -179,7 +175,6 @@ static int rbd_backend_write_zeros(struct ubbd_backend *ubbd_b, struct ubbd_back
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ubbd_dbg("write_zeros");
 	ret = rbd_aio_write_zeroes(rbd_b->image, io->offset, io->len, completion, 0, 0);
 
 	return ret;
@@ -187,7 +182,7 @@ static int rbd_backend_write_zeros(struct ubbd_backend *ubbd_b, struct ubbd_back
 #else
 static int rbd_backend_write_zeros(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	ubbd_err("write_zeros is not supported");
+	ubbd_err("write_zeros is not supported\n");
 
 	return -1;
 }

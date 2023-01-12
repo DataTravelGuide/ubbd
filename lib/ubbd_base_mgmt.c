@@ -23,20 +23,20 @@ int ubbd_ipc_listen(char *sock_name)
 	/* manually establish a socket */
 	fd = socket(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (fd < 0) {
-		ubbd_err("Can not create IPC socket");
+		ubbd_err("Can not create IPC socket\n");
 		return fd;
 	}
 
 	addr_len = setup_abstract_addr(&addr, sock_name);
 
 	if ((err = bind(fd, (struct sockaddr *) &addr, addr_len)) < 0 ) {
-		ubbd_err("Can not bind IPC socket");
+		ubbd_err("Can not bind IPC socket\n");
 		close(fd);
 		return err;
 	}
 
 	if ((err = listen(fd, 32)) < 0) {
-		ubbd_err("Can not listen IPC socket");
+		ubbd_err("Can not listen IPC socket\n");
 		close(fd);
 		return err;
 	}
@@ -51,7 +51,7 @@ static int ubbd_ipc_connect(int *fd, char *unix_sock_name)
 
        *fd = socket(AF_LOCAL, SOCK_STREAM, 0);
        if (*fd < 0) {
-               ubbd_err("can not create IPC socket (%d)!", errno);
+               ubbd_err("can not create IPC socket (%d)!\n", errno);
                return -1;
        }
 
@@ -79,7 +79,7 @@ static int ubbd_ipc_connect(int *fd, char *unix_sock_name)
        }
        close(*fd);
        *fd = -1;
-       ubbd_err("can not connect to ubbd daemon (%d)!", errno);
+       ubbd_err("can not connect to ubbd daemon (%d)!\n", errno);
        return -1;
 }
 
@@ -100,14 +100,14 @@ int ubbd_response(int fd, void *rsp, size_t len,
 		} else if (err < 0) {
 			if (errno == EINTR)
 				continue;
-			ubbd_err("got poll error (%d/%d), daemon died?",
+			ubbd_err("got poll error (%d/%d), daemon died?\n",
 				  err, errno);
 			close(fd);
 			return -ECONNABORTED;
 		} else if (pfd.revents & POLLIN) {
 			err = recv(fd, rsp, len, MSG_WAITALL);
 			if (err <= 0) {
-				ubbd_err("read error (%d/%d), daemon died?",
+				ubbd_err("read error (%d/%d), daemon died?\n",
 					  err, errno);
 				close(fd);
 				return -ECONNABORTED;
@@ -131,7 +131,7 @@ int ubbd_request(int *fd, char *sock_name, void *req, size_t len)
 	}
 
 	if ((err = write(*fd, req, len)) != len) {
-		ubbd_err("got write error (%d/%d), daemon died?",
+		ubbd_err("got write error (%d/%d), daemon died?\n",
 			err, errno);
 		close(*fd);
 		return -ECONNABORTED;

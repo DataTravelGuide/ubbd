@@ -93,7 +93,7 @@ static int nl_callback(struct nl_msg *msg, void *arg)
 
 	ret = nla_get_s32(msg_attr[UBBD_ATTR_RETVAL]);
 	if (ret)
-		ubbd_err("error: %d", ret);
+		ubbd_err("error: %d\n", ret);
 out:
 	return ret;
 }

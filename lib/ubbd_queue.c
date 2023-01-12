@@ -213,7 +213,7 @@ static struct ubbd_backend_io *q_prepare_backend_io(struct ubbd_queue *ubbd_q,
 	io->len = se->len;
 	io->iov_cnt = se->iov_cnt;
 	for (i = 0; i < se->iov_cnt; i++) {
-		ubbd_dbg("iov_base: %lu", (size_t)se->iov[i].iov_base);
+		ubbd_dbg("iov_base: %lu\n", (size_t)se->iov[i].iov_base);
 		io->iov[i].iov_base = (void*)ubbd_q->uio_info.map + (size_t)se->iov[i].iov_base;
 		io->iov[i].iov_len = se->iov[i].iov_len;
 	}
@@ -321,7 +321,7 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 
 out:
 	if (ret) {
-		ubbd_err("ret of se: %llu: %d", se->priv_data, ret);
+		ubbd_err("ret of se: %llu: %d\n", se->priv_data, ret);
 #ifdef	UBBD_REQUEST_STATS
 	} else {
 		pthread_mutex_lock(&ubbd_q->req_stats_lock);
