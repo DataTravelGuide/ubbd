@@ -37,7 +37,7 @@ static void setup_signal_handler(void)
 
 static struct option const long_options[] =
 {
-	{"daemon", required_argument, NULL, 'd'},
+	{"daemon", no_argument, NULL, 'd'},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
@@ -60,14 +60,14 @@ int main(int argc, char **argv)
 {
 	int ret;
 	int ch, longindex;
-	int daemon = 1;
+	int daemon = 0;
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'd':
-			daemon = atoi(optarg);
+			daemon = 1;
 			break;
 		case 'h':
 			usage(0);
@@ -86,6 +86,7 @@ int main(int argc, char **argv)
 			ret = -errno;
 			goto out;
 		} else if (pid > 0) {
+			ret = 0;
 			goto out;
 		}
 	}
@@ -112,7 +113,7 @@ int main(int argc, char **argv)
 		goto stop_nl_thread;
 	ubbd_info("ubbdd started.....\n");
 
-	ubbdd_mgmt_wait_thread();
+	ret = ubbdd_mgmt_wait_thread();
 
 	ubbd_info("ubbdd stoping...\n");
 

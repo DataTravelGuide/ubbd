@@ -98,8 +98,14 @@ static void *mgmt_thread_fn(void* args)
 	int ret = 0;
 	struct pollfd pollfds[128];
 	struct ubbd_device *ubbd_dev;
+	int *retp = args;
 
 	fd = ubbdd_mgmt_ipc_listen();
+	if (fd < 0) {
+		ubbd_err("failed to listen mgmt ipc.");
+		*retp = fd;
+		return NULL;
+	}
 
 	while (1) {
 		pollfds[0].fd = fd;
@@ -291,15 +297,18 @@ static void *mgmt_thread_fn(void* args)
 	}
 out:
 	close(fd);
+	*retp = ret;
 
 	return NULL;
 }
 
 pthread_t ubbdd_mgmt_thread;
 
+int thread_ret = 0;
+
 int ubbdd_mgmt_start_thread(void)
 {
-	return pthread_create(&ubbdd_mgmt_thread, NULL, mgmt_thread_fn, NULL);
+	return pthread_create(&ubbdd_mgmt_thread, NULL, mgmt_thread_fn, &thread_ret);
 }
 
 void ubbdd_mgmt_stop_thread(void)
@@ -309,12 +318,18 @@ void ubbdd_mgmt_stop_thread(void)
 
 int ubbdd_mgmt_wait_thread(void)
 {
-	void *join_retval;
 	int ret;
 
-	ret = pthread_join(ubbdd_mgmt_thread, &join_retval);
+	ret = pthread_join(ubbdd_mgmt_thread, NULL);
 	if (ret) {
 		ubbd_err("failed to wait ubbdd_mgmt joing: %d\n", ret);
+		return ret;
 	}
-	return ret;
+
+	if (thread_ret) {
+		ubbd_err("ubbdd_mgmt exit with error: %d\n", thread_ret);
+		return thread_ret;
+	}
+
+	return 0;
 }
