@@ -71,6 +71,7 @@ clean:
 install:
 	mkdir -p $(DESTDIR)/usr/bin
 	mkdir -p $(DESTDIR)/usr/lib/ubbd/
+	install etc/systemd/system/ubbdd.service $(DESTDIR)/etc/systemd/system/ubbdd.service
 	install etc/ld.so.conf.d/ubbd.conf $(DESTDIR)/etc/ld.so.conf.d/ubbd.conf
 	install lib/libubbd.so $(DESTDIR)/usr/lib/ubbd/libubbd.so
 	install libs3/build/lib/libs3.so.4 $(DESTDIR)/usr/lib/ubbd/libs3.so.4
@@ -80,6 +81,8 @@ install:
 	cd kmods; KMODS_SRC=$(KMODS_SRC) UBBD_KMODS_UT="n" KTF_SRC=$(KTF_SRC) $(MAKE) -C $(KERNEL_TREE) M=$(PWD)/kmods modules_install V=0
 	depmod -a
 	ldconfig
+	systemctl daemon-reload
+	systemctl restart ubbdd
 
 uninstall:
 	rm -vf $(DESTDIR)/usr/bin/ubbdadm
@@ -87,6 +90,7 @@ uninstall:
 	rm -vf $(DESTDIR)/usr/bin/ubbd-backend
 	rm -vrf $(DESTDIR)/usr/lib/ubbd/
 	rm -vf $(DESTDIR)/etc/lib.so.conf.d/ubbd.conf
+	rm -vf $(DESTDIR)/etc/systemd/system/ubbdd.service
 	rm -vf $(DESTDIR)/lib/modules/`uname -r`/extra/ubbd.ko
 
 dist:

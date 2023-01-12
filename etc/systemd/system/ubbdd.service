@@ -1,0 +1,16 @@
+[Unit]
+Description=Userspace Backend Block Devcie Daemon
+Documentation=man:ubbdd(8) man:ubbdadm(8)
+After=network.target auditd.service
+
+[Service]
+EnvironmentFile=-/etc/default/ubbd
+ExecStart=/usr/bin/ubbdd
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+Alias=ubbdd.service
