@@ -28,7 +28,7 @@ int execute(char* program, char** arg_list)
 		/* parent */
 		ubbd_info("start process %d to execute %s\n", pid, program);
 		wait(&status);
-		ubbd_err("status of child is : %d\n", status);
+		ubbd_info("status of child is : %d\n", status);
 	}
 
 	return 0;

@@ -69,14 +69,26 @@ out:
 	return ret;
 }
 
+struct thread_data {
+	struct ubbd_backend *backend;
+	int thread_ret;
+};
+
 static void *mgmt_thread_fn(void* args)
 {
 	int fd;
 	int ret = 0;
 	struct pollfd pollfds[128];
-	struct ubbd_backend *ubbd_backend = (struct ubbd_backend *)args;
+	struct thread_data *data = args;
+	struct ubbd_backend *ubbd_backend = data->backend;
+	int *t_ret = &data->thread_ret;
 
 	fd = backend_mgmt_ipc_listen(ubbd_backend->dev_id, ubbd_backend->backend_id);
+	if (fd < 0) {
+		ubbd_err("failed to listen backend mgmt: %d\n", fd);
+		*t_ret = fd;
+		return NULL;
+	}
 
 	while (1) {
 		pollfds[0].fd = fd;
@@ -175,15 +187,19 @@ static void *mgmt_thread_fn(void* args)
 	}
 out:
 	close(fd);
+	*t_ret = ret;
 
 	return NULL;
 }
 
 pthread_t ubbd_backend_mgmt_thread;
+struct thread_data t_data = { 0 };
 
 int ubbd_backend_mgmt_start_thread(struct ubbd_backend *ubbd_backend)
 {
-	return pthread_create(&ubbd_backend_mgmt_thread, NULL, mgmt_thread_fn, ubbd_backend);
+	t_data.backend = ubbd_backend;
+
+	return pthread_create(&ubbd_backend_mgmt_thread, NULL, mgmt_thread_fn, &t_data);
 }
 
 void ubbd_backend_mgmt_stop_thread(void)
@@ -193,7 +209,18 @@ void ubbd_backend_mgmt_stop_thread(void)
 
 int ubbd_backend_mgmt_wait_thread(void)
 {
-	void *join_retval;
+	int ret = 0;
 
-	return pthread_join(ubbd_backend_mgmt_thread, &join_retval);
+	ret = pthread_join(ubbd_backend_mgmt_thread, NULL);
+	if (ret) {
+		ubbd_err("failed to wait backend_mgmt joing: %d\n", ret);
+		return ret;
+	}
+
+	if (t_data.thread_ret) {
+		ubbd_err("ubbdd_mgmt exit with error: %d\n", t_data.thread_ret);
+		return t_data.thread_ret;
+	}
+
+	return 0;
 }

@@ -877,7 +877,7 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force,
 {
 	int ret = 0;
 
-	ubbd_dev_err(ubbd_dev, "status : %d.\n", ubbd_dev->status);
+	ubbd_dev_info(ubbd_dev, "status : %d.\n", ubbd_dev->status);
 
 	pthread_mutex_lock(&ubbd_dev->lock);
 	switch (ubbd_dev->status) {
