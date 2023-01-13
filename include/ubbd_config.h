@@ -2,7 +2,7 @@
 #define UBBD_CONF_H
 #include <linux/types.h>
 #include "utils.h"
-#include "ubbd_limits.h"
+#include "libubbd.h"
 
 #define UBBD_CONFIG_MAGIC	0x9a6c65b05efaULL
 

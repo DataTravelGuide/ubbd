@@ -5,12 +5,7 @@
 #include "ubbd_uio.h"
 #include "ubbd_log.h"
 #include "ubbd.h"
-#include "ubbd_limits.h"
-
-struct ubbd_req_stats {
-	uint64_t reqs;
-	uint64_t handle_time;
-};
+#include "libubbd.h"
 
 enum ubbd_queue_ustatus {
 	UBBD_QUEUE_USTATUS_INIT	= 0,

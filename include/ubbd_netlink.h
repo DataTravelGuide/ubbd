@@ -5,7 +5,7 @@
 #include "ubbd_queue.h"
 #include "ubbd_dev.h"
 #include "list.h"
-#include "ubbd_limits.h"
+#include "libubbd.h"
 
 enum ubbd_nl_req_type {
 	UBBD_NL_REQ_ADD_DEV,

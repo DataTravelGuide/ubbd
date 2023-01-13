@@ -9,11 +9,17 @@
 #include "ubbd_queue.h"
 #include "utils.h"
 #include "list.h"
-#include "ubbd_limits.h"
+#include "libubbd.h"
 
 #define UBBD_DEV_RESTART_MODE_DEFAULT	0
 #define UBBD_DEV_RESTART_MODE_DEV	1
 #define UBBD_DEV_RESTART_MODE_QUEUE	2
+
+#define COMPILE_ASSERT(predicate, name) _impl_COMPILE_ASSERT_LINE(predicate,__LINE__, name)
+
+#define _impl_PASTE(a,b) a##b
+#define _impl_COMPILE_ASSERT_LINE(predicate, line, file) \
+	    typedef char _impl_PASTE(assertion_failed_##file##_,line)[2*!!(predicate)-1];
 
 enum ubbd_dev_type {
 	UBBD_DEV_TYPE_FILE,
@@ -43,8 +49,8 @@ struct ubbd_dev_info {
 			uint64_t size;
 		} file;
 		struct {
-			char pool[POOL_MAX];
-			char image[IMAGE_MAX];
+			char pool[UBBD_POOLNAME_LEN_MAX];
+			char image[UBBD_IMAGENAME_LEN_MAX];
 			char ceph_conf[PATH_MAX];
 		} rbd;
 		struct {
@@ -67,7 +73,6 @@ struct ubbd_dev_info {
 		} s3;
 	};
 };
-
 
 COMPILE_ASSERT(sizeof(struct ubbd_dev_info) < UBBD_INFO_SIZE, ubbd_dev_info_too_large);
 

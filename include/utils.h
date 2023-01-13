@@ -12,7 +12,6 @@
 #include <stdbool.h>
 
 #define UBBD_LIB_DIR	"/var/lib/ubbd/"
-#define PAGE_SIZE	4096
 
 #ifndef MAX
 #define MAX(a,b)            (((a) > (b)) ? (a) : (b))
@@ -40,12 +39,6 @@
         const typeof(((type *)0)->member) *__mptr = (ptr);      \
         (type *)((char *)__mptr - offsetof(type, member));      \
 })
-
-#define COMPILE_ASSERT(predicate, name) _impl_COMPILE_ASSERT_LINE(predicate,__LINE__, name)
-
-#define _impl_PASTE(a,b) a##b
-#define _impl_COMPILE_ASSERT_LINE(predicate, line, file) \
-	    typedef char _impl_PASTE(assertion_failed_##file##_,line)[2*!!(predicate)-1];
 
 int execute(char* program, char** arg_list);
 

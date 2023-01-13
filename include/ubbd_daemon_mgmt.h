@@ -5,9 +5,9 @@
 #include "ubbd_dev.h"
 #include "ubbd_queue.h"
 #include "ubbd_base_mgmt.h"
+#include "libubbd.h"
 
 #define UBBDD_MGMT_NAMESPACE      "UBBDD_MGMT_ABSTRACT_NAMESPACE"
-#define UBBD_DEV_MAX	1024
 
 enum ubbdd_mgmt_cmd {
 	UBBDD_MGMT_CMD_MAP,
@@ -56,27 +56,10 @@ struct ubbdd_mgmt_request {
 	} u;
 };
 
-struct ubbdd_mgmt_rsp {
-	/* ret must be the first member */
-	int ret;
-	union {
-		struct {
-			char path[PATH_MAX];
-		} add;
-		struct {
-			int dev_num;
-			int dev_list[UBBD_DEV_MAX];
-		} list;
-		struct {
-			int num_queues;
-			struct ubbd_req_stats req_stats[UBBD_QUEUE_MAX];
-		} req_stats;
-	} u;
-};
-
 int ubbdd_request(int *fd, struct ubbdd_mgmt_request *req);
 int ubbdd_response(int fd, struct ubbdd_mgmt_rsp *rsp,
 		    int timeout);
+
 int ubbdd_mgmt_start_thread(void);
 void ubbdd_mgmt_stop_thread(void);
 int ubbdd_mgmt_wait_thread(void);
