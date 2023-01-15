@@ -52,8 +52,8 @@ static struct option const long_options[] =
 	UBBD_MAP_OPT(s3, hostname)
 	UBBD_MAP_OPT(s3, accessid)
 	UBBD_MAP_OPT(s3, accesskey)
-	UBBD_MAP_OPT(s3, volume_name)
-	UBBD_MAP_OPT(s3, bucket_name)
+	UBBD_MAP_OPT(s3, volume-name)
+	UBBD_MAP_OPT(s3, bucket-name)
 
 	UBBD_MAP_OPT(cache, mode)
 
@@ -120,6 +120,8 @@ static int parse_map_options(struct ubbd_map_options *opts, const char *name, ch
 		opts->u.ssh.hostname = optarg;
 	} else if (!strcmp(name, "ssh-filepath")) {
 		opts->u.ssh.path = optarg;
+	} else if (!strcmp(name, "s3-hostname")) {
+		opts->u.s3.hostname = optarg;
 	} else if (!strcmp(name, "s3-accessid")) {
 		opts->u.s3.accessid = optarg;
 	} else if (!strcmp(name, "s3-accesskey")) {
