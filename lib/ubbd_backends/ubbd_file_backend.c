@@ -2,11 +2,11 @@
 #include "ubbd_uio.h"
 #include "ubbd_backend.h"
 
-#define FILE_DEV(ubbd_b) ((struct ubbd_file_backend *)container_of(ubbd_b, struct ubbd_file_backend, ubbd_b))
+#define FILE_BACKEND(ubbd_b) ((struct ubbd_file_backend *)container_of(ubbd_b, struct ubbd_file_backend, ubbd_b))
 
 static int file_backend_open(struct ubbd_backend *ubbd_b)
 {
-	struct ubbd_file_backend *file_b = FILE_DEV(ubbd_b);
+	struct ubbd_file_backend *file_b = FILE_BACKEND(ubbd_b);
 
 	file_b->fd = open(file_b->filepath, O_RDWR | O_DIRECT);
 
@@ -15,21 +15,21 @@ static int file_backend_open(struct ubbd_backend *ubbd_b)
 
 static void file_backend_close(struct ubbd_backend *ubbd_b)
 {
-	struct ubbd_file_backend *file_b = FILE_DEV(ubbd_b);
+	struct ubbd_file_backend *file_b = FILE_BACKEND(ubbd_b);
 
 	close(file_b->fd);
 }
 
 static void file_backend_release(struct ubbd_backend *ubbd_b)
 {
-	struct ubbd_file_backend *file_b = FILE_DEV(ubbd_b);
+	struct ubbd_file_backend *file_b = FILE_BACKEND(ubbd_b);
 	if (file_b)
 		free(file_b);
 }
 
 static int file_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_file_backend *file_b = FILE_DEV(ubbd_b);
+	struct ubbd_file_backend *file_b = FILE_BACKEND(ubbd_b);
 	ssize_t ret;
 
 	ret = pwritev(file_b->fd, io->iov, io->iov_cnt, io->offset);
@@ -41,7 +41,7 @@ static int file_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_
 
 static int file_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_file_backend *file_b = FILE_DEV(ubbd_b);
+	struct ubbd_file_backend *file_b = FILE_BACKEND(ubbd_b);
 	ssize_t ret;
 
 	ret = preadv(file_b->fd, io->iov, io->iov_cnt, io->offset);
@@ -53,7 +53,7 @@ static int file_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_i
 
 static int file_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_file_backend *file_b = FILE_DEV(ubbd_b);
+	struct ubbd_file_backend *file_b = FILE_BACKEND(ubbd_b);
 	int ret;
 
 	ret = fsync(file_b->fd);

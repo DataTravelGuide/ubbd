@@ -17,6 +17,7 @@ enum ubbdd_mgmt_cmd {
 	UBBDD_MGMT_CMD_REQ_STATS,
 	UBBDD_MGMT_CMD_REQ_STATS_RESET,
 	UBBDD_MGMT_CMD_DEV_RESTART,
+	UBBDD_MGMT_CMD_DEV_INFO,
 };
 
 struct ubbdd_mgmt_request {
@@ -53,6 +54,9 @@ struct ubbdd_mgmt_request {
 			int dev_id;
 			int restart_mode;
 		} dev_restart;
+		struct {
+			int dev_id;
+		} dev_info;
 	} u;
 };
 

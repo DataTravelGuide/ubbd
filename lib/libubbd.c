@@ -68,6 +68,16 @@ int str_to_cache_mode(char *str)
 	return cache_mode;
 }
 
+char* cache_mode_to_str(int cache_mode)
+{
+	if (cache_mode == ocf_cache_mode_wb)
+		return "writeback";
+	else if (cache_mode == ocf_cache_mode_wt)
+		return "writethrough";
+	else
+		return NULL;
+}
+
 int str_to_restart_mode(char *str)
 {
 	int restart_mode;
@@ -342,6 +352,16 @@ int ubbd_device_restart(struct ubbd_dev_restart_options *opts, struct ubbdd_mgmt
 	req.cmd = UBBDD_MGMT_CMD_DEV_RESTART;
 	req.u.dev_restart.dev_id = opts->ubbdid;
 	req.u.dev_restart.restart_mode = str_to_restart_mode(opts->restart_mode);
+
+	return generic_request_and_wait(&req, rsp);
+}
+
+int ubbd_device_info(struct ubbd_info_options *opts, struct ubbdd_mgmt_rsp *rsp)
+{
+	struct ubbdd_mgmt_request req = { 0 };
+
+	req.cmd = UBBDD_MGMT_CMD_DEV_INFO;
+	req.u.dev_info.dev_id = opts->ubbdid;
 
 	return generic_request_and_wait(&req, rsp);
 }

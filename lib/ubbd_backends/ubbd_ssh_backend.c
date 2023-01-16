@@ -4,7 +4,7 @@
 #include "ubbd_compat.h"
 #include <libssh/libssh.h>
 
-#define SSH_DEV(ubbd_b) ((struct ubbd_ssh_backend *)container_of(ubbd_b, struct ubbd_ssh_backend, ubbd_b))
+#define SSH_BACKEND(ubbd_b) ((struct ubbd_ssh_backend *)container_of(ubbd_b, struct ubbd_ssh_backend, ubbd_b))
 
 static ssh_session connect_ssh(const char *host, const char *user, int verbosity){
 	ssh_session session;
@@ -54,7 +54,7 @@ out:
 
 static int ssh_backend_open(struct ubbd_backend *ubbd_b)
 {
-	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
+	struct ubbd_ssh_backend *ssh_b = SSH_BACKEND(ubbd_b);
 	struct ssh_session_struct *ssh_session;
 	struct sftp_session_struct *sftp_session;
 	int ret;
@@ -97,7 +97,7 @@ out:
 
 static void ssh_backend_close(struct ubbd_backend *ubbd_b)
 {
-	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
+	struct ubbd_ssh_backend *ssh_b = SSH_BACKEND(ubbd_b);
 	struct sftp_session_struct *sftp_session = ssh_b->sftp_file->sftp;
 	struct ssh_session_struct *ssh_session = sftp_session->session;
 
@@ -109,7 +109,7 @@ static void ssh_backend_close(struct ubbd_backend *ubbd_b)
 
 static void ssh_backend_release(struct ubbd_backend *ubbd_b)
 {
-	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
+	struct ubbd_ssh_backend *ssh_b = SSH_BACKEND(ubbd_b);
 
 	if (ssh_b)
 		free(ssh_b);
@@ -117,7 +117,7 @@ static void ssh_backend_release(struct ubbd_backend *ubbd_b)
 
 static int ssh_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
+	struct ubbd_ssh_backend *ssh_b = SSH_BACKEND(ubbd_b);
 	int ret;
 	ssize_t count = 0;
 	void *base;
@@ -150,7 +150,7 @@ out:
 
 static int ssh_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
-	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
+	struct ubbd_ssh_backend *ssh_b = SSH_BACKEND(ubbd_b);
 	int ret;
 	ssize_t count = 0;
 	void *base;
@@ -185,7 +185,7 @@ static int ssh_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io
 {
 	int ret;
 #ifdef HAVE_SFTP_FSYNC
-	struct ubbd_ssh_backend *ssh_b = SSH_DEV(ubbd_b);
+	struct ubbd_ssh_backend *ssh_b = SSH_BACKEND(ubbd_b);
 
 	ret = sftp_fsync(ssh_b->sftp_file);
 #else

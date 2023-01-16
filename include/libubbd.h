@@ -32,9 +32,75 @@
 
 #define PAGE_SIZE	4096
 
+#define COMPILE_ASSERT(predicate, name) _impl_COMPILE_ASSERT_LINE(predicate,__LINE__, name)
+
+#define _impl_PASTE(a,b) a##b
+#define _impl_COMPILE_ASSERT_LINE(predicate, line, file) \
+	    typedef char _impl_PASTE(assertion_failed_##file##_,line)[2*!!(predicate)-1];
+
+enum ubbd_dev_type {
+	UBBD_DEV_TYPE_FILE,
+	UBBD_DEV_TYPE_RBD,
+	UBBD_DEV_TYPE_NULL,
+	UBBD_DEV_TYPE_SSH,
+	UBBD_DEV_TYPE_CACHE,
+	UBBD_DEV_TYPE_S3,
+};
+
+struct ubbd_dev_info {
+	enum ubbd_dev_type type;
+	uint32_t num_queues;
+	uint32_t sh_mem_size;
+	union {
+		struct {
+			char path[PATH_MAX];
+			uint64_t size;
+		} file;
+		struct {
+			char pool[UBBD_POOLNAME_LEN_MAX];
+			char image[UBBD_IMAGENAME_LEN_MAX];
+			char ceph_conf[PATH_MAX];
+		} rbd;
+		struct {
+			uint64_t size;
+		} null;
+		struct {
+			char hostname[PATH_MAX];
+			char path[PATH_MAX];
+			uint64_t size;
+		} ssh;
+		struct {
+			uint64_t size;
+			uint32_t block_size;
+			int port;
+			char hostname[PATH_MAX];
+			char accessid[UBBD_S3_LEN_MAX];
+			char accesskey[UBBD_S3_LEN_MAX];
+			char volume_name[UBBD_S3_LEN_MAX];
+			char bucket_name[UBBD_S3_LEN_MAX];
+		} s3;
+	};
+};
+
+COMPILE_ASSERT(sizeof(struct ubbd_dev_info) < UBBD_INFO_SIZE, ubbd_dev_info_too_large);
+
 struct ubbd_req_stats {
 	uint64_t reqs;
 	uint64_t handle_time;
+};
+
+struct ubbdd_mgmt_rsp_dev_info {
+	int devid;
+	enum ubbd_dev_type type;
+	uint64_t size;
+	int num_queues;
+	struct ubbd_dev_info dev_info;
+	struct ubbd_dev_info extra_info;
+	union {
+		struct {
+			int cache_mode;
+		} cache;
+	};
 };
 
 struct ubbdd_mgmt_rsp {
@@ -52,6 +118,13 @@ struct ubbdd_mgmt_rsp {
 			int num_queues;
 			struct ubbd_req_stats req_stats[UBBD_QUEUE_MAX];
 		} req_stats;
+		struct ubbdd_mgmt_rsp_dev_info dev_info;
+	} u;
+};
+
+struct ubbd_result {
+	int ret;
+	union {
 	} u;
 };
 
@@ -120,6 +193,12 @@ struct ubbd_req_stats_reset_options {
 	int ubbdid;
 };
 
+struct ubbd_info_options {
+	int ubbdid;
+};
+
+char* cache_mode_to_str(int cache_mode);
+
 int ubbd_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp);
 int ubbd_unmap(struct ubbd_unmap_options *opts, struct ubbdd_mgmt_rsp *rsp);
 int ubbd_config(struct ubbd_config_options *opts, struct ubbdd_mgmt_rsp *rsp);
@@ -127,4 +206,5 @@ int ubbd_list(struct ubbd_list_options *opts, struct ubbdd_mgmt_rsp *rsp);
 int ubbd_req_stats(struct ubbd_req_stats_options *opts, struct ubbdd_mgmt_rsp *rsp);
 int ubbd_req_stats_reset(struct ubbd_req_stats_reset_options *opts, struct ubbdd_mgmt_rsp *rsp);
 int ubbd_device_restart(struct ubbd_dev_restart_options *opts, struct ubbdd_mgmt_rsp *rsp);
+int ubbd_device_info(struct ubbd_info_options *opts, struct ubbdd_mgmt_rsp *rsp);
 #endif /*LIBUBBD_H*/

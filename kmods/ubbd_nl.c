@@ -464,7 +464,7 @@ err_free:
 err_put:
 	ubbd_dev_put(ubbd_dev);
 err:
-	ubbd_err("ret of handle_cmd_status: %d", ret);
+	ubbd_debug("ret of handle_cmd_status: %d", ret);
 	return ret;
 }
 

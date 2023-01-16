@@ -2,7 +2,6 @@
 #include "ubbd_uio.h"
 
 // cache ops
-#define CACHE_DEV(ubbd_dev) ((struct ubbd_cache_device *)container_of(ubbd_dev, struct ubbd_cache_device, ubbd_dev))
 
 static int cache_dev_init(struct ubbd_device *ubbd_dev)
 {

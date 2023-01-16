@@ -15,21 +15,6 @@
 #define UBBD_DEV_RESTART_MODE_DEV	1
 #define UBBD_DEV_RESTART_MODE_QUEUE	2
 
-#define COMPILE_ASSERT(predicate, name) _impl_COMPILE_ASSERT_LINE(predicate,__LINE__, name)
-
-#define _impl_PASTE(a,b) a##b
-#define _impl_COMPILE_ASSERT_LINE(predicate, line, file) \
-	    typedef char _impl_PASTE(assertion_failed_##file##_,line)[2*!!(predicate)-1];
-
-enum ubbd_dev_type {
-	UBBD_DEV_TYPE_FILE,
-	UBBD_DEV_TYPE_RBD,
-	UBBD_DEV_TYPE_NULL,
-	UBBD_DEV_TYPE_SSH,
-	UBBD_DEV_TYPE_CACHE,
-	UBBD_DEV_TYPE_S3,
-};
-
 enum ubbd_dev_ustatus {
 	UBBD_DEV_USTATUS_INIT,
 	UBBD_DEV_USTATUS_OPENED,
@@ -38,43 +23,6 @@ enum ubbd_dev_ustatus {
 	UBBD_DEV_USTATUS_STOPPING,
 	UBBD_DEV_USTATUS_ERROR,
 };
-
-struct ubbd_dev_info {
-	enum ubbd_dev_type type;
-	uint32_t num_queues;
-	uint32_t sh_mem_size;
-	union {
-		struct {
-			char path[PATH_MAX];
-			uint64_t size;
-		} file;
-		struct {
-			char pool[UBBD_POOLNAME_LEN_MAX];
-			char image[UBBD_IMAGENAME_LEN_MAX];
-			char ceph_conf[PATH_MAX];
-		} rbd;
-		struct {
-			uint64_t size;
-		} null;
-		struct {
-			char hostname[PATH_MAX];
-			char path[PATH_MAX];
-			uint64_t size;
-		} ssh;
-		struct {
-			uint64_t size;
-			uint32_t block_size;
-			int port;
-			char hostname[PATH_MAX];
-			char accessid[UBBD_S3_LEN_MAX];
-			char accesskey[UBBD_S3_LEN_MAX];
-			char volume_name[UBBD_S3_LEN_MAX];
-			char bucket_name[UBBD_S3_LEN_MAX];
-		} s3;
-	};
-};
-
-COMPILE_ASSERT(sizeof(struct ubbd_dev_info) < UBBD_INFO_SIZE, ubbd_dev_info_too_large);
 
 struct ubbd_dev_features {
 	bool	write_cache;
@@ -156,6 +104,8 @@ struct ubbd_cache_device {
 	struct ubbd_device *cache_device;
 	int cache_mode;
 };
+
+#define CACHE_DEV(ubbd_dev) ((struct ubbd_cache_device *)container_of(ubbd_dev, struct ubbd_cache_device, ubbd_dev))
 
 struct ubbd_s3_device {
 	struct ubbd_device ubbd_dev;

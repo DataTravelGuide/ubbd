@@ -1199,7 +1199,7 @@ ocf_ctx_t ctx = NULL;
 ocf_cache_t cache1 = NULL;
 ocf_core_t core1 = NULL;
 
-#define CACHE_DEV(ubbd_b) ((struct ubbd_cache_backend *)container_of(ubbd_b, struct ubbd_cache_backend, ubbd_b))
+#define CACHE_BACKEND(ubbd_b) ((struct ubbd_cache_backend *)container_of(ubbd_b, struct ubbd_cache_backend, ubbd_b))
 
 struct probe_ctx {
 	env_completion cmpl;
@@ -1253,7 +1253,7 @@ static int cache_probe(ocf_ctx_t ctx)
 static int cache_backend_open(struct ubbd_backend *ubbd_b)
 {
 	int ret = 0;
-	struct ubbd_cache_backend *cache_b = CACHE_DEV(ubbd_b);
+	struct ubbd_cache_backend *cache_b = CACHE_BACKEND(ubbd_b);
 	bool cache_exist;
 
 	ret = ubbd_backend_open(cache_b->backing_backend);
@@ -1313,7 +1313,7 @@ out:
 static void cache_backend_close(struct ubbd_backend *ubbd_b)
 {
 	int ret = 0;
-	struct ubbd_cache_backend *cache_b = CACHE_DEV(ubbd_b);
+	struct ubbd_cache_backend *cache_b = CACHE_BACKEND(ubbd_b);
 	struct cache_priv *cache_priv;
 	struct simple_context context;
 
@@ -1367,7 +1367,7 @@ static void cache_backend_close(struct ubbd_backend *ubbd_b)
 
 static void cache_backend_release(struct ubbd_backend *ubbd_b)
 {
-	struct ubbd_cache_backend *cache_b = CACHE_DEV(ubbd_b);
+	struct ubbd_cache_backend *cache_b = CACHE_BACKEND(ubbd_b);
 
 	if (!cache_b)
 		return;
@@ -1431,7 +1431,7 @@ static int cache_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_
 
 static int cache_backend_set_opts(struct ubbd_backend *ubbd_b, struct ubbd_backend_opts *opts)
 {
-	struct ubbd_cache_backend *cache_b = CACHE_DEV(ubbd_b);
+	struct ubbd_cache_backend *cache_b = CACHE_BACKEND(ubbd_b);
 
 	cache_b->detach_on_close = opts->cache.detach_on_close;
 

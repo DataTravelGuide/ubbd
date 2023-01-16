@@ -144,6 +144,96 @@ static int parse_map_options(struct ubbd_map_options *opts, const char *name, ch
 	return 0;
 }
 
+
+static char *type_to_str(enum ubbd_dev_type type)
+{
+	if (type == UBBD_DEV_TYPE_FILE)
+		return "file";
+	else if (type == UBBD_DEV_TYPE_RBD)
+		return "rbd";
+	else if (type == UBBD_DEV_TYPE_NULL)
+		return "null";
+	else if (type == UBBD_DEV_TYPE_SSH)
+		return "ssh";
+	else if (type == UBBD_DEV_TYPE_CACHE)
+		return "cache";
+	else if (type == UBBD_DEV_TYPE_S3)
+		return "s3";
+	else
+		return "Unknown type";
+}
+
+
+static void output_dev_generic_info(struct ubbdd_mgmt_rsp *rsp)
+{
+	printf("UBBD: /dev/ubbd%d:\n", rsp->u.dev_info.devid);
+	printf("\ttype: %s\n", type_to_str(rsp->u.dev_info.type));
+	printf("\tsize: %lu\n",	rsp->u.dev_info.size);
+	printf("\tqueues: %u\n", rsp->u.dev_info.num_queues);
+}
+
+static int __output_dev_info_detail(struct ubbd_dev_info *dev_info)
+{
+	int dev_type = dev_info->type;
+	int ret = 0;
+
+	if (dev_type == UBBD_DEV_TYPE_FILE) {
+		printf("\tfilepath: %s\n", dev_info->file.path);
+	} else if (dev_type == UBBD_DEV_TYPE_RBD) {
+		printf("\tceph_conf: %s\n", dev_info->rbd.ceph_conf);
+		printf("\tpool: %s\n", dev_info->rbd.pool);
+		printf("\timage: %s\n", dev_info->rbd.image);
+	} else if (dev_type == UBBD_DEV_TYPE_NULL) {
+	} else if (dev_type == UBBD_DEV_TYPE_SSH) {
+		printf("\thostname: %s\n", dev_info->ssh.hostname);
+		printf("\tpath: %s\n", dev_info->ssh.path);
+	} else if (dev_type == UBBD_DEV_TYPE_S3) {
+		printf("\thostname: %s\n", dev_info->s3.hostname);
+		printf("\tport: %d\n", dev_info->s3.port);
+		printf("\tblock_size: %d\n", dev_info->s3.block_size);
+		printf("\taccessid: %s\n", dev_info->s3.accessid);
+		printf("\taccesskey: %s\n", dev_info->s3.accesskey);
+		printf("\tvolume_name: %s\n", dev_info->s3.volume_name);
+		printf("\tbucket_name: %s\n", dev_info->s3.bucket_name);
+	} else {
+		printf("error type: %d\n", dev_type);
+		ret = -1;
+	}
+
+	return ret;
+}
+
+static int output_dev_info_detail(int dev_type, struct ubbdd_mgmt_rsp_dev_info *mgmt_dev_info)
+{
+	int ret = 0;
+
+	if (dev_type == UBBD_DEV_TYPE_CACHE) {
+		printf("\tcache_mode: %s\n", cache_mode_to_str(mgmt_dev_info->cache.cache_mode));
+		printf("\n\tcache_dev: type %s\n", type_to_str(mgmt_dev_info->extra_info.type));
+		ret = __output_dev_info_detail(&mgmt_dev_info->extra_info);
+		if (ret)
+			goto out;
+
+		printf("\n\tbacking_dev: type %s\n", type_to_str(mgmt_dev_info->dev_info.type));
+		ret = __output_dev_info_detail(&mgmt_dev_info->dev_info);
+	} else {
+		ret = __output_dev_info_detail(&mgmt_dev_info->dev_info);
+	}
+
+out:
+	return ret;
+}
+
+static int output_dev_info(struct ubbdd_mgmt_rsp *rsp)
+{
+	int ret = 0;
+
+	output_dev_generic_info(rsp);
+	ret = output_dev_info_detail(rsp->u.dev_info.type, &rsp->u.dev_info);
+
+	return ret;
+}
+
 struct ubbd_map_options cache_opts, backing_opts, opts;
 
 int main(int argc, char **argv)
@@ -262,6 +352,14 @@ int main(int argc, char **argv)
 	       					.restart_mode = restart_mode};
 
 		ret = ubbd_device_restart(&dev_restart_opts, &rsp);
+	} else if (!strcmp("info", command)) {
+		struct ubbd_info_options info_opts = { .ubbdid = ubbdid };
+
+		ret = ubbd_device_info(&info_opts, &rsp);
+		if (ret)
+			goto out;
+
+		ret = output_dev_info(&rsp);
 	} else {
 		printf("error command: %s\n", command);
 	}

@@ -283,6 +283,27 @@ static void *mgmt_thread_fn(void* args)
 				}
 				ret = ubbd_dev_restart(ubbd_dev, mgmt_req.u.dev_restart.restart_mode);
 				break;
+			case UBBDD_MGMT_CMD_DEV_INFO:
+				ubbd_dev = find_ubbd_dev(mgmt_req.u.dev_info.dev_id);
+				if (!ubbd_dev) {
+					ubbd_err("cant find ubbddev for dev info\n");
+					ret = -EINVAL;
+					break;
+				}
+
+				mgmt_rsp.u.dev_info.devid = ubbd_dev->dev_id;
+				mgmt_rsp.u.dev_info.type = ubbd_dev->dev_type;
+				mgmt_rsp.u.dev_info.size = ubbd_dev->dev_size;
+				mgmt_rsp.u.dev_info.num_queues = ubbd_dev->num_queues;
+				memcpy(&mgmt_rsp.u.dev_info.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
+				memcpy(&mgmt_rsp.u.dev_info.extra_info, &ubbd_dev->extra_info, sizeof(struct ubbd_dev_info));
+				if (ubbd_dev->dev_type == UBBD_DEV_TYPE_CACHE) {
+					struct ubbd_cache_device *cache_dev = CACHE_DEV(ubbd_dev);
+
+					mgmt_rsp.u.dev_info.cache.cache_mode = cache_dev->cache_mode;
+				}
+				ret = 0;
+				break;
 			default:
 				ubbd_err("unrecognized command: %d\n", mgmt_req.cmd);
 				ret = -EINVAL;

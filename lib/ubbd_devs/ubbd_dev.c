@@ -537,6 +537,7 @@ static int dev_conf_write(struct ubbd_device *ubbd_dev)
 	dev_conf.new_backend_id = ubbd_dev->new_backend_id;
 	dev_conf.dev_id = ubbd_dev->dev_id;
 	dev_conf.dev_type = ubbd_dev->dev_type;
+	dev_conf.num_queues = ubbd_dev->num_queues;
 
 	return ubbd_conf_write_dev_conf(&dev_conf);
 }
@@ -1080,6 +1081,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	}
 
 	ubbd_dev->dev_id = dev_conf->dev_id;
+	ubbd_dev->num_queues = dev_conf->num_queues;
 	ubbd_dev->current_backend_id = dev_conf->current_backend_id;
 	ubbd_dev->new_backend_id = dev_conf->new_backend_id;
 	free(dev_conf);

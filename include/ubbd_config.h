@@ -23,6 +23,7 @@ struct ubbd_dev_conf {
 	struct ubbd_conf_header conf_header;
 	enum ubbd_dev_type dev_type;
 	int dev_id;
+	int num_queues;
 	struct ubbd_dev_info dev_info;
 	/* cache device need extra_info */
 	struct ubbd_dev_info extra_info;
