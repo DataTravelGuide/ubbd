@@ -92,25 +92,35 @@ int main(int argc, char **argv)
 	}
 
 	ret = ubbd_setup_log("/var/log/ubbd/", "ubbdd.log");
-	if (ret)
+	if (ret) {
+		ubbd_err("failed to setup log.\n");
 		goto out;
+	}
 
 	setup_signal_handler();
 	ret = ubbd_nl_start_thread();
-	if (ret)
+	if (ret) {
+		ubbd_err("failed to start netlink thread.\n");
 		goto destroy_log;
+	}
 
 	ret = ubbd_dev_reopen_devs();
-	if (ret)
+	if (ret) {
+		ubbd_err("failed to reopen devices.\n");
 		goto stop_nl_thread;
+	}
 
 	ret = ubbd_dev_checker_start_thread();
-	if (ret)
+	if (ret) {
+		ubbd_err("failed to start device checker thread.\n");
 		goto stop_nl_thread;
+	}
 
 	ret = ubbdd_mgmt_start_thread();
-	if (ret)
+	if (ret) {
+		ubbd_err("failed to start mgmt thread.\n");
 		goto stop_nl_thread;
+	}
 	ubbd_info("ubbdd started.....\n");
 
 	ret = ubbdd_mgmt_wait_thread();
@@ -126,5 +136,8 @@ stop_nl_thread:
 destroy_log:
 	ubbd_destroy_log();
 out:
+	if (ret) {
+		printf("ubbd daemon exit with error: %d.\n", ret);
+	}
 	return ret;
 }
