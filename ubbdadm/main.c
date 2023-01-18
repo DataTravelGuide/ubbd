@@ -43,6 +43,8 @@ static struct option const long_options[] =
 	UBBD_MAP_OPT(rbd, pool)
 	UBBD_MAP_OPT(rbd, image)
 	UBBD_MAP_OPT(rbd, ceph-conf)
+	UBBD_MAP_OPT(rbd, user-name)
+	UBBD_MAP_OPT(rbd, cluster-name)
 
 	UBBD_MAP_OPT(ssh, hostname)
 	UBBD_MAP_OPT(ssh, filepath)
@@ -116,6 +118,10 @@ static int parse_map_options(struct ubbd_map_options *opts, const char *name, ch
 		opts->u.rbd.image = optarg;
 	} else if (!strcmp(name, "rbd-ceph-conf")) {
 		opts->u.rbd.ceph_conf = optarg;
+	} else if (!strcmp(name, "rbd-user-name")) {
+		opts->u.rbd.user_name = optarg;
+	} else if (!strcmp(name, "rbd-cluster-name")) {
+		opts->u.rbd.cluster_name = optarg;
 	} else if (!strcmp(name, "ssh-hostname")) {
 		opts->u.ssh.hostname = optarg;
 	} else if (!strcmp(name, "ssh-filepath")) {
@@ -183,6 +189,8 @@ static int __output_dev_info_detail(struct ubbd_dev_info *dev_info)
 		printf("\tceph_conf: %s\n", dev_info->rbd.ceph_conf);
 		printf("\tpool: %s\n", dev_info->rbd.pool);
 		printf("\timage: %s\n", dev_info->rbd.image);
+		printf("\tcluster_name: %s\n", dev_info->rbd.cluster_name);
+		printf("\tuser_name: %s\n", dev_info->rbd.user_name);
 	} else if (dev_type == UBBD_DEV_TYPE_NULL) {
 	} else if (dev_type == UBBD_DEV_TYPE_SSH) {
 		printf("\thostname: %s\n", dev_info->ssh.hostname);

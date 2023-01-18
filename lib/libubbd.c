@@ -10,6 +10,8 @@
 #include "ubbd_netlink.h"
 
 #define DEFAULT_CEPH_CONF "/etc/ceph/ceph.conf"
+#define DEFAULT_CEPH_USER	"client.admin"
+#define DEFAULT_CEPH_CLUSTER	"ceph"
 
 char *cmd_to_str(enum ubbdd_mgmt_cmd cmd)
 {
@@ -139,6 +141,16 @@ void rbd_dev_info_setup(struct ubbd_dev_info *dev_info,
 		strcpy(dev_info->rbd.ceph_conf, opts->u.rbd.ceph_conf);
 	else
 		strcpy(dev_info->rbd.ceph_conf, DEFAULT_CEPH_CONF);
+
+	if (opts->u.rbd.user_name)
+		strcpy(dev_info->rbd.user_name, opts->u.rbd.user_name);
+	else
+		strcpy(dev_info->rbd.user_name, DEFAULT_CEPH_USER);
+
+	if (opts->u.rbd.cluster_name)
+		strcpy(dev_info->rbd.cluster_name, opts->u.rbd.cluster_name);
+	else
+		strcpy(dev_info->rbd.cluster_name, DEFAULT_CEPH_CLUSTER);
 }
 
 void null_dev_info_setup(struct ubbd_dev_info *dev_info,

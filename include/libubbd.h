@@ -60,6 +60,8 @@ struct ubbd_dev_info {
 			char pool[UBBD_POOLNAME_LEN_MAX];
 			char image[UBBD_IMAGENAME_LEN_MAX];
 			char ceph_conf[PATH_MAX];
+			char cluster_name[PATH_MAX];
+			char user_name[PATH_MAX];
 		} rbd;
 		struct {
 			uint64_t size;
@@ -141,6 +143,8 @@ typedef struct ubbd_map_options {
 			char *pool;
 			char *image;
 			char *ceph_conf;
+			char *cluster_name;
+			char *user_name;
 		} rbd;
 		struct {
 		} null;

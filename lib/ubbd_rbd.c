@@ -5,7 +5,7 @@ int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn)
 {
         int err;
 
-        err = rados_create2(&rbd_conn->cluster, "ceph", "client.admin", rbd_conn->flags);
+        err = rados_create2(&rbd_conn->cluster, rbd_conn->cluster_name, rbd_conn->user_name, rbd_conn->flags);
         if (err < 0) {
                 ubbd_err("Couldn't create the cluster handle! %s\n", strerror(-err));
                 return err;

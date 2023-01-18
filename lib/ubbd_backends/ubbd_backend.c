@@ -173,6 +173,8 @@ struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
 		strcpy(rbd_conn->pool, dev_info->rbd.pool);
 		strcpy(rbd_conn->imagename, dev_info->rbd.image);
 		strcpy(rbd_conn->ceph_conf, dev_info->rbd.ceph_conf);
+		strcpy(rbd_conn->user_name, dev_info->rbd.user_name);
+		strcpy(rbd_conn->cluster_name, dev_info->rbd.cluster_name);
 	} else if (dev_info->type == UBBD_DEV_TYPE_NULL){
 		struct ubbd_null_backend *null_backend;
 

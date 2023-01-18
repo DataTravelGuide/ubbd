@@ -156,6 +156,8 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 		strcpy(rbd_conn->pool, info->rbd.pool);
 		strcpy(rbd_conn->imagename, info->rbd.image);
 		strcpy(rbd_conn->ceph_conf, info->rbd.ceph_conf);
+		strcpy(rbd_conn->user_name, info->rbd.user_name);
+		strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
 	} else if (info->type == UBBD_DEV_TYPE_NULL){
 		struct ubbd_null_device *null_dev;
 
