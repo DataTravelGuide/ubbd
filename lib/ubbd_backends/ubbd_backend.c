@@ -162,13 +162,17 @@ struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
 		ubbd_b->dev_size = dev_info->file.size;
 	} else if (dev_info->type == UBBD_DEV_TYPE_RBD) {
 		struct ubbd_rbd_backend *rbd_backend;
+		struct ubbd_rbd_conn *rbd_conn;
 
 		rbd_backend = create_rbd_backend();
 		if (!rbd_backend)
 			return NULL;
 		ubbd_b = &rbd_backend->ubbd_b;
-		strcpy(rbd_backend->pool, dev_info->rbd.pool);
-		strcpy(rbd_backend->imagename, dev_info->rbd.image);
+		rbd_conn = &rbd_backend->rbd_conn;
+
+		strcpy(rbd_conn->pool, dev_info->rbd.pool);
+		strcpy(rbd_conn->imagename, dev_info->rbd.image);
+		strcpy(rbd_conn->ceph_conf, dev_info->rbd.ceph_conf);
 	} else if (dev_info->type == UBBD_DEV_TYPE_NULL){
 		struct ubbd_null_backend *null_backend;
 

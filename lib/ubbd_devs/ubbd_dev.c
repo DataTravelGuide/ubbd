@@ -146,13 +146,16 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 		ubbd_dev->dev_size = info->file.size;
 	} else if (info->type == UBBD_DEV_TYPE_RBD) {
 		struct ubbd_rbd_device *rbd_dev;
+		struct ubbd_rbd_conn *rbd_conn;
 
 		rbd_dev = create_rbd_dev();
 		if (!rbd_dev)
 			return NULL;
 		ubbd_dev = &rbd_dev->ubbd_dev;
-		strcpy(rbd_dev->pool, info->rbd.pool);
-		strcpy(rbd_dev->imagename, info->rbd.image);
+		rbd_conn = &rbd_dev->rbd_conn;
+		strcpy(rbd_conn->pool, info->rbd.pool);
+		strcpy(rbd_conn->imagename, info->rbd.image);
+		strcpy(rbd_conn->ceph_conf, info->rbd.ceph_conf);
 	} else if (info->type == UBBD_DEV_TYPE_NULL){
 		struct ubbd_null_device *null_dev;
 

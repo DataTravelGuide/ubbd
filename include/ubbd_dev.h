@@ -10,6 +10,7 @@
 #include "utils.h"
 #include "list.h"
 #include "libubbd.h"
+#include "ubbd_rbd.h"
 
 #define UBBD_DEV_RESTART_MODE_DEFAULT	0
 #define UBBD_DEV_RESTART_MODE_DEV	1
@@ -80,14 +81,7 @@ struct ubbd_file_device {
 
 struct ubbd_rbd_device {
 	struct ubbd_device ubbd_dev;
-	char pool[PATH_MAX];
-	char imagename[PATH_MAX];
-        rados_t cluster;
-        char cluster_name[PATH_MAX];
-        char user_name[PATH_MAX];
-	rados_ioctx_t io_ctx;
-	rbd_image_t image;
-	uint64_t flags;
+	struct ubbd_rbd_conn rbd_conn;
 };
 
 struct ubbd_null_device {

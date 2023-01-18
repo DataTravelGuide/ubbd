@@ -9,67 +9,17 @@
 static int rbd_backend_open(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
-        int err;
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
 
-        err = rados_create2(&rbd_b->cluster, "ceph", "client.admin", rbd_b->flags);
-        if (err < 0) {
-                ubbd_err("Couldn't create the cluster handle! %s\n", strerror(-err));
-                return err;
-        } else {
-                ubbd_info("\nCreated a cluster handle.\n");
-        }
-
-        /* Read a Ceph configuration file to configure the cluster handle. */
-        err = rados_conf_read_file(rbd_b->cluster, ubbd_b->dev_info.rbd.ceph_conf);
-        if (err < 0) {
-                ubbd_err("cannot read config file: %s\n", strerror(-err));
-		goto shutdown_cluster;
-        } else {
-                ubbd_info("\nRead the config file.\n");
-        }
-
-	rados_conf_set(rbd_b->cluster, "rbd_cache", "false");
-        /* Connect to the cluster */
-        err = rados_connect(rbd_b->cluster);
-        if (err < 0) {
-                ubbd_err("cannot connect to cluster: %s\n",  strerror(-err));
-		goto shutdown_cluster;
-        } else {
-                ubbd_info("\nConnected to the cluster.\n");
-        }
-
-	err = rados_ioctx_create(rbd_b->cluster, rbd_b->pool, &rbd_b->io_ctx);
-        if (err < 0) {
-                ubbd_err("cannot create ioctx to %s pool: %s\n", rbd_b->pool, strerror(-err));
-		goto shutdown_cluster;
-        } else {
-                ubbd_info("\nioctx created.\n");
-        }
-
-	err = rbd_open(rbd_b->io_ctx, rbd_b->imagename, &rbd_b->image, NULL);
-        if (err < 0) {
-                ubbd_err("cannot open image(%s): %s\n", rbd_b->imagename, strerror(-err));
-		goto destroy_ioctx;
-        } else {
-                ubbd_info("\nimage opened.\n");
-        }
-
-	return 0;
-
-destroy_ioctx:
-	rados_ioctx_destroy(rbd_b->io_ctx);
-shutdown_cluster:
-	rados_shutdown(rbd_b->cluster);
-	return err;
+	return ubbd_rbd_conn_open(rbd_conn);
 }
 
 static void rbd_backend_close(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
 
-	rbd_close(rbd_b->image);
-	rados_ioctx_destroy(rbd_b->io_ctx);
-	rados_shutdown(rbd_b->cluster);
+	ubbd_rbd_conn_close(rbd_conn);
 }
 
 static void rbd_backend_release(struct ubbd_backend *ubbd_b)
@@ -97,6 +47,7 @@ static void rbd_finish_aio_generic(rbd_completion_t completion,
 static int rbd_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
 	rbd_completion_t completion;
 	int ret;
 
@@ -106,7 +57,7 @@ static int rbd_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_i
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ret = rbd_aio_writev(rbd_b->image, io->iov, io->iov_cnt, io->offset, completion);
+	ret = rbd_aio_writev(rbd_conn->image, io->iov, io->iov_cnt, io->offset, completion);
 
 	return ret;
 }
@@ -114,6 +65,7 @@ static int rbd_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_i
 static int rbd_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
 	rbd_completion_t completion;
 	ssize_t ret;
 
@@ -123,7 +75,7 @@ static int rbd_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ret = rbd_aio_readv(rbd_b->image, io->iov, io->iov_cnt, io->offset, completion);
+	ret = rbd_aio_readv(rbd_conn->image, io->iov, io->iov_cnt, io->offset, completion);
 
 	return ret;
 }
@@ -131,6 +83,7 @@ static int rbd_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io
 static int rbd_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
 	rbd_completion_t completion;
 	ssize_t ret;
 
@@ -140,7 +93,7 @@ static int rbd_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ret = rbd_aio_flush(rbd_b->image, completion);
+	ret = rbd_aio_flush(rbd_conn->image, completion);
 
 	return ret;
 }
@@ -148,6 +101,7 @@ static int rbd_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io
 static int rbd_backend_discard(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
 	rbd_completion_t completion;
 	ssize_t ret;
 
@@ -157,7 +111,7 @@ static int rbd_backend_discard(struct ubbd_backend *ubbd_b, struct ubbd_backend_
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ret = rbd_aio_discard(rbd_b->image, io->offset, io->len, completion);
+	ret = rbd_aio_discard(rbd_conn->image, io->offset, io->len, completion);
 
 	return ret;
 }
@@ -166,6 +120,7 @@ static int rbd_backend_discard(struct ubbd_backend *ubbd_b, struct ubbd_backend_
 static int rbd_backend_write_zeros(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
 	rbd_completion_t completion;
 	ssize_t ret;
 
@@ -175,7 +130,7 @@ static int rbd_backend_write_zeros(struct ubbd_backend *ubbd_b, struct ubbd_back
 		ubbd_err("create completion failed\n");
 		return -1;
 	}
-	ret = rbd_aio_write_zeroes(rbd_b->image, io->offset, io->len, completion, 0, 0);
+	ret = rbd_aio_write_zeroes(rbd_conn->image, io->offset, io->len, completion, 0, 0);
 
 	return ret;
 }

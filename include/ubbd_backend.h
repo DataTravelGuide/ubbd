@@ -5,6 +5,7 @@
 #include "ubbd_dev.h"
 #include "ubbd_queue.h"
 #include "ubbd_config.h"
+#include "ubbd_rbd.h"
 
 enum ubbd_backend_io_type {
 	UBBD_BACKEND_IO_WRITE = 0,
@@ -82,14 +83,7 @@ struct ubbd_file_backend {
 
 struct ubbd_rbd_backend {
 	struct ubbd_backend ubbd_b;
-	char pool[PATH_MAX];
-	char imagename[PATH_MAX];
-        rados_t cluster;
-        char cluster_name[PATH_MAX];
-        char user_name[PATH_MAX];
-	rados_ioctx_t io_ctx;
-	rbd_image_t image;
-	uint64_t flags;
+	struct ubbd_rbd_conn rbd_conn;
 };
 
 struct ubbd_ssh_backend {
