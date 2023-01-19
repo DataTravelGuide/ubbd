@@ -19,8 +19,8 @@
 	{"backing-dev-"#prefix"-"#name, required_argument, NULL, 0},
 
 #define UBBD_MAP_NOPRE_OPT(name)					\
-	{#name, required_argument, NULL, 0},			\
-	{"cache-dev-"#name, required_argument, NULL, 0},	\
+	{#name, required_argument, NULL, 0},				\
+	{"cache-dev-"#name, required_argument, NULL, 0},		\
 	{"backing-dev-"#name, required_argument, NULL, 0},
 
 
@@ -63,31 +63,62 @@ static struct option const long_options[] =
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:t:f:p:i:u:h:s:o:r:q:e:m:n:d";
+static char *short_options = "c:o:u:r:m:d:h";
+
+static void print_map_opt_msg(char *name, char *msg)
+{
+	printf("\t\t--%-35s %s.\n", name, msg);
+	printf("\t\t--cache-dev-%-25s %s for cache device.\n", name, msg);
+	printf("\t\t--backing-dev-%-23s %s for backing device.\n", name, msg);
+}
 
 static void usage(int status)
 { 
 	if (status != 0)
 		fprintf(stderr, "Try `ubbdadm --help' for more information.\n");
 	else {
-		printf("\
-			ubbdadm --command map --type file --file-filepath PATH --devsize SIZE --dev-share-memory-size [4194304 - 1073741824]\n\
-			ubbdadm --command map --type rbd --rbd-pool POOL --rbd-image IMAGE \n\
-			ubbdadm --command map --type ssh --ssh-hostname HOST --filepath REMOTE_PATH --devsize SIZE --num-queues N\n\
-			ubbdadm --command map --type s3 --hostname IP/URL --port PORT --accessid ID --accesskey KEY --volume-name VOL_NAME --devsize SIZE --num-queues N\n\
-			ubbdadm --command map --type cache --devsize SIZE --num-queues N\n\
-						--cache-dev-type file --cache-dev-filepath PATH --cache-dev-devsize SIZE\n\
-						--backing-dev-type rbd --backing-dev-pool POOL --backing-dev-image IMG\n\
-						--cache-mode [writeback|writethrough]\n\
-			ubbdadm --command unmap --ubbdid ID\n\
-			ubbdadm --command config --ubbdid ID --data-pages-reserve 50\n\
-			ubbdadm --command list\n\
-			ubbdadm --command req-stats --ubbdid ID\n\
-			ubbdadm --command req-stats-reset --ubbdid ID\n\
-			ubbdadm --command dev-restart --ubbdid ID [--restart-mode (default|dev|queue)]\n");
+		printf("Usage:\n");
+		printf("\tubbdadm --command <cmd> [options]\n\n");
+		printf("\t--command	subcmd for ubbdadm: map, unmap, list, info, config, req-stats, req-stats-reset, dev-restart.\n");
+		printf("\n\t[map options]:\n");
+
+		print_map_opt_msg("type", "device type for mapping: file, rbd, null, ssh, cache, s3");
+		print_map_opt_msg("devsize", "size of device to map, range is [4194304 (4M) - 1073741824 (1G)], --devsize is required except rbd type");
+		print_map_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space");
+		print_map_opt_msg("num-queues", "number of queues for block layer multiqueue");
+
+		printf("\n");
+
+		print_map_opt_msg("file-filepath", "file path for file type mapping");
+
+		printf("\n");
+
+		print_map_opt_msg("rbd-pool", "pool for rbd type mapping");
+		print_map_opt_msg("rbd-image", "image for rbd type mapping");
+		print_map_opt_msg("rbd-ceph-conf", "ceph config file path for rbd type mapping");
+		print_map_opt_msg("rbd-user-name", "user name to connect ceph for rbd type mapping");
+		print_map_opt_msg("rbd-cluster-name", "ceph cluster name for rbd type mapping");
+
+		printf("\n");
+
+		print_map_opt_msg("ssh-hostname", "hostname for ssh type mapping");
+		print_map_opt_msg("ssh-filepath", "filepath in remote host for ssh type mapping");
+
+		printf("\n");
+
+		print_map_opt_msg("s3-block-size", "block size in s3 cluster, s3 type ubbd data is stored in block");
+		print_map_opt_msg("s3-hostname", "hostname to connect s3 cluster");
+		print_map_opt_msg("s3-port", "port to connect s3 cluster");
+		print_map_opt_msg("s3-accessid", "accessid to connect s3 cluster");
+		print_map_opt_msg("s3-accesskey", "accesskey to connect s3 cluster");
+		print_map_opt_msg("s3-volume-name", "create a volume in s3 cluster");
+		print_map_opt_msg("s3-bucket-name", "data is stored in s3 cluster bucket");
+
+		printf("\n");
+
+		print_map_opt_msg("cache-mode", "cache mode for cache type mapping: writeback, writethrough");
 	}
 }
-
 
 static int parse_map_options(struct ubbd_map_options *opts, const char *name, char *optarg)
 {
@@ -262,9 +293,13 @@ int main(int argc, char **argv)
 		switch (ch) {
 		case 0:
 			if (!strncmp(long_options[longindex].name, "cache-dev-", 10)) {
-				ret = parse_map_options(&cache_opts, long_options[longindex].name + 10, optarg);
+				ret = parse_map_options(&cache_opts,
+						long_options[longindex].name + 10,
+						optarg);
 			} else if (!strncmp(long_options[longindex].name, "backing-dev-", 12)) {
-				ret = parse_map_options(&backing_opts, long_options[longindex].name + 12, optarg);
+				ret = parse_map_options(&backing_opts,
+						long_options[longindex].name + 12,
+						optarg);
 			} else {
 				ret = parse_map_options(&opts, long_options[longindex].name, optarg);
 			}
@@ -304,10 +339,17 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	/* action for command */
 	if (!strcmp("map", command)) {
 		if (!strcmp("cache", opts.type)) {
 			opts.u.cache.cache_opts = &cache_opts;
 			opts.u.cache.backing_opts = &backing_opts;
+		} else if (strcmp("rbd", opts.type)) {
+			if (!opts.dev_size) {
+				printf("--devsize is required.\n");
+				ret = -1;
+				goto out;
+			}
 		}
 
 		ret = ubbd_map(&opts, &rsp);
