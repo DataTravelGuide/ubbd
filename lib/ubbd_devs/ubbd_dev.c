@@ -924,7 +924,7 @@ static int dev_config_finish(struct context *ctx, int ret)
 	return 0;
 }
 
-int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct context *ctx)
+int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve_percnt, struct context *ctx)
 {
 	struct context *config_ctx;
 	int ret;
@@ -934,7 +934,7 @@ int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct
 	if (!config_ctx)
 		return -ENOMEM;
 
-	ret = ubbd_nl_req_config(ubbd_dev, data_pages_reserve, config_ctx);
+	ret = ubbd_nl_req_config(ubbd_dev, data_pages_reserve_percnt, config_ctx);
 	pthread_mutex_unlock(&ubbd_dev->lock);
 	if (ret)
 		context_free(config_ctx);

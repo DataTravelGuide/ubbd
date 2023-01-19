@@ -80,7 +80,7 @@ static void ubbd_release_page(struct ubbd_queue *ubbd_q,
 			page_index, ubbd_req, bvec_index);
 
 	clear_bit(page_index, ubbd_q->data_bitmap);
-	if (ubbd_q->data_pages_allocated > ubbd_q->data_pages_reserve) {
+	if (ubbd_q->data_pages_allocated > ubbd_q->data_pages_reserve_percnt) {
 		loff_t off;
 
 		page = xa_load(&ubbd_q->data_pages_array, page_index);

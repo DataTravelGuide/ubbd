@@ -191,7 +191,7 @@ static void *mgmt_thread_fn(void* args)
 					ret = -ENOMEM;
 					break;
 				}
-				ret = ubbd_dev_config(ubbd_dev, mgmt_req.u.config.data_pages_reserve, ctx);
+				ret = ubbd_dev_config(ubbd_dev, mgmt_req.u.config.data_pages_reserve_percnt, ctx);
 				if (ret) {
 					context_free(ctx);
 					break;

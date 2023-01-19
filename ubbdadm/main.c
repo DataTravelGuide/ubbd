@@ -29,7 +29,7 @@ static struct option const long_options[] =
 	{"command", required_argument, NULL, 'c'},
 	{"force", no_argument, NULL, 'o'},
 	{"ubbdid", required_argument, NULL, 'u'},
-	{"data-pages-reserve", required_argument, NULL, 'r'},
+	{"data-pages-reserve-percnt", required_argument, NULL, 'r'},
 	{"restart-mode", required_argument, NULL, 'm'},
 	{"detach", no_argument, NULL, 'd'},
 
@@ -72,6 +72,11 @@ static void print_map_opt_msg(char *name, char *msg)
 	printf("\t\t--backing-dev-%-23s %s for backing device.\n", name, msg);
 }
 
+static void print_opt_msg(char *name, char *msg)
+{
+	printf("\t\t--%-35s %s.\n", name, msg);
+}
+
 static void usage(int status)
 { 
 	if (status != 0)
@@ -80,6 +85,31 @@ static void usage(int status)
 		printf("Usage:\n");
 		printf("\tubbdadm --command <cmd> [options]\n\n");
 		printf("\t--command	subcmd for ubbdadm: map, unmap, list, info, config, req-stats, req-stats-reset, dev-restart.\n");
+
+		/* generic options */
+		printf("\n\t[generic options]:\n");
+		print_opt_msg("ubbdid", "id of ubbd device command operating on");
+
+		/* unmap options */
+		printf("\n\t[unmap options]:\n");
+		print_opt_msg("force", "force unmap a device, that means this command will fail inflight IO and unmap device");
+		print_opt_msg("detach", "this option works for cache type device, if detach is specified, cache device will be detached from backing in unmap");
+
+		/* list options */
+		printf("\n\t[list options]:\n");
+
+		/* info options */
+		printf("\n\t[info options]:\n");
+
+		/* config options */
+		printf("\n\t[config options]:\n");
+		print_opt_msg("data-pages-reserve-percnt", "update the data pages reserved for each queue: [0 - 100]");
+
+		/* dev-restart options */
+		printf("\n\t[dev-restart options ]");
+		print_opt_msg("restart-mode", "mode to restart device: dev, queue, default");
+
+		/* map options */
 		printf("\n\t[map options]:\n");
 
 		print_map_opt_msg("type", "device type for mapping: file, rbd, null, ssh, cache, s3");
@@ -280,7 +310,7 @@ int main(int argc, char **argv)
 	int ch, longindex;
 	char *command;
 	int ubbdid;
-	int data_pages_reserve;
+	int data_pages_reserve_percnt;
 	bool force = false;
 	int ret = 0;
 	bool detach = false;
@@ -317,7 +347,7 @@ int main(int argc, char **argv)
 			ubbdid = atoi(optarg);
 			break;
 		case 'r':
-			data_pages_reserve = atoi(optarg);
+			data_pages_reserve_percnt = atoi(optarg);
 			break;
 		case 'm':
 			restart_mode = optarg;
@@ -364,7 +394,7 @@ int main(int argc, char **argv)
 		ret = ubbd_unmap(&unmap_opts, &rsp);
 	} else if (!strcmp("config", command)) {
 		struct ubbd_config_options config_opts = { .ubbdid = ubbdid,
-			.data_pages_reserve = data_pages_reserve };
+			.data_pages_reserve_percnt = data_pages_reserve_percnt };
 
 		ret = ubbd_config(&config_opts, &rsp);
 	} else if (!strcmp("list", command)) {

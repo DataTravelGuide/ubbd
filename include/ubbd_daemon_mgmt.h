@@ -40,7 +40,7 @@ struct ubbdd_mgmt_request {
 		} remove;
 		struct {
 			int dev_id;
-			int data_pages_reserve;
+			int data_pages_reserve_percnt;
 		} config;
 		struct {
 		} list;

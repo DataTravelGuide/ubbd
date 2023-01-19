@@ -178,7 +178,7 @@ struct ubbd_unmap_options {
 
 struct ubbd_config_options {
 	int ubbdid;
-	int data_pages_reserve;
+	int data_pages_reserve_percnt;
 };
 
 struct ubbd_dev_restart_options {

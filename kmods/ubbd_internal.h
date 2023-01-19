@@ -63,7 +63,7 @@ struct ubbd_queue {
 	size_t			data_off;
 	u32			data_pages;
 	u32			data_pages_allocated;
-	u32			data_pages_reserve;
+	u32			data_pages_reserve_percnt;
 	uint32_t		max_blocks;
 	size_t			mmap_pages;
 

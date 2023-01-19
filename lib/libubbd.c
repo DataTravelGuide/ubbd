@@ -323,7 +323,7 @@ int ubbd_config(struct ubbd_config_options *opts, struct ubbdd_mgmt_rsp *rsp)
 
 	req.cmd = UBBDD_MGMT_CMD_CONFIG;
 	req.u.config.dev_id = opts->ubbdid;
-	req.u.config.data_pages_reserve = opts->data_pages_reserve;
+	req.u.config.data_pages_reserve_percnt = opts->data_pages_reserve_percnt;
 
 	return generic_request_and_wait(&req, rsp);
 }

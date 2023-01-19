@@ -172,7 +172,7 @@ static int send_netlink_config(struct ubbd_nl_req *req)
 		goto free_msg;
 	}
 
-	ret = nla_put_u32(msg, UBBD_DEV_OPTS_DP_RESERVE, req->req_opts.config_opts.data_pages_reserve);
+	ret = nla_put_u32(msg, UBBD_DEV_OPTS_DP_RESERVE, req->req_opts.config_opts.data_pages_reserve_percnt);
 	if (ret < 0)
 		goto free_msg;
 
@@ -722,14 +722,14 @@ int ubbd_nl_req_remove_dev(struct ubbd_device *ubbd_dev, struct context *ctx)
 	return ubbd_nl_queue_req(ubbd_dev, req);
 }
 
-int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve, struct context *ctx)
+int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve_percnt, struct context *ctx)
 {
 	struct ubbd_nl_req *req = nl_req_alloc();
 
 	INIT_LIST_HEAD(&req->node);
 	req->type = UBBD_NL_REQ_CONFIG;
 	req->ubbd_dev = ubbd_dev;
-	req->req_opts.config_opts.data_pages_reserve = data_pages_reserve;
+	req->req_opts.config_opts.data_pages_reserve_percnt = data_pages_reserve_percnt;
 	req->ctx = ctx;
 
 	return ubbd_nl_queue_req(ubbd_dev, req);
