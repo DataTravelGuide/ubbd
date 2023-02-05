@@ -32,7 +32,7 @@ EXTRA_CFLAGS += -fasynchronous-unwind-tables
 EXTRA_CFLAGS += $(call cc-option,-Wframe-larger-than=512)
 EXTRA_CFLAGS += $(call cc-option,-fno-ipa-icf)
 EXTRA_CFLAGS += $(call cc-option,-Wno-tautological-compare) -Wall -Wmaybe-uninitialized -Werror
-EXTRA_CFLAGS += -I${PWD}/../include/ -DCOMMIT_REV="\"$(COMMIT_REV)\""
+EXTRA_CFLAGS += -I${PWD}/../include/ -I${PWD}/../include/ubbd-headers/ -DCOMMIT_REV="\"$(COMMIT_REV)\""
 EXTRA_CFLAGS += -I$(KERNEL_TREE)/include/ -I$(KERNEL_TREE)/include/linux
 EXTRA_CFLAGS += -I$(KTF_SRC)/kernel/
 

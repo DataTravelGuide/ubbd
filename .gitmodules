@@ -7,3 +7,6 @@
 [submodule "libs3"]
 	path = libs3
 	url = https://github.com/ubbd/libs3.git
+[submodule "include/ubbd-headers"]
+	path = include/ubbd-headers
+	url = https://github.com/ubbd/ubbd-headers.git
