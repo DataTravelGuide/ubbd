@@ -60,9 +60,16 @@ struct ubbdd_mgmt_request {
 	} u;
 };
 
-int ubbdd_request(int *fd, struct ubbdd_mgmt_request *req);
-int ubbdd_response(int fd, struct ubbdd_mgmt_rsp *rsp,
-		    int timeout);
+static inline int ubbdd_request(int *fd, struct ubbdd_mgmt_request *req)
+{
+	return ubbd_request(fd, UBBDD_MGMT_NAMESPACE, req, sizeof(*req));
+}
+
+static inline int ubbdd_response(int fd, struct ubbdd_mgmt_rsp *rsp,
+		    int timeout)
+{
+	return ubbd_response(fd, rsp, sizeof(*rsp), timeout);
+}
 
 int ubbdd_mgmt_start_thread(void);
 void ubbdd_mgmt_stop_thread(void);

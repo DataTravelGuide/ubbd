@@ -4,6 +4,25 @@
 
 #define S3_DEV(ubbd_dev) ((struct ubbd_s3_device *)container_of(ubbd_dev, struct ubbd_s3_device, ubbd_dev))
 
+struct ubbd_dev_ops s3_dev_ops;
+
+static struct ubbd_device *s3_dev_create(struct ubbd_dev_info *info)
+{
+	struct ubbd_s3_device *s3_dev;
+	struct ubbd_device *ubbd_dev;
+
+	s3_dev = calloc(1, sizeof(*s3_dev));
+	if (!s3_dev)
+		return NULL;
+
+	ubbd_dev = &s3_dev->ubbd_dev;
+	ubbd_dev->dev_type = UBBD_DEV_TYPE_S3;
+	ubbd_dev->dev_ops = &s3_dev_ops;
+	ubbd_dev->dev_size = info->generic_dev.info.s3.size;
+
+	return ubbd_dev;
+}
+
 static int s3_dev_init(struct ubbd_device *ubbd_dev)
 {
 	ubbd_dev->dev_features.write_cache = false;
@@ -22,6 +41,7 @@ static void s3_dev_release(struct ubbd_device *ubbd_dev)
 }
 
 struct ubbd_dev_ops s3_dev_ops = {
+	.create = s3_dev_create,
 	.init = s3_dev_init,
 	.release = s3_dev_release,
 };

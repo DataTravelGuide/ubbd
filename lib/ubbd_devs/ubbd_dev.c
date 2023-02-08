@@ -43,86 +43,6 @@ struct ubbd_device *find_ubbd_dev(int dev_id)
         return ubbd_dev;
 }
 
-struct ubbd_rbd_device *create_rbd_dev(void)
-{
-	struct ubbd_device *ubbd_dev;
-	struct ubbd_rbd_device *dev;
-
-	dev = calloc(1, sizeof(*dev));
-	if (!dev)
-		return NULL;
-
-	ubbd_dev = &dev->ubbd_dev;
-	ubbd_dev->dev_type = UBBD_DEV_TYPE_RBD;
-	ubbd_dev->dev_ops = &rbd_dev_ops;
-
-	return dev;
-}
-
-struct ubbd_null_device *create_null_dev(void)
-{
-	struct ubbd_device *ubbd_dev;
-	struct ubbd_null_device *dev;
-
-	dev = calloc(1, sizeof(*dev));
-	if (!dev)
-		return NULL;
-
-	ubbd_dev = &dev->ubbd_dev;
-	ubbd_dev->dev_type = UBBD_DEV_TYPE_NULL;
-	ubbd_dev->dev_ops = &null_dev_ops;
-
-	return dev;
-}
-
-struct ubbd_file_device *create_file_dev(void)
-{
-	struct ubbd_device *ubbd_dev;
-	struct ubbd_file_device *dev;
-
-	dev = calloc(1, sizeof(*dev));
-	if (!dev)
-		return NULL;
-
-	ubbd_dev = &dev->ubbd_dev;
-	ubbd_dev->dev_type = UBBD_DEV_TYPE_FILE;
-	ubbd_dev->dev_ops = &file_dev_ops;
-
-	return dev;
-}
-
-struct ubbd_ssh_device *create_ssh_dev(void)
-{
-	struct ubbd_device *ubbd_dev;
-	struct ubbd_ssh_device *dev;
-
-	dev = calloc(1, sizeof(*dev));
-	if (!dev)
-		return NULL;
-
-	ubbd_dev = &dev->ubbd_dev;
-	ubbd_dev->dev_type = UBBD_DEV_TYPE_SSH;
-	ubbd_dev->dev_ops = &ssh_dev_ops;
-
-	return dev;
-}
-
-struct ubbd_s3_device *create_s3_dev(void)
-{
-	struct ubbd_device *ubbd_dev;
-	struct ubbd_s3_device *dev;
-
-	dev = calloc(1, sizeof(*dev));
-	if (!dev)
-		return NULL;
-
-	ubbd_dev = &dev->ubbd_dev;
-	ubbd_dev->dev_type = UBBD_DEV_TYPE_S3;
-	ubbd_dev->dev_ops = &s3_dev_ops;
-
-	return dev;
-}
-
 static void ubbd_dev_set_default(struct ubbd_device *ubbd_dev)
 {
 	ubbd_dev->status = UBBD_DEV_USTATUS_INIT;
@@ -134,56 +54,21 @@ static void ubbd_dev_set_default(struct ubbd_device *ubbd_dev)
 struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 {
 	struct ubbd_device *ubbd_dev;
+	struct ubbd_dev_ops *dev_ops = NULL;
 
 	if (info->type == UBBD_DEV_TYPE_FILE) {
-		struct ubbd_file_device *file_dev;
-
-		file_dev = create_file_dev();
-		if (!file_dev)
-			return NULL;
-		ubbd_dev = &file_dev->ubbd_dev;
-		strcpy(file_dev->filepath, info->file.path);
-		ubbd_dev->dev_size = info->file.size;
+		dev_ops = &file_dev_ops;
 	} else if (info->type == UBBD_DEV_TYPE_RBD) {
-		struct ubbd_rbd_device *rbd_dev;
-		struct ubbd_rbd_conn *rbd_conn;
-
-		rbd_dev = create_rbd_dev();
-		if (!rbd_dev)
-			return NULL;
-		ubbd_dev = &rbd_dev->ubbd_dev;
-		rbd_conn = &rbd_dev->rbd_conn;
-		strcpy(rbd_conn->pool, info->rbd.pool);
-		strcpy(rbd_conn->imagename, info->rbd.image);
-		strcpy(rbd_conn->ceph_conf, info->rbd.ceph_conf);
-		strcpy(rbd_conn->user_name, info->rbd.user_name);
-		strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
+		dev_ops = &rbd_dev_ops;
 	} else if (info->type == UBBD_DEV_TYPE_NULL){
-		struct ubbd_null_device *null_dev;
-
-		null_dev = create_null_dev();
-		if (!null_dev)
-			return NULL;
-		ubbd_dev = &null_dev->ubbd_dev;
-		ubbd_dev->dev_size = info->null.size;
+		dev_ops = &null_dev_ops;
 	} else if (info->type == UBBD_DEV_TYPE_SSH){
-		struct ubbd_ssh_device *ssh_dev;
-
-		ssh_dev = create_ssh_dev();
-		if (!ssh_dev)
-			return NULL;
-		ubbd_dev = &ssh_dev->ubbd_dev;
-		ubbd_dev->dev_size = info->ssh.size;
-		ubbd_err("dev_size: %lu\n", ubbd_dev->dev_size);
+		dev_ops = &ssh_dev_ops;
 	} else if (info->type == UBBD_DEV_TYPE_S3){
-		struct ubbd_s3_device *s3_dev;
-
-		s3_dev = create_s3_dev();
-		if (!s3_dev)
-			return NULL;
-		ubbd_dev = &s3_dev->ubbd_dev;
-		ubbd_dev->dev_size = info->s3.size;
-	} else {
+		dev_ops = &s3_dev_ops;
+	}
+	
+	if (dev_ops == NULL) {
 		ubbd_err("Unknown dev type\n");
 		/* incorrect dev_conf. just create
 		 * a ubbd_device to do latter cleanup.
@@ -192,6 +77,11 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 		if (!ubbd_dev)
 			return NULL;
 		ubbd_dev->status = UBBD_DEV_USTATUS_ERROR;
+	} else {
+		ubbd_dev = dev_ops->create(info);
+		if (ubbd_dev == NULL) {
+			return ubbd_dev;
+		}
 	}
 
 	ubbd_dev->num_queues = info->num_queues;
@@ -241,9 +131,9 @@ struct ubbd_device *create_cache_dev(struct ubbd_dev_info *backing_dev_info,
 		goto free_backing_device;
 	}
 
-	cache_dev->cache_mode = cache_mode;
-
 	ubbd_dev = &cache_dev->ubbd_dev;
+	cache_dev->cache_mode = ubbd_dev->cache_mode = cache_mode;
+
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_CACHE;
 	ubbd_dev->sh_mem_size = backing_dev_info->sh_mem_size;
 	ubbd_dev->dev_ops = &cache_dev_ops;
@@ -342,9 +232,7 @@ static int backend_conf_setup(struct ubbd_device *ubbd_dev)
 	backend_conf.dev_type = ubbd_dev->dev_type;
 	backend_conf.dev_size = ubbd_dev->dev_size;
 	if (ubbd_dev->dev_type == UBBD_DEV_TYPE_CACHE) {
-		struct ubbd_cache_device *cache_dev = CACHE_DEV(ubbd_dev);
-
-		backend_conf.cache_mode = cache_dev->cache_mode;
+		backend_conf.cache_mode = ubbd_dev->cache_mode;
 	}
 
 	memcpy(&backend_conf.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
@@ -1079,6 +967,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	} else {
 		ubbd_dev = ubbd_dev_create(&dev_conf->dev_info);
 	}
+
 	if (!ubbd_dev) {
 		ret = -ENOMEM;
 		free(dev_conf);

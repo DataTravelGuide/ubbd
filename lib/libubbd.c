@@ -128,56 +128,56 @@ int generic_request_and_wait(struct ubbdd_mgmt_request *req, struct ubbdd_mgmt_r
 void file_dev_info_setup(struct ubbd_dev_info *dev_info,
 		struct ubbd_map_options *opts)
 {
-	strcpy(dev_info->file.path, opts->u.file.filepath);
-	dev_info->file.size = opts->dev_size;
+	strcpy(dev_info->generic_dev.info.file.path, opts->u.file.filepath);
+	dev_info->generic_dev.info.file.size = opts->dev_size;
 }
 
 void rbd_dev_info_setup(struct ubbd_dev_info *dev_info,
 		struct ubbd_map_options *opts)
 {
-	strcpy(dev_info->rbd.pool, opts->u.rbd.pool);
-	strcpy(dev_info->rbd.image, opts->u.rbd.image);
+	strcpy(dev_info->generic_dev.info.rbd.pool, opts->u.rbd.pool);
+	strcpy(dev_info->generic_dev.info.rbd.image, opts->u.rbd.image);
 	if (opts->u.rbd.ceph_conf)
-		strcpy(dev_info->rbd.ceph_conf, opts->u.rbd.ceph_conf);
+		strcpy(dev_info->generic_dev.info.rbd.ceph_conf, opts->u.rbd.ceph_conf);
 	else
-		strcpy(dev_info->rbd.ceph_conf, DEFAULT_CEPH_CONF);
+		strcpy(dev_info->generic_dev.info.rbd.ceph_conf, DEFAULT_CEPH_CONF);
 
 	if (opts->u.rbd.user_name)
-		strcpy(dev_info->rbd.user_name, opts->u.rbd.user_name);
+		strcpy(dev_info->generic_dev.info.rbd.user_name, opts->u.rbd.user_name);
 	else
-		strcpy(dev_info->rbd.user_name, DEFAULT_CEPH_USER);
+		strcpy(dev_info->generic_dev.info.rbd.user_name, DEFAULT_CEPH_USER);
 
 	if (opts->u.rbd.cluster_name)
-		strcpy(dev_info->rbd.cluster_name, opts->u.rbd.cluster_name);
+		strcpy(dev_info->generic_dev.info.rbd.cluster_name, opts->u.rbd.cluster_name);
 	else
-		strcpy(dev_info->rbd.cluster_name, DEFAULT_CEPH_CLUSTER);
+		strcpy(dev_info->generic_dev.info.rbd.cluster_name, DEFAULT_CEPH_CLUSTER);
 }
 
 void null_dev_info_setup(struct ubbd_dev_info *dev_info,
 		struct ubbd_map_options *opts)
 {
-	dev_info->null.size = opts->dev_size;
+	dev_info->generic_dev.info.null.size = opts->dev_size;
 }
 
 void s3_dev_info_setup(struct ubbd_dev_info *dev_info,
 		struct ubbd_map_options *opts)
 {
-	dev_info->s3.size = opts->dev_size;
-	dev_info->s3.block_size = opts->u.s3.block_size;
-	dev_info->s3.port = opts->u.s3.port;
-	strcpy(dev_info->s3.hostname, opts->u.s3.hostname);
-	strcpy(dev_info->s3.accessid, opts->u.s3.accessid);
-	strcpy(dev_info->s3.accesskey, opts->u.s3.accesskey);
-	strcpy(dev_info->s3.volume_name, opts->u.s3.volume_name);
-	strcpy(dev_info->s3.bucket_name, opts->u.s3.bucket_name);
+	dev_info->generic_dev.info.s3.size = opts->dev_size;
+	dev_info->generic_dev.info.s3.block_size = opts->u.s3.block_size;
+	dev_info->generic_dev.info.s3.port = opts->u.s3.port;
+	strcpy(dev_info->generic_dev.info.s3.hostname, opts->u.s3.hostname);
+	strcpy(dev_info->generic_dev.info.s3.accessid, opts->u.s3.accessid);
+	strcpy(dev_info->generic_dev.info.s3.accesskey, opts->u.s3.accesskey);
+	strcpy(dev_info->generic_dev.info.s3.volume_name, opts->u.s3.volume_name);
+	strcpy(dev_info->generic_dev.info.s3.bucket_name, opts->u.s3.bucket_name);
 }
 
 void ssh_dev_info_setup(struct ubbd_dev_info *dev_info,
 		struct ubbd_map_options *opts)
 {
-	strcpy(dev_info->ssh.path, opts->u.ssh.path);
-	strcpy(dev_info->ssh.hostname, opts->u.ssh.hostname);
-	dev_info->ssh.size = opts->dev_size;
+	strcpy(dev_info->generic_dev.info.ssh.path, opts->u.ssh.path);
+	strcpy(dev_info->generic_dev.info.ssh.hostname, opts->u.ssh.hostname);
+	dev_info->generic_dev.info.ssh.size = opts->dev_size;
 }
 
 int dev_info_setup(struct ubbd_dev_info *dev_info,

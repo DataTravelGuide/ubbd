@@ -245,25 +245,25 @@ static int __output_dev_info_detail(struct ubbd_dev_info *dev_info)
 	int ret = 0;
 
 	if (dev_type == UBBD_DEV_TYPE_FILE) {
-		printf("\tfilepath: %s\n", dev_info->file.path);
+		printf("\tfilepath: %s\n", dev_info->generic_dev.info.file.path);
 	} else if (dev_type == UBBD_DEV_TYPE_RBD) {
-		printf("\tceph_conf: %s\n", dev_info->rbd.ceph_conf);
-		printf("\tpool: %s\n", dev_info->rbd.pool);
-		printf("\timage: %s\n", dev_info->rbd.image);
-		printf("\tcluster_name: %s\n", dev_info->rbd.cluster_name);
-		printf("\tuser_name: %s\n", dev_info->rbd.user_name);
+		printf("\tceph_conf: %s\n", dev_info->generic_dev.info.rbd.ceph_conf);
+		printf("\tpool: %s\n", dev_info->generic_dev.info.rbd.pool);
+		printf("\timage: %s\n", dev_info->generic_dev.info.rbd.image);
+		printf("\tcluster_name: %s\n", dev_info->generic_dev.info.rbd.cluster_name);
+		printf("\tuser_name: %s\n", dev_info->generic_dev.info.rbd.user_name);
 	} else if (dev_type == UBBD_DEV_TYPE_NULL) {
 	} else if (dev_type == UBBD_DEV_TYPE_SSH) {
-		printf("\thostname: %s\n", dev_info->ssh.hostname);
-		printf("\tpath: %s\n", dev_info->ssh.path);
+		printf("\thostname: %s\n", dev_info->generic_dev.info.ssh.hostname);
+		printf("\tpath: %s\n", dev_info->generic_dev.info.ssh.path);
 	} else if (dev_type == UBBD_DEV_TYPE_S3) {
-		printf("\thostname: %s\n", dev_info->s3.hostname);
-		printf("\tport: %d\n", dev_info->s3.port);
-		printf("\tblock_size: %d\n", dev_info->s3.block_size);
-		printf("\taccessid: %s\n", dev_info->s3.accessid);
-		printf("\taccesskey: %s\n", dev_info->s3.accesskey);
-		printf("\tvolume_name: %s\n", dev_info->s3.volume_name);
-		printf("\tbucket_name: %s\n", dev_info->s3.bucket_name);
+		printf("\thostname: %s\n", dev_info->generic_dev.info.s3.hostname);
+		printf("\tport: %d\n", dev_info->generic_dev.info.s3.port);
+		printf("\tblock_size: %d\n", dev_info->generic_dev.info.s3.block_size);
+		printf("\taccessid: %s\n", dev_info->generic_dev.info.s3.accessid);
+		printf("\taccesskey: %s\n", dev_info->generic_dev.info.s3.accesskey);
+		printf("\tvolume_name: %s\n", dev_info->generic_dev.info.s3.volume_name);
+		printf("\tbucket_name: %s\n", dev_info->generic_dev.info.s3.bucket_name);
 	} else {
 		printf("error type: %d\n", dev_type);
 		ret = -1;

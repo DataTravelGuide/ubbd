@@ -81,17 +81,6 @@ static int ubbdd_mgmt_ipc_listen()
 	return ubbd_ipc_listen(UBBDD_MGMT_NAMESPACE);
 }
 
-int ubbdd_request(int *fd, struct ubbdd_mgmt_request *req)
-{
-	return ubbd_request(fd, UBBDD_MGMT_NAMESPACE, req, sizeof(*req));
-}
-
-int ubbdd_response(int fd, struct ubbdd_mgmt_rsp *rsp,
-		    int timeout)
-{
-	return ubbd_response(fd, rsp, sizeof(*rsp), timeout);
-}
-
 static void *mgmt_thread_fn(void* args)
 {
 	int fd;
@@ -298,9 +287,7 @@ static void *mgmt_thread_fn(void* args)
 				memcpy(&mgmt_rsp.u.dev_info.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
 				memcpy(&mgmt_rsp.u.dev_info.extra_info, &ubbd_dev->extra_info, sizeof(struct ubbd_dev_info));
 				if (ubbd_dev->dev_type == UBBD_DEV_TYPE_CACHE) {
-					struct ubbd_cache_device *cache_dev = CACHE_DEV(ubbd_dev);
-
-					mgmt_rsp.u.dev_info.cache.cache_mode = cache_dev->cache_mode;
+					mgmt_rsp.u.dev_info.cache.cache_mode = ubbd_dev->cache_mode;
 				}
 				ret = 0;
 				break;

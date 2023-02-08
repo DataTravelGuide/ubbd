@@ -45,12 +45,10 @@ enum ubbd_dev_type {
 	UBBD_DEV_TYPE_SSH,
 	UBBD_DEV_TYPE_CACHE,
 	UBBD_DEV_TYPE_S3,
+	UBBD_DEV_TYPE_MAX,
 };
 
-struct ubbd_dev_info {
-	enum ubbd_dev_type type;
-	uint32_t num_queues;
-	uint32_t sh_mem_size;
+struct __dev_info {
 	union {
 		struct {
 			char path[PATH_MAX];
@@ -81,6 +79,22 @@ struct ubbd_dev_info {
 			char volume_name[UBBD_S3_LEN_MAX];
 			char bucket_name[UBBD_S3_LEN_MAX];
 		} s3;
+	};
+};
+
+struct ubbd_dev_info {
+	enum ubbd_dev_type type;
+	uint32_t num_queues;
+	uint32_t sh_mem_size;
+	union {
+		struct {
+			struct __dev_info info;
+		} generic_dev;
+		struct {
+			int cache_mode;
+			struct __dev_info backing_info;
+			struct __dev_info cache_info;
+		} cache_dev;
 	};
 };
 
