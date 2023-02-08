@@ -69,11 +69,13 @@ install:
 	install ubbdadm/ubbdadm $(DESTDIR)/usr/bin/ubbdadm
 	install ubbdd/ubbdd $(DESTDIR)/usr/bin/ubbdd
 	install backend/ubbd-backend $(DESTDIR)/usr/bin/ubbd-backend
+	install etc/ld.so.conf.d/ubbd.conf $(DESTDIR)/etc/ld.so.conf.d/ubbd.conf
 	ldconfig
 	systemctl daemon-reload
 	systemctl restart ubbdd
 
 uninstall:
+	rm -vf $(DESTDIR)/etc/ld.so.conf.d/ubbd.conf
 	rm -vf $(DESTDIR)/usr/bin/ubbdadm
 	rm -vf $(DESTDIR)/usr/bin/ubbdd
 	rm -vf $(DESTDIR)/usr/bin/ubbd-backend
