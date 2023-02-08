@@ -111,10 +111,10 @@ bool ubbd_dev_get(struct ubbd_device *ubbd_dev);
 void ubbd_dev_put(struct ubbd_device *ubbd_dev);
 
 struct ubbd_device *find_ubbd_dev(int dev_id);
-struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info);
+struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force);
 int ubbd_dev_init(struct ubbd_device *ubbd_dev);
 struct ubbd_device *ubbd_cache_dev_create(struct ubbd_dev_info *backing_dev_info,
-		struct ubbd_dev_info *cache_dev_info, int cache_mode);
+		struct ubbd_dev_info *cache_dev_info, int cache_mode, bool force);
 int ubbd_dev_restart(struct ubbd_device *ubbd_dev, int restart_mode);
 int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx);
 int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force, bool detach, struct context *ctx);

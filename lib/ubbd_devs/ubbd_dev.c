@@ -51,7 +51,7 @@ static void ubbd_dev_set_default(struct ubbd_device *ubbd_dev)
 	pthread_mutex_init(&ubbd_dev->lock, NULL);
 }
 
-struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
+struct ubbd_device *__dev_create(struct ubbd_dev_info *info, bool force)
 {
 	struct ubbd_device *ubbd_dev;
 	struct ubbd_dev_ops *dev_ops = NULL;
@@ -70,6 +70,9 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 	
 	if (dev_ops == NULL) {
 		ubbd_err("Unknown dev type\n");
+
+		if (!force)
+			return NULL;
 		/* incorrect dev_conf. just create
 		 * a ubbd_device to do latter cleanup.
 		 * */
@@ -93,11 +96,11 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info)
 	return ubbd_dev;
 }
 
-struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
+struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force)
 {
 	struct ubbd_device *ubbd_dev;
 
-	ubbd_dev = __dev_create(info);
+	ubbd_dev = __dev_create(info, force);
 	if (!ubbd_dev) {
 		return NULL;
 	}
@@ -111,7 +114,7 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info)
 
 struct ubbd_device *create_cache_dev(struct ubbd_dev_info *backing_dev_info,
 		struct ubbd_dev_info *cache_dev_info,
-		int cache_mode)
+		int cache_mode, bool force)
 {
 	struct ubbd_cache_device *cache_dev;
 	struct ubbd_device *ubbd_dev;
@@ -121,12 +124,12 @@ struct ubbd_device *create_cache_dev(struct ubbd_dev_info *backing_dev_info,
 		return NULL;
 	}
 
-	cache_dev->backing_device = __dev_create(backing_dev_info);
+	cache_dev->backing_device = __dev_create(backing_dev_info, force);
 	if (!cache_dev->backing_device) {
 		goto free_cache_dev;
 	}
 
-	cache_dev->cache_device = __dev_create(cache_dev_info);
+	cache_dev->cache_device = __dev_create(cache_dev_info, force);
 	if (!cache_dev->cache_device) {
 		goto free_backing_device;
 	}
@@ -154,11 +157,11 @@ free_cache_dev:
 }
 
 struct ubbd_device *ubbd_cache_dev_create(struct ubbd_dev_info *backing_dev_info,
-		struct ubbd_dev_info *cache_dev_info, int cache_mode)
+		struct ubbd_dev_info *cache_dev_info, int cache_mode, bool force)
 {
 	struct ubbd_device *ubbd_dev;
 
-	ubbd_dev = create_cache_dev(backing_dev_info, cache_dev_info, cache_mode);
+	ubbd_dev = create_cache_dev(backing_dev_info, cache_dev_info, cache_mode, force);
 	if (!ubbd_dev)
 		return NULL;
 
@@ -963,9 +966,9 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 
 	if (dev_conf->dev_type == UBBD_DEV_TYPE_CACHE) {
 		ubbd_dev = ubbd_cache_dev_create(&dev_conf->dev_info, &dev_conf->extra_info,
-				dev_conf->cache_mode);
+				dev_conf->cache_mode, true);
 	} else {
-		ubbd_dev = ubbd_dev_create(&dev_conf->dev_info);
+		ubbd_dev = ubbd_dev_create(&dev_conf->dev_info, true);
 	}
 
 	if (!ubbd_dev) {

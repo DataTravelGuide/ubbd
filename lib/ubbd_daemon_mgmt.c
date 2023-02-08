@@ -125,9 +125,9 @@ static void *mgmt_thread_fn(void* args)
 
 				if (mgmt_req.u.add.dev_type == UBBD_DEV_TYPE_CACHE) {
 					ubbd_dev = ubbd_cache_dev_create(&mgmt_req.u.add.info, &mgmt_req.u.add.extra_info,
-							mgmt_req.u.add.cache.cache_mode);
+							mgmt_req.u.add.cache.cache_mode, false);
 				} else {
-					ubbd_dev = ubbd_dev_create(&mgmt_req.u.add.info);
+					ubbd_dev = ubbd_dev_create(&mgmt_req.u.add.info, false);
 				}
 
 				if (!ubbd_dev) {
