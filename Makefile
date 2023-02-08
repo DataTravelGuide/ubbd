@@ -64,6 +64,7 @@ install:
 	mkdir -p $(DESTDIR)/usr/lib/ubbd/
 	install etc/systemd/system/ubbdd.service $(DESTDIR)/etc/systemd/system/ubbdd.service
 	install lib/libubbd.so $(DESTDIR)/usr/lib/ubbd/libubbd.so
+	install lib/libubbd-daemon.so $(DESTDIR)/usr/lib/ubbd/libubbd-daemon.so
 	install libs3/build/lib/libs3.so.4 $(DESTDIR)/usr/lib/ubbd/libs3.so.4
 	install ubbdadm/ubbdadm $(DESTDIR)/usr/bin/ubbdadm
 	install ubbdd/ubbdd $(DESTDIR)/usr/bin/ubbdd
