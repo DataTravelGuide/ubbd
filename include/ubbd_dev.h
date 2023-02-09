@@ -77,7 +77,7 @@ struct ubbd_request {
 
 struct ubbd_file_device {
 	struct ubbd_device ubbd_dev;
-	char filepath[PATH_MAX];
+	char filepath[UBBD_PATH_MAX];
 	int fd;
 };
 

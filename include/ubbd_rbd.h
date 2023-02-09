@@ -3,14 +3,15 @@
 
 #include <rados/librados.h>
 #include <rbd/librbd.h>
-#include <limits.h>
+#include "libubbd.h"
 
 struct ubbd_rbd_conn {
-	char ceph_conf[PATH_MAX];
-	char pool[PATH_MAX];
-	char imagename[PATH_MAX];
-        char cluster_name[PATH_MAX];
-        char user_name[PATH_MAX];
+	char ceph_conf[UBBD_NAME_MAX];
+	char pool[UBBD_NAME_MAX];
+	char ns[UBBD_NAME_MAX];
+	char imagename[UBBD_NAME_MAX];
+        char cluster_name[UBBD_NAME_MAX];
+        char user_name[UBBD_NAME_MAX];
         rados_t cluster;
 	rados_ioctx_t io_ctx;
 	rbd_image_t image;

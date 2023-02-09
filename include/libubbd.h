@@ -22,13 +22,11 @@
 /* include the ubbd kernel module header */
 #include <ubbd.h>
 
-#define UBBD_S3_LEN_MAX	1024
+#define UBBD_NAME_MAX	255
+#define UBBD_PATH_MAX	1024
 
 #define UBBD_DEV_MAX	1024
 #define UBBD_QUEUE_MAX	1024
-
-#define UBBD_POOLNAME_LEN_MAX	1024
-#define UBBD_IMAGENAME_LEN_MAX	1024
 
 #define PAGE_SIZE	4096
 
@@ -51,33 +49,34 @@ enum ubbd_dev_type {
 struct __dev_info {
 	union {
 		struct {
-			char path[PATH_MAX];
+			char path[UBBD_PATH_MAX];
 			uint64_t size;
 		} file;
 		struct {
-			char pool[UBBD_POOLNAME_LEN_MAX];
-			char image[UBBD_IMAGENAME_LEN_MAX];
-			char ceph_conf[PATH_MAX];
-			char cluster_name[PATH_MAX];
-			char user_name[PATH_MAX];
+			char pool[UBBD_NAME_MAX];
+			char ns[UBBD_NAME_MAX];
+			char image[UBBD_NAME_MAX];
+			char ceph_conf[UBBD_NAME_MAX];
+			char cluster_name[UBBD_NAME_MAX];
+			char user_name[UBBD_NAME_MAX];
 		} rbd;
 		struct {
 			uint64_t size;
 		} null;
 		struct {
-			char hostname[PATH_MAX];
-			char path[PATH_MAX];
+			char hostname[UBBD_NAME_MAX];
+			char path[UBBD_PATH_MAX];
 			uint64_t size;
 		} ssh;
 		struct {
 			uint64_t size;
 			uint32_t block_size;
 			int port;
-			char hostname[PATH_MAX];
-			char accessid[UBBD_S3_LEN_MAX];
-			char accesskey[UBBD_S3_LEN_MAX];
-			char volume_name[UBBD_S3_LEN_MAX];
-			char bucket_name[UBBD_S3_LEN_MAX];
+			char hostname[UBBD_NAME_MAX];
+			char accessid[UBBD_NAME_MAX];
+			char accesskey[UBBD_NAME_MAX];
+			char volume_name[UBBD_NAME_MAX];
+			char bucket_name[UBBD_NAME_MAX];
 		} s3;
 	};
 };
@@ -124,7 +123,7 @@ struct ubbdd_mgmt_rsp {
 	int ret;
 	union {
 		struct {
-			char path[PATH_MAX];
+			char path[UBBD_PATH_MAX];
 		} add;
 		struct {
 			int dev_num;
@@ -155,6 +154,7 @@ typedef struct ubbd_map_options {
 		} file;
 		struct {
 			char *pool;
+			char *ns;
 			char *image;
 			char *ceph_conf;
 			char *cluster_name;

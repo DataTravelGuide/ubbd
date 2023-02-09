@@ -7,6 +7,8 @@
 #include "ubbd_config.h"
 #include "ubbd_rbd.h"
 
+#include "libubbd.h"
+
 enum ubbd_backend_io_type {
 	UBBD_BACKEND_IO_WRITE = 0,
 	UBBD_BACKEND_IO_READ,
@@ -77,7 +79,7 @@ struct ubbd_null_backend {
 
 struct ubbd_file_backend {
 	struct ubbd_backend ubbd_b;
-	char filepath[PATH_MAX];
+	char filepath[UBBD_PATH_MAX];
 	int fd;
 };
 
@@ -88,8 +90,8 @@ struct ubbd_rbd_backend {
 
 struct ubbd_ssh_backend {
 	struct ubbd_backend ubbd_b;
-	char hostname[PATH_MAX];
-	char path[PATH_MAX];
+	char hostname[UBBD_NAME_MAX];
+	char path[UBBD_PATH_MAX];
 	struct sftp_file_struct *sftp_file;
 	pthread_mutex_t			lock;
 };
@@ -106,11 +108,11 @@ struct ubbd_s3_backend {
 	struct ubbd_backend ubbd_b;
 	uint32_t block_size;
 	int port;
-	char hostname[UBBD_S3_LEN_MAX];
-	char accessid[UBBD_S3_LEN_MAX];
-	char accesskey[UBBD_S3_LEN_MAX];
-	char volume_name[UBBD_S3_LEN_MAX];
-	char bucket_name[UBBD_S3_LEN_MAX];
+	char hostname[UBBD_NAME_MAX];
+	char accessid[UBBD_NAME_MAX];
+	char accesskey[UBBD_NAME_MAX];
+	char volume_name[UBBD_NAME_MAX];
+	char bucket_name[UBBD_NAME_MAX];
 };
 
 struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *backend_conf);
