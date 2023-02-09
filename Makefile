@@ -62,6 +62,7 @@ clean:
 install:
 	mkdir -p $(DESTDIR)/usr/bin
 	mkdir -p $(DESTDIR)/usr/lib/ubbd/
+	mkdir -p $(DESTDIR)/usr/include/ubbd/
 	install etc/systemd/system/ubbdd.service $(DESTDIR)/etc/systemd/system/ubbdd.service
 	install lib/libubbd.so $(DESTDIR)/usr/lib/ubbd/libubbd.so
 	install lib/libubbd-daemon.so $(DESTDIR)/usr/lib/ubbd/libubbd-daemon.so
@@ -70,6 +71,8 @@ install:
 	install ubbdd/ubbdd $(DESTDIR)/usr/bin/ubbdd
 	install backend/ubbd-backend $(DESTDIR)/usr/bin/ubbd-backend
 	install etc/ld.so.conf.d/ubbd.conf $(DESTDIR)/etc/ld.so.conf.d/ubbd.conf
+	install include/libubbd.h $(DESTDIR)/usr/include/ubbd/libubbd.h
+	install include/ubbd-headers/ubbd.h $(DESTDIR)/usr/include/ubbd/ubbd.h
 	ldconfig
 	systemctl daemon-reload
 	systemctl restart ubbdd
@@ -80,6 +83,7 @@ uninstall:
 	rm -vf $(DESTDIR)/usr/bin/ubbdd
 	rm -vf $(DESTDIR)/usr/bin/ubbd-backend
 	rm -vrf $(DESTDIR)/usr/lib/ubbd/
+	rm -vrf $(DESTDIR)/usr/include/ubbd/
 	rm -vf $(DESTDIR)/etc/lib.so.conf.d/ubbd.conf
 	rm -vf $(DESTDIR)/etc/systemd/system/ubbdd.service
 
