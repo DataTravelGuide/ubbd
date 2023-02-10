@@ -25,7 +25,7 @@ static int mgmt_map_finish(struct context *ctx, int ret)
 	ubbd_dev_info(rsp_data->ubbd_dev, "map finish write rsp to fd: %d, ret: %d\n", fd, ret);
 	mgmt_rsp.ret = ret;
 	if (!ret) {
-		sprintf(mgmt_rsp.u.add.path, "/dev/ubbd%d", 
+		sprintf(mgmt_rsp.add.path, "/dev/ubbd%d", 
 				rsp_data->ubbd_dev->dev_id);
 	}
 	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
@@ -121,15 +121,9 @@ static void *mgmt_thread_fn(void* args)
 
 			switch (mgmt_req.cmd) {
 			case UBBDD_MGMT_CMD_MAP:
-				ubbd_info("map type: %d\n", mgmt_req.u.add.dev_type);
+				ubbd_info("map type: %d\n", mgmt_req.u.add.info.type);
 
-				if (mgmt_req.u.add.dev_type == UBBD_DEV_TYPE_CACHE) {
-					ubbd_dev = ubbd_cache_dev_create(&mgmt_req.u.add.info, &mgmt_req.u.add.extra_info,
-							mgmt_req.u.add.cache.cache_mode, false);
-				} else {
-					ubbd_dev = ubbd_dev_create(&mgmt_req.u.add.info, false);
-				}
-
+				ubbd_dev = ubbd_dev_create(&mgmt_req.u.add.info, false);
 				if (!ubbd_dev) {
 					ubbd_err("error to create ubbd_dev\n");
 					ret = -ENOMEM;
@@ -187,15 +181,15 @@ static void *mgmt_thread_fn(void* args)
 				}
 				continue;
 			case UBBDD_MGMT_CMD_LIST:
-				mgmt_rsp.u.list.dev_num = 0;
+				mgmt_rsp.list.dev_num = 0;
 				pthread_mutex_lock(&ubbd_dev_list_mutex);
 				list_for_each_entry(ubbd_dev, &ubbd_dev_list, dev_node) {
-					if (mgmt_rsp.u.list.dev_num  >= UBBD_DEV_MAX) {
+					if (mgmt_rsp.list.dev_num  >= UBBD_DEV_MAX) {
 						ret = -E2BIG;
 						ubbd_err("ubbd device is too much than %d.\n", UBBD_DEV_MAX);
 						break;
 					}
-					mgmt_rsp.u.list.dev_list[mgmt_rsp.u.list.dev_num++] = ubbd_dev->dev_id;
+					mgmt_rsp.list.dev_list[mgmt_rsp.list.dev_num++] = ubbd_dev->dev_id;
 				}
 				pthread_mutex_unlock(&ubbd_dev_list_mutex);
 
@@ -208,7 +202,7 @@ static void *mgmt_thread_fn(void* args)
 					ret = -EINVAL;
 					break;
 				}
-				mgmt_rsp.u.req_stats.num_queues = ubbd_dev->num_queues;
+				mgmt_rsp.req_stats.num_queues = ubbd_dev->num_queues;
 				if (true) {
 					struct ubbd_backend_mgmt_rsp backend_rsp;
 					struct ubbd_backend_mgmt_request backend_request = { 0 };
@@ -225,7 +219,7 @@ static void *mgmt_thread_fn(void* args)
 					ret = ubbd_backend_response(fd, &backend_rsp, 5);
 					if (ret)
 						break;
-					memcpy(&mgmt_rsp.u.req_stats.req_stats,
+					memcpy(&mgmt_rsp.req_stats.req_stats,
 					       &backend_rsp.u.req_stats.req_stats,
 					       sizeof(struct ubbd_req_stats) * UBBD_QUEUE_MAX);
 				}
@@ -280,15 +274,9 @@ static void *mgmt_thread_fn(void* args)
 					break;
 				}
 
-				mgmt_rsp.u.dev_info.devid = ubbd_dev->dev_id;
-				mgmt_rsp.u.dev_info.type = ubbd_dev->dev_type;
-				mgmt_rsp.u.dev_info.size = ubbd_dev->dev_size;
-				mgmt_rsp.u.dev_info.num_queues = ubbd_dev->num_queues;
-				memcpy(&mgmt_rsp.u.dev_info.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
-				memcpy(&mgmt_rsp.u.dev_info.extra_info, &ubbd_dev->extra_info, sizeof(struct ubbd_dev_info));
-				if (ubbd_dev->dev_type == UBBD_DEV_TYPE_CACHE) {
-					mgmt_rsp.u.dev_info.cache.cache_mode = ubbd_dev->cache_mode;
-				}
+				mgmt_rsp.dev_info.devid = ubbd_dev->dev_id;
+				memcpy(&mgmt_rsp.dev_info.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
+
 				ret = 0;
 				break;
 			default:

@@ -147,7 +147,7 @@ out:
 	return ret;
 }
 
-struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
+struct ubbd_backend *backend_create(struct __dev_info *dev_info)
 {
 	struct ubbd_backend *ubbd_b;
 
@@ -158,8 +158,8 @@ struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
 		if (!file_backend)
 			return NULL;
 		ubbd_b = &file_backend->ubbd_b;
-		strcpy(file_backend->filepath, dev_info->generic_dev.info.file.path);
-		ubbd_b->dev_size = dev_info->generic_dev.info.file.size;
+		strcpy(file_backend->filepath, dev_info->file.path);
+		ubbd_b->dev_size = dev_info->size;
 	} else if (dev_info->type == UBBD_DEV_TYPE_RBD) {
 		struct ubbd_rbd_backend *rbd_backend;
 		struct ubbd_rbd_conn *rbd_conn;
@@ -170,11 +170,11 @@ struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
 		ubbd_b = &rbd_backend->ubbd_b;
 		rbd_conn = &rbd_backend->rbd_conn;
 
-		strcpy(rbd_conn->pool, dev_info->generic_dev.info.rbd.pool);
-		strcpy(rbd_conn->imagename, dev_info->generic_dev.info.rbd.image);
-		strcpy(rbd_conn->ceph_conf, dev_info->generic_dev.info.rbd.ceph_conf);
-		strcpy(rbd_conn->user_name, dev_info->generic_dev.info.rbd.user_name);
-		strcpy(rbd_conn->cluster_name, dev_info->generic_dev.info.rbd.cluster_name);
+		strcpy(rbd_conn->pool, dev_info->rbd.pool);
+		strcpy(rbd_conn->imagename, dev_info->rbd.image);
+		strcpy(rbd_conn->ceph_conf, dev_info->rbd.ceph_conf);
+		strcpy(rbd_conn->user_name, dev_info->rbd.user_name);
+		strcpy(rbd_conn->cluster_name, dev_info->rbd.cluster_name);
 	} else if (dev_info->type == UBBD_DEV_TYPE_NULL){
 		struct ubbd_null_backend *null_backend;
 
@@ -182,7 +182,7 @@ struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
 		if (!null_backend)
 			return NULL;
 		ubbd_b = &null_backend->ubbd_b;
-		ubbd_b->dev_size = dev_info->generic_dev.info.null.size;
+		ubbd_b->dev_size = dev_info->size;
 	}else if (dev_info->type == UBBD_DEV_TYPE_SSH){
 		struct ubbd_ssh_backend *ssh_backend;
 
@@ -191,9 +191,9 @@ struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
 			return NULL;
 		ubbd_b = &ssh_backend->ubbd_b;
 		pthread_mutex_init(&ssh_backend->lock, NULL);
-		strcpy(ssh_backend->hostname, dev_info->generic_dev.info.ssh.hostname);
-		strcpy(ssh_backend->path, dev_info->generic_dev.info.ssh.path);
-		ubbd_b->dev_size = dev_info->generic_dev.info.ssh.size;
+		strcpy(ssh_backend->hostname, dev_info->ssh.hostname);
+		strcpy(ssh_backend->path, dev_info->ssh.path);
+		ubbd_b->dev_size = dev_info->size;
 	}else if (dev_info->type == UBBD_DEV_TYPE_S3){
 		struct ubbd_s3_backend *s3_backend;
 
@@ -201,14 +201,14 @@ struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
 		if (!s3_backend)
 			return NULL;
 		ubbd_b = &s3_backend->ubbd_b;
-		strcpy(s3_backend->hostname, dev_info->generic_dev.info.s3.hostname);
-		strcpy(s3_backend->accessid, dev_info->generic_dev.info.s3.accessid);
-		strcpy(s3_backend->accesskey, dev_info->generic_dev.info.s3.accesskey);
-		strcpy(s3_backend->volume_name, dev_info->generic_dev.info.s3.volume_name);
-		strcpy(s3_backend->bucket_name, dev_info->generic_dev.info.s3.bucket_name);
-		s3_backend->port = dev_info->generic_dev.info.s3.port;
-		s3_backend->block_size = dev_info->generic_dev.info.s3.block_size;
-		ubbd_b->dev_size = dev_info->generic_dev.info.s3.size;
+		strcpy(s3_backend->hostname, dev_info->s3.hostname);
+		strcpy(s3_backend->accessid, dev_info->s3.accessid);
+		strcpy(s3_backend->accesskey, dev_info->s3.accesskey);
+		strcpy(s3_backend->volume_name, dev_info->s3.volume_name);
+		strcpy(s3_backend->bucket_name, dev_info->s3.bucket_name);
+		s3_backend->port = dev_info->s3.port;
+		s3_backend->block_size = dev_info->s3.block_size;
+		ubbd_b->dev_size = dev_info->size;
 	} else {
 		ubbd_err("Unknown dev type\n");
 		return NULL;
@@ -221,6 +221,7 @@ struct ubbd_backend *cache_backend_create(struct ubbd_backend_conf *conf)
 {
 	struct ubbd_cache_backend *cache_b;
 	struct ubbd_backend *ubbd_b;
+	struct ubbd_dev_info *dev_info = &conf->dev_info;
 
 	cache_b = calloc(1, sizeof(struct ubbd_cache_backend));
 	if (!cache_b) {
@@ -228,12 +229,12 @@ struct ubbd_backend *cache_backend_create(struct ubbd_backend_conf *conf)
 		return NULL;
 	}
 
-	cache_b->cache_backend = backend_create(&conf->extra_info);
+	cache_b->cache_backend = backend_create(&dev_info->cache_dev.cache_info);
 	if (!cache_b->cache_backend) {
 		goto free_cache_b;
 	}
 
-	cache_b->backing_backend = backend_create(&conf->dev_info);
+	cache_b->backing_backend = backend_create(&dev_info->cache_dev.backing_info);
 	if (!cache_b->backing_backend) {
 		goto free_cache_backend;
 	}
@@ -258,19 +259,17 @@ struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *conf)
 {
 	struct ubbd_backend *ubbd_b;
 	struct ubbd_dev_info *dev_info = &conf->dev_info;
-	struct ubbd_dev_info *extra_info = &conf->extra_info;
 	int ret;
 
 	if (conf->dev_type == UBBD_DEV_TYPE_CACHE) {
 		ubbd_b = cache_backend_create(conf);
 	} else {
-		ubbd_b = backend_create(dev_info);
+		ubbd_b = backend_create(&dev_info->generic_dev.info);
 	}
 
 	ubbd_b->dev_id = conf->dev_id;
 	ubbd_b->dev_size = conf->dev_size;
 	memcpy(&ubbd_b->dev_info, dev_info, sizeof(struct ubbd_dev_info));
-	memcpy(&ubbd_b->extra_info, extra_info, sizeof(struct ubbd_dev_info));
 
 	ret = ubbd_backend_init(ubbd_b, conf);
 	if (ret) {

@@ -63,7 +63,6 @@ struct ubbd_backend {
 	int				dev_id;
 	int				backend_id;
 	struct ubbd_dev_info		dev_info;
-	struct ubbd_dev_info		extra_info;
 
 	int 				num_queues;
 	struct ubbd_queue 		*queues;

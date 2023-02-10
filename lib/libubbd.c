@@ -125,78 +125,109 @@ int generic_request_and_wait(struct ubbdd_mgmt_request *req, struct ubbdd_mgmt_r
 	return request_and_wait(req, rsp);
 }
 
-void file_dev_info_setup(struct ubbd_dev_info *dev_info,
-		struct ubbd_map_options *opts)
+void file_dev_info_setup(struct __dev_info *info,
+		struct __ubbd_map_opts *opts)
 {
-	strcpy(dev_info->generic_dev.info.file.path, opts->u.file.filepath);
-	dev_info->generic_dev.info.file.size = opts->dev_size;
+	strcpy(info->file.path, opts->file.filepath);
 }
 
-void rbd_dev_info_setup(struct ubbd_dev_info *dev_info,
-		struct ubbd_map_options *opts)
+void rbd_dev_info_setup(struct __dev_info *info,
+		struct __ubbd_map_opts *opts)
 {
-	strcpy(dev_info->generic_dev.info.rbd.pool, opts->u.rbd.pool);
-	strcpy(dev_info->generic_dev.info.rbd.image, opts->u.rbd.image);
-	if (opts->u.rbd.ceph_conf)
-		strcpy(dev_info->generic_dev.info.rbd.ceph_conf, opts->u.rbd.ceph_conf);
+	strcpy(info->rbd.pool, opts->rbd.pool);
+	strcpy(info->rbd.image, opts->rbd.image);
+	if (opts->rbd.ceph_conf)
+		strcpy(info->rbd.ceph_conf, opts->rbd.ceph_conf);
 	else
-		strcpy(dev_info->generic_dev.info.rbd.ceph_conf, DEFAULT_CEPH_CONF);
+		strcpy(info->rbd.ceph_conf, DEFAULT_CEPH_CONF);
 
-	if (opts->u.rbd.user_name)
-		strcpy(dev_info->generic_dev.info.rbd.user_name, opts->u.rbd.user_name);
+	if (opts->rbd.user_name)
+		strcpy(info->rbd.user_name, opts->rbd.user_name);
 	else
-		strcpy(dev_info->generic_dev.info.rbd.user_name, DEFAULT_CEPH_USER);
+		strcpy(info->rbd.user_name, DEFAULT_CEPH_USER);
 
-	if (opts->u.rbd.cluster_name)
-		strcpy(dev_info->generic_dev.info.rbd.cluster_name, opts->u.rbd.cluster_name);
+	if (opts->rbd.cluster_name)
+		strcpy(info->rbd.cluster_name, opts->rbd.cluster_name);
 	else
-		strcpy(dev_info->generic_dev.info.rbd.cluster_name, DEFAULT_CEPH_CLUSTER);
+		strcpy(info->rbd.cluster_name, DEFAULT_CEPH_CLUSTER);
 }
 
-void null_dev_info_setup(struct ubbd_dev_info *dev_info,
-		struct ubbd_map_options *opts)
+void null_dev_info_setup(struct __dev_info *info,
+		struct __ubbd_map_opts *opts)
 {
-	dev_info->generic_dev.info.null.size = opts->dev_size;
+	return;
 }
 
-void s3_dev_info_setup(struct ubbd_dev_info *dev_info,
-		struct ubbd_map_options *opts)
+void s3_dev_info_setup(struct __dev_info *info,
+		struct __ubbd_map_opts *opts)
 {
-	dev_info->generic_dev.info.s3.size = opts->dev_size;
-	dev_info->generic_dev.info.s3.block_size = opts->u.s3.block_size;
-	dev_info->generic_dev.info.s3.port = opts->u.s3.port;
-	strcpy(dev_info->generic_dev.info.s3.hostname, opts->u.s3.hostname);
-	strcpy(dev_info->generic_dev.info.s3.accessid, opts->u.s3.accessid);
-	strcpy(dev_info->generic_dev.info.s3.accesskey, opts->u.s3.accesskey);
-	strcpy(dev_info->generic_dev.info.s3.volume_name, opts->u.s3.volume_name);
-	strcpy(dev_info->generic_dev.info.s3.bucket_name, opts->u.s3.bucket_name);
+	info->s3.block_size = opts->s3.block_size;
+	info->s3.port = opts->s3.port;
+	strcpy(info->s3.hostname, opts->s3.hostname);
+	strcpy(info->s3.accessid, opts->s3.accessid);
+	strcpy(info->s3.accesskey, opts->s3.accesskey);
+	strcpy(info->s3.volume_name, opts->s3.volume_name);
+	strcpy(info->s3.bucket_name, opts->s3.bucket_name);
 }
 
-void ssh_dev_info_setup(struct ubbd_dev_info *dev_info,
-		struct ubbd_map_options *opts)
+void ssh_dev_info_setup(struct __dev_info *info,
+		struct __ubbd_map_opts *opts)
 {
-	strcpy(dev_info->generic_dev.info.ssh.path, opts->u.ssh.path);
-	strcpy(dev_info->generic_dev.info.ssh.hostname, opts->u.ssh.hostname);
-	dev_info->generic_dev.info.ssh.size = opts->dev_size;
+	strcpy(info->ssh.path, opts->ssh.path);
+	strcpy(info->ssh.hostname, opts->ssh.hostname);
+}
+
+int generic_dev_info_setup(enum ubbd_dev_type dev_type,
+		struct __dev_info *info, struct __ubbd_map_opts *opts)
+{
+	if (dev_type == UBBD_DEV_TYPE_FILE) {
+		file_dev_info_setup(info, opts);
+	} else if (dev_type == UBBD_DEV_TYPE_RBD) {
+		rbd_dev_info_setup(info, opts);
+	} else if (dev_type == UBBD_DEV_TYPE_NULL) {
+		null_dev_info_setup(info, opts);
+	} else if (dev_type == UBBD_DEV_TYPE_SSH) {
+		ssh_dev_info_setup(info, opts);
+	} else if (dev_type == UBBD_DEV_TYPE_S3) {
+		s3_dev_info_setup(info, opts);
+	} else {
+		ubbd_err("error dev_type: %d\n", dev_type);
+		return -EINVAL;
+	}
+
+	info->size = opts->dev_size;
+	info->type = str_to_type(opts->type);
+
+	return 0;
 }
 
 int dev_info_setup(struct ubbd_dev_info *dev_info,
 		enum ubbd_dev_type dev_type, struct ubbd_map_options *opts)
 {
-	if (dev_type == UBBD_DEV_TYPE_FILE) {
-		file_dev_info_setup(dev_info, opts);
-	} else if (dev_type == UBBD_DEV_TYPE_RBD) {
-		rbd_dev_info_setup(dev_info, opts);
-	} else if (dev_type == UBBD_DEV_TYPE_NULL) {
-		null_dev_info_setup(dev_info, opts);
-	} else if (dev_type == UBBD_DEV_TYPE_SSH) {
-		ssh_dev_info_setup(dev_info, opts);
-	} else if (dev_type == UBBD_DEV_TYPE_S3) {
-		s3_dev_info_setup(dev_info, opts);
-	} else {
+	int ret = 0;
+
+	if (dev_type >= UBBD_DEV_TYPE_MAX) {
 		ubbd_err("error dev_type: %d\n", dev_type);
-		return -1;
+		return -EINVAL;
+	} else if (dev_type == UBBD_DEV_TYPE_CACHE) {
+		dev_info->cache_dev.cache_mode = str_to_cache_mode(opts->cache_dev.cache_mode);
+		ret = generic_dev_info_setup(str_to_type(opts->cache_dev.backing_opts.type),
+					&dev_info->cache_dev.backing_info, &opts->cache_dev.backing_opts);
+		if (ret)
+			return ret;
+
+		ret = generic_dev_info_setup(str_to_type(opts->cache_dev.cache_opts.type),
+					&dev_info->cache_dev.cache_info, &opts->cache_dev.cache_opts);
+		if (ret)
+			return ret;
+	} else {
+		opts->generic_dev.opts.type = opts->type;
+		ret = generic_dev_info_setup(dev_type,
+				&dev_info->generic_dev.info, &opts->generic_dev.opts);
+		if (ret)
+			return ret;
 	}
+
 	dev_info->num_queues = opts->num_queues;
 	dev_info->type = dev_type;
 	dev_info->sh_mem_size = opts->dev_share_memory_size;
@@ -204,105 +235,17 @@ int dev_info_setup(struct ubbd_dev_info *dev_info,
 	return 0;
 }
 
-int do_rbd_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
-{
-	struct ubbdd_mgmt_request req = {0};
-
-	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.dev_type = UBBD_DEV_TYPE_RBD;
-	dev_info_setup(&req.u.add.info, UBBD_DEV_TYPE_RBD, opts);
-
-	return request_and_wait(&req, rsp);
-}
-
-int do_null_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
-{
-	struct ubbdd_mgmt_request req = {0};
-
-	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.dev_type = UBBD_DEV_TYPE_NULL;
-	dev_info_setup(&req.u.add.info, UBBD_DEV_TYPE_NULL, opts);
-
-	return request_and_wait(&req, rsp);
-}
-
-int do_s3_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
-{
-	struct ubbdd_mgmt_request req = {0};
-
-	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.dev_type = UBBD_DEV_TYPE_S3;
-	dev_info_setup(&req.u.add.info, UBBD_DEV_TYPE_S3, opts);
-
-	return request_and_wait(&req, rsp);
-}
-
-int do_file_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
-{
-	struct ubbdd_mgmt_request req = {0};
-
-	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.dev_type = UBBD_DEV_TYPE_FILE;
-	dev_info_setup(&req.u.add.info, UBBD_DEV_TYPE_FILE, opts);
-
-	return request_and_wait(&req, rsp);
-}
-
-
-int do_ssh_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
-{
-	struct ubbdd_mgmt_request req = {0};
-
-	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.dev_type = UBBD_DEV_TYPE_SSH;
-	dev_info_setup(&req.u.add.info, UBBD_DEV_TYPE_SSH, opts);
-
-	return request_and_wait(&req, rsp);
-}
-
-int do_cache_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
-{
-	struct ubbdd_mgmt_request req = { 0 };
-	int ret = 0;
-
-	req.cmd = UBBDD_MGMT_CMD_MAP;
-	req.u.add.dev_type = UBBD_DEV_TYPE_CACHE;
-	req.u.add.cache.cache_mode = str_to_cache_mode(opts->u.cache.cache_mode);
-
-	ret = dev_info_setup(&req.u.add.info, str_to_type(opts->u.cache.backing_opts->type), opts->u.cache.backing_opts);
-	if (ret) {
-		return ret;
-	}
-
-	ret = dev_info_setup(&req.u.add.extra_info, str_to_type(opts->u.cache.cache_opts->type), opts->u.cache.cache_opts);
-	if (ret) {
-		return ret;
-	}
-	
-	return request_and_wait(&req, rsp);
-}
-
 int ubbd_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
-	int ret = 0;
+	struct ubbdd_mgmt_request req = { 0 };
+	int ret;
 
-	if (!strcmp("file", opts->type)) {
-		ret = do_file_map(opts, rsp);
-	} else if (!strcmp("rbd", opts->type)){
-		ret = do_rbd_map(opts, rsp);
-	} else if (!strcmp("null", opts->type)){
-		ret = do_null_map(opts, rsp);
-	} else if (!strcmp("ssh", opts->type)){
-		ret = do_ssh_map(opts, rsp);
-	} else if (!strcmp("s3", opts->type)){
-		ret = do_s3_map(opts, rsp);
-	} else if (!strcmp("cache", opts->type)){
-		ret = do_cache_map(opts, rsp);
-	} else {
-		ret = -1;
-	}
+	req.cmd = UBBDD_MGMT_CMD_MAP;
+	ret = dev_info_setup(&req.u.add.info, str_to_type(opts->type), opts);
+	if (ret)
+		return ret;
 
-	return ret;
+	return request_and_wait(&req, rsp);
 }
 
 int ubbd_unmap(struct ubbd_unmap_options *opts, struct ubbdd_mgmt_rsp *rsp)

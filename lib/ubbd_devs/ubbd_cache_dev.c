@@ -30,8 +30,6 @@ static void cache_dev_release(struct ubbd_device *ubbd_dev)
 {
 	struct ubbd_cache_device *cache_dev = CACHE_DEV(ubbd_dev);
 
-	ubbd_dev_release(cache_dev->backing_device);
-	ubbd_dev_release(cache_dev->cache_device);
 	free(cache_dev);
 }
 

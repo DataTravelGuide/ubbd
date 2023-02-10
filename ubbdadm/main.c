@@ -35,8 +35,9 @@ static struct option const long_options[] =
 
 	UBBD_MAP_NOPRE_OPT(type)
 	UBBD_MAP_NOPRE_OPT(devsize)
-	UBBD_MAP_NOPRE_OPT(dev-share-memory-size)
-	UBBD_MAP_NOPRE_OPT(num-queues)
+
+	{"dev-share-memory-size", required_argument, NULL, 0},
+	{"num-queues", required_argument, NULL, 0},
 
 	UBBD_MAP_OPT(file, filepath)
 
@@ -113,9 +114,9 @@ static void usage(int status)
 		printf("\n\t[map options]:\n");
 
 		print_map_opt_msg("type", "device type for mapping: file, rbd, null, ssh, cache, s3");
-		print_map_opt_msg("devsize", "size of device to map, range is [4194304 (4M) - 1073741824 (1G)], --devsize is required except rbd type");
-		print_map_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space");
-		print_map_opt_msg("num-queues", "number of queues for block layer multiqueue");
+		print_map_opt_msg("devsize", "size of device to map, --devsize is required except rbd type");
+		print_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].");
+		print_opt_msg("num-queues", "number of queues for block layer multiqueue");
 
 		printf("\n");
 
@@ -146,63 +147,46 @@ static void usage(int status)
 
 		printf("\n");
 
-		print_map_opt_msg("cache-mode", "cache mode for cache type mapping: writeback, writethrough");
+		print_opt_msg("cache-mode", "cache mode for cache type mapping: writeback, writethrough");
 	}
 }
 
-static int parse_map_options(struct ubbd_map_options *opts, const char *name, char *optarg)
+static int parse_map_options(struct __ubbd_map_opts *opts, const char *name, char *optarg)
 {
 	if (!strcmp(name, "type")) {
 		opts->type = optarg;
 	} else if (!strcmp(name, "devsize")) {
 		opts->dev_size = atoll(optarg);
-	} else if (!strcmp(name, "dev-share-memory-size")) {
-		opts->dev_share_memory_size = atoi(optarg);
-		if (opts->dev_share_memory_size % PAGE_SIZE) {
-			printf("dev-share-memory-size: %d is not multiple of 4096.\n",
-				       opts->dev_share_memory_size);
-			return -1;
-		}
-
-		if (opts->dev_share_memory_size < 4194304) {
-			printf("dev-share-memory-size: %d is not in range of [4194304 (4M) - 1073741824 (1G)]\n",
-					opts->dev_share_memory_size);
-			return -1;
-		}
-	} else if (!strcmp(name, "num-queues")) {
-		opts->num_queues = atoi(optarg);
 	} else if (!strcmp(name, "file-filepath")) {
-		opts->u.file.filepath = optarg;
+		opts->file.filepath = optarg;
 	} else if (!strcmp(name, "rbd-pool")) {
-		opts->u.rbd.pool = optarg;
+		opts->rbd.pool = optarg;
 	} else if (!strcmp(name, "rbd-image")) {
-		opts->u.rbd.image = optarg;
+		opts->rbd.image = optarg;
 	} else if (!strcmp(name, "rbd-ceph-conf")) {
-		opts->u.rbd.ceph_conf = optarg;
+		opts->rbd.ceph_conf = optarg;
 	} else if (!strcmp(name, "rbd-user-name")) {
-		opts->u.rbd.user_name = optarg;
+		opts->rbd.user_name = optarg;
 	} else if (!strcmp(name, "rbd-cluster-name")) {
-		opts->u.rbd.cluster_name = optarg;
+		opts->rbd.cluster_name = optarg;
 	} else if (!strcmp(name, "ssh-hostname")) {
-		opts->u.ssh.hostname = optarg;
+		opts->ssh.hostname = optarg;
 	} else if (!strcmp(name, "ssh-filepath")) {
-		opts->u.ssh.path = optarg;
+		opts->ssh.path = optarg;
 	} else if (!strcmp(name, "s3-hostname")) {
-		opts->u.s3.hostname = optarg;
+		opts->s3.hostname = optarg;
 	} else if (!strcmp(name, "s3-accessid")) {
-		opts->u.s3.accessid = optarg;
+		opts->s3.accessid = optarg;
 	} else if (!strcmp(name, "s3-accesskey")) {
-		opts->u.s3.accesskey = optarg;
+		opts->s3.accesskey = optarg;
 	} else if (!strcmp(name, "s3-volume-name")) {
-		opts->u.s3.volume_name = optarg;
+		opts->s3.volume_name = optarg;
 	} else if (!strcmp(name, "s3-bucket-name")) {
-		opts->u.s3.bucket_name = optarg;
+		opts->s3.bucket_name = optarg;
 	} else if (!strcmp(name, "s3-port")) {
-		opts->u.s3.port = atoi(optarg);
+		opts->s3.port = atoi(optarg);
 	} else if (!strcmp(name, "s3-block-size")) {
-		opts->u.s3.block_size = atoi(optarg);
-	} else if (!strcmp(name, "cache-mode")) {
-		opts->u.cache.cache_mode = optarg;
+		opts->s3.block_size = atoi(optarg);
 	} else {
 		printf("unrecognized option: %s\n", name);
 		return -1;
@@ -233,37 +217,37 @@ static char *type_to_str(enum ubbd_dev_type type)
 
 static void output_dev_generic_info(struct ubbdd_mgmt_rsp *rsp)
 {
-	printf("UBBD: /dev/ubbd%d:\n", rsp->u.dev_info.devid);
-	printf("\ttype: %s\n", type_to_str(rsp->u.dev_info.type));
-	printf("\tsize: %lu\n",	rsp->u.dev_info.size);
-	printf("\tqueues: %u\n", rsp->u.dev_info.num_queues);
+	printf("UBBD: /dev/ubbd%d:\n", rsp->dev_info.devid);
+	printf("\ttype: %s\n", type_to_str(rsp->dev_info.dev_info.type));
+	printf("\tqueues: %u\n", rsp->dev_info.dev_info.num_queues);
+	printf("\tsize: %lu\n",	rsp->dev_info.dev_info.generic_dev.info.size);
 }
 
-static int __output_dev_info_detail(struct ubbd_dev_info *dev_info)
+static int __output_dev_info_detail(struct __dev_info *dev_info)
 {
 	int dev_type = dev_info->type;
 	int ret = 0;
 
 	if (dev_type == UBBD_DEV_TYPE_FILE) {
-		printf("\tfilepath: %s\n", dev_info->generic_dev.info.file.path);
+		printf("\tfilepath: %s\n", dev_info->file.path);
 	} else if (dev_type == UBBD_DEV_TYPE_RBD) {
-		printf("\tceph_conf: %s\n", dev_info->generic_dev.info.rbd.ceph_conf);
-		printf("\tpool: %s\n", dev_info->generic_dev.info.rbd.pool);
-		printf("\timage: %s\n", dev_info->generic_dev.info.rbd.image);
-		printf("\tcluster_name: %s\n", dev_info->generic_dev.info.rbd.cluster_name);
-		printf("\tuser_name: %s\n", dev_info->generic_dev.info.rbd.user_name);
+		printf("\tceph_conf: %s\n", dev_info->rbd.ceph_conf);
+		printf("\tpool: %s\n", dev_info->rbd.pool);
+		printf("\timage: %s\n", dev_info->rbd.image);
+		printf("\tcluster_name: %s\n", dev_info->rbd.cluster_name);
+		printf("\tuser_name: %s\n", dev_info->rbd.user_name);
 	} else if (dev_type == UBBD_DEV_TYPE_NULL) {
 	} else if (dev_type == UBBD_DEV_TYPE_SSH) {
-		printf("\thostname: %s\n", dev_info->generic_dev.info.ssh.hostname);
-		printf("\tpath: %s\n", dev_info->generic_dev.info.ssh.path);
+		printf("\thostname: %s\n", dev_info->ssh.hostname);
+		printf("\tpath: %s\n", dev_info->ssh.path);
 	} else if (dev_type == UBBD_DEV_TYPE_S3) {
-		printf("\thostname: %s\n", dev_info->generic_dev.info.s3.hostname);
-		printf("\tport: %d\n", dev_info->generic_dev.info.s3.port);
-		printf("\tblock_size: %d\n", dev_info->generic_dev.info.s3.block_size);
-		printf("\taccessid: %s\n", dev_info->generic_dev.info.s3.accessid);
-		printf("\taccesskey: %s\n", dev_info->generic_dev.info.s3.accesskey);
-		printf("\tvolume_name: %s\n", dev_info->generic_dev.info.s3.volume_name);
-		printf("\tbucket_name: %s\n", dev_info->generic_dev.info.s3.bucket_name);
+		printf("\thostname: %s\n", dev_info->s3.hostname);
+		printf("\tport: %d\n", dev_info->s3.port);
+		printf("\tblock_size: %d\n", dev_info->s3.block_size);
+		printf("\taccessid: %s\n", dev_info->s3.accessid);
+		printf("\taccesskey: %s\n", dev_info->s3.accesskey);
+		printf("\tvolume_name: %s\n", dev_info->s3.volume_name);
+		printf("\tbucket_name: %s\n", dev_info->s3.bucket_name);
 	} else {
 		printf("error type: %d\n", dev_type);
 		ret = -1;
@@ -277,16 +261,16 @@ static int output_dev_info_detail(int dev_type, struct ubbdd_mgmt_rsp_dev_info *
 	int ret = 0;
 
 	if (dev_type == UBBD_DEV_TYPE_CACHE) {
-		printf("\tcache_mode: %s\n", cache_mode_to_str(mgmt_dev_info->cache.cache_mode));
-		printf("\n\tcache_dev: type %s\n", type_to_str(mgmt_dev_info->extra_info.type));
-		ret = __output_dev_info_detail(&mgmt_dev_info->extra_info);
+		printf("\tcache_mode: %s\n", cache_mode_to_str(mgmt_dev_info->dev_info.cache_dev.cache_mode));
+		printf("\n\tcache_dev: type %s\n", type_to_str(mgmt_dev_info->dev_info.cache_dev.cache_info.type));
+		ret = __output_dev_info_detail(&mgmt_dev_info->dev_info.cache_dev.cache_info);
 		if (ret)
 			goto out;
 
-		printf("\n\tbacking_dev: type %s\n", type_to_str(mgmt_dev_info->dev_info.type));
-		ret = __output_dev_info_detail(&mgmt_dev_info->dev_info);
+		printf("\n\tbacking_dev: type %s\n", type_to_str(mgmt_dev_info->dev_info.cache_dev.backing_info.type));
+		ret = __output_dev_info_detail(&mgmt_dev_info->dev_info.cache_dev.backing_info);
 	} else {
-		ret = __output_dev_info_detail(&mgmt_dev_info->dev_info);
+		ret = __output_dev_info_detail(&mgmt_dev_info->dev_info.generic_dev.info);
 	}
 
 out:
@@ -298,12 +282,10 @@ static int output_dev_info(struct ubbdd_mgmt_rsp *rsp)
 	int ret = 0;
 
 	output_dev_generic_info(rsp);
-	ret = output_dev_info_detail(rsp->u.dev_info.type, &rsp->u.dev_info);
+	ret = output_dev_info_detail(rsp->dev_info.dev_info.type, &rsp->dev_info);
 
 	return ret;
 }
-
-struct ubbd_map_options cache_opts, backing_opts, opts;
 
 int main(int argc, char **argv)
 {
@@ -316,23 +298,48 @@ int main(int argc, char **argv)
 	bool detach = false;
 	char *restart_mode;
 	struct ubbdd_mgmt_rsp rsp = { 0 };
+	struct ubbd_map_options opts;
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 0:
-			if (!strncmp(long_options[longindex].name, "cache-dev-", 10)) {
-				ret = parse_map_options(&cache_opts,
+			if (!strcmp(long_options[longindex].name, "dev-share-memory-size")) {
+				opts.dev_share_memory_size = atoi(optarg);
+				if (opts.dev_share_memory_size % PAGE_SIZE) {
+					printf("dev-share-memory-size: %d is not multiple of 4096.\n",
+						       opts.dev_share_memory_size);
+					return -1;
+				}
+
+				if (opts.dev_share_memory_size < 4194304) {
+					printf("dev-share-memory-size: %d is not in range of [4194304 (4M) - 1073741824 (1G)]\n",
+							opts.dev_share_memory_size);
+					return -1;
+				}
+				break;
+			} else if (!strcmp(long_options[longindex].name, "num-queues")) {
+				opts.num_queues = atoi(optarg);
+				break;
+			} else if (!strcmp(long_options[longindex].name, "type")) {
+				opts.type = optarg;
+				break;
+			} else if (!strcmp(long_options[longindex].name, "cache-mode")) {
+				opts.cache_dev.cache_mode = optarg;
+				break;
+			} else if (!strncmp(long_options[longindex].name, "cache-dev-", 10)) {
+				ret = parse_map_options(&opts.cache_dev.cache_opts,
 						long_options[longindex].name + 10,
 						optarg);
 			} else if (!strncmp(long_options[longindex].name, "backing-dev-", 12)) {
-				ret = parse_map_options(&backing_opts,
+				ret = parse_map_options(&opts.cache_dev.backing_opts,
 						long_options[longindex].name + 12,
 						optarg);
 			} else {
-				ret = parse_map_options(&opts, long_options[longindex].name, optarg);
+				ret = parse_map_options(&opts.generic_dev.opts, long_options[longindex].name, optarg);
 			}
+
 			if (ret) {
 				return -1;
 			}
@@ -371,11 +378,14 @@ int main(int argc, char **argv)
 
 	/* action for command */
 	if (!strcmp("map", command)) {
-		if (!strcmp("cache", opts.type)) {
-			opts.u.cache.cache_opts = &cache_opts;
-			opts.u.cache.backing_opts = &backing_opts;
-		} else if (strcmp("rbd", opts.type)) {
-			if (!opts.dev_size) {
+		if (!opts.type) {
+			printf("--type is required.\n");
+			ret = -1;
+			goto out;
+		}
+
+		if (strcmp("rbd", opts.type)) {
+			if (!opts.generic_dev.opts.dev_size) {
 				printf("--devsize is required.\n");
 				ret = -1;
 				goto out;
@@ -386,7 +396,7 @@ int main(int argc, char **argv)
 		if (ret)
 			goto out;
 
-		fprintf(stdout, "%s\n", rsp.u.add.path);
+		fprintf(stdout, "%s\n", rsp.add.path);
 	} else if (!strcmp("unmap", command)) {
 		struct ubbd_unmap_options unmap_opts = { .ubbdid = ubbdid,
 			.force = force, .detach = detach};
@@ -405,8 +415,8 @@ int main(int argc, char **argv)
 		if (ret)
 			goto out;
 
-		for (i = 0; i < rsp.u.list.dev_num; i++) {
-			fprintf(stdout, "/dev/ubbd%d\n", rsp.u.list.dev_list[i]);
+		for (i = 0; i < rsp.list.dev_num; i++) {
+			fprintf(stdout, "/dev/ubbd%d\n", rsp.list.dev_list[i]);
 		}
 	} else if (!strcmp("req-stats", command)) {
 		struct ubbd_req_stats_options req_stats_opts = { .ubbdid = ubbdid };
@@ -417,8 +427,8 @@ int main(int argc, char **argv)
 		if (ret)
 			goto out;
 
-		for (i = 0; i < rsp.u.req_stats.num_queues; i++) {
-			req_stats = &rsp.u.req_stats.req_stats[i];
+		for (i = 0; i < rsp.req_stats.num_queues; i++) {
+			req_stats = &rsp.req_stats.req_stats[i];
 			fprintf(stdout, "Queue-%d:\n", i);
 			fprintf(stdout, "\tRequests:%lu\n", req_stats->reqs);
 			fprintf(stdout, "\tHandle_time:%lu\n", req_stats->reqs? req_stats->handle_time / req_stats->reqs : 0);

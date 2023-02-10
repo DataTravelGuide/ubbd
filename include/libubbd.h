@@ -47,10 +47,11 @@ enum ubbd_dev_type {
 };
 
 struct __dev_info {
+	enum ubbd_dev_type type;
+	uint64_t size;
 	union {
 		struct {
 			char path[UBBD_PATH_MAX];
-			uint64_t size;
 		} file;
 		struct {
 			char pool[UBBD_NAME_MAX];
@@ -61,15 +62,12 @@ struct __dev_info {
 			char user_name[UBBD_NAME_MAX];
 		} rbd;
 		struct {
-			uint64_t size;
 		} null;
 		struct {
 			char hostname[UBBD_NAME_MAX];
 			char path[UBBD_PATH_MAX];
-			uint64_t size;
 		} ssh;
 		struct {
-			uint64_t size;
 			uint32_t block_size;
 			int port;
 			char hostname[UBBD_NAME_MAX];
@@ -106,16 +104,7 @@ struct ubbd_req_stats {
 
 struct ubbdd_mgmt_rsp_dev_info {
 	int devid;
-	enum ubbd_dev_type type;
-	uint64_t size;
-	int num_queues;
 	struct ubbd_dev_info dev_info;
-	struct ubbd_dev_info extra_info;
-	union {
-		struct {
-			int cache_mode;
-		} cache;
-	};
 };
 
 struct ubbdd_mgmt_rsp {
@@ -134,20 +123,12 @@ struct ubbdd_mgmt_rsp {
 			struct ubbd_req_stats req_stats[UBBD_QUEUE_MAX];
 		} req_stats;
 		struct ubbdd_mgmt_rsp_dev_info dev_info;
-	} u;
+	};
 };
 
-struct ubbd_result {
-	int ret;
-	union {
-	} u;
-};
-
-typedef struct ubbd_map_options {
+struct __ubbd_map_opts {
 	char *type;
 	uint64_t dev_size;
-	uint32_t dev_share_memory_size;
-	int num_queues;
 	union {
 		struct {
 			char *filepath;
@@ -175,14 +156,26 @@ typedef struct ubbd_map_options {
 			char *volume_name;
 			char *bucket_name;
 		} s3;
+
+	};
+};
+
+struct ubbd_map_options {
+	char *type;
+	int num_queues;
+	uint32_t dev_share_memory_size;
+	union {
+		struct {
+			struct __ubbd_map_opts opts;
+		} generic_dev;
+
 		struct {
 			char *cache_mode;
-			struct ubbd_map_options *cache_opts;
-			struct ubbd_map_options *backing_opts;
-		} cache;
-
-	} u;
-} ubbd_map_options;
+			struct __ubbd_map_opts cache_opts; 
+			struct __ubbd_map_opts backing_opts; 
+		} cache_dev;
+	};
+};
 
 struct ubbd_unmap_options {
 	int ubbdid;

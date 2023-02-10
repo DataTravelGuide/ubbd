@@ -35,7 +35,7 @@ struct ubbd_dev_features {
 
 struct ubbd_device;
 struct ubbd_dev_ops {
-	struct ubbd_device* (*create) (struct ubbd_dev_info *info);
+	struct ubbd_device* (*create) (struct __dev_info *info);
 	int (*init) (struct ubbd_device *ubbd_dev);
 	void (*release) (struct ubbd_device *ubbd_dev);
 };
@@ -46,7 +46,6 @@ struct ubbd_device {
 	uint64_t dev_size;
 	enum ubbd_dev_type dev_type;
 	struct ubbd_dev_info dev_info;
-	struct ubbd_dev_info extra_info;
 	int cache_mode;
 	char dev_name[16];
 	struct ubbd_dev_ops *dev_ops;

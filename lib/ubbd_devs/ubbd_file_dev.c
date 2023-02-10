@@ -6,7 +6,7 @@
 
 struct ubbd_dev_ops file_dev_ops;
 
-static struct ubbd_device *file_dev_create(struct ubbd_dev_info *info)
+static struct ubbd_device *file_dev_create(struct __dev_info *info)
 {
 	struct ubbd_file_device *file_dev;
 	struct ubbd_device *ubbd_dev;
@@ -18,8 +18,7 @@ static struct ubbd_device *file_dev_create(struct ubbd_dev_info *info)
 	ubbd_dev = &file_dev->ubbd_dev;
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_FILE;
 	ubbd_dev->dev_ops = &file_dev_ops;
-	strcpy(file_dev->filepath, info->generic_dev.info.file.path);
-	ubbd_dev->dev_size = info->generic_dev.info.file.size;
+	strcpy(file_dev->filepath, info->file.path);
 
 	return ubbd_dev;
 }

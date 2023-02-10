@@ -6,7 +6,7 @@
 
 struct ubbd_dev_ops s3_dev_ops;
 
-static struct ubbd_device *s3_dev_create(struct ubbd_dev_info *info)
+static struct ubbd_device *s3_dev_create(struct __dev_info *info)
 {
 	struct ubbd_s3_device *s3_dev;
 	struct ubbd_device *ubbd_dev;
@@ -18,7 +18,6 @@ static struct ubbd_device *s3_dev_create(struct ubbd_dev_info *info)
 	ubbd_dev = &s3_dev->ubbd_dev;
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_S3;
 	ubbd_dev->dev_ops = &s3_dev_ops;
-	ubbd_dev->dev_size = info->generic_dev.info.s3.size;
 
 	return ubbd_dev;
 }

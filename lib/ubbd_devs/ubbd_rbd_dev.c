@@ -9,7 +9,7 @@
 
 struct ubbd_dev_ops rbd_dev_ops;
 
-static struct ubbd_device *rbd_dev_create(struct ubbd_dev_info *info)
+static struct ubbd_device *rbd_dev_create(struct __dev_info *info)
 {
 	struct ubbd_rbd_device *rbd_dev;
 	struct ubbd_rbd_conn *rbd_conn;
@@ -24,11 +24,11 @@ static struct ubbd_device *rbd_dev_create(struct ubbd_dev_info *info)
 	ubbd_dev->dev_ops = &rbd_dev_ops;
 
 	rbd_conn = &rbd_dev->rbd_conn;
-	strcpy(rbd_conn->pool, info->generic_dev.info.rbd.pool);
-	strcpy(rbd_conn->imagename, info->generic_dev.info.rbd.image);
-	strcpy(rbd_conn->ceph_conf, info->generic_dev.info.rbd.ceph_conf);
-	strcpy(rbd_conn->user_name, info->generic_dev.info.rbd.user_name);
-	strcpy(rbd_conn->cluster_name, info->generic_dev.info.rbd.cluster_name);
+	strcpy(rbd_conn->pool, info->rbd.pool);
+	strcpy(rbd_conn->imagename, info->rbd.image);
+	strcpy(rbd_conn->ceph_conf, info->rbd.ceph_conf);
+	strcpy(rbd_conn->user_name, info->rbd.user_name);
+	strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
 
 	return ubbd_dev;
 }

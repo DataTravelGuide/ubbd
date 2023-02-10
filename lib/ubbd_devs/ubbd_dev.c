@@ -51,7 +51,7 @@ static void ubbd_dev_set_default(struct ubbd_device *ubbd_dev)
 	pthread_mutex_init(&ubbd_dev->lock, NULL);
 }
 
-struct ubbd_device *__dev_create(struct ubbd_dev_info *info, bool force)
+struct ubbd_device *__dev_create(struct __dev_info *info, bool force)
 {
 	struct ubbd_device *ubbd_dev;
 	struct ubbd_dev_ops *dev_ops = NULL;
@@ -60,16 +60,16 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info, bool force)
 		dev_ops = &file_dev_ops;
 	} else if (info->type == UBBD_DEV_TYPE_RBD) {
 		dev_ops = &rbd_dev_ops;
-	} else if (info->type == UBBD_DEV_TYPE_NULL){
+	} else if (info->type == UBBD_DEV_TYPE_NULL) {
 		dev_ops = &null_dev_ops;
-	} else if (info->type == UBBD_DEV_TYPE_SSH){
+	} else if (info->type == UBBD_DEV_TYPE_SSH) {
 		dev_ops = &ssh_dev_ops;
-	} else if (info->type == UBBD_DEV_TYPE_S3){
+	} else if (info->type == UBBD_DEV_TYPE_S3) {
 		dev_ops = &s3_dev_ops;
 	}
 	
 	if (dev_ops == NULL) {
-		ubbd_err("Unknown dev type\n");
+		ubbd_err("Unknown generic dev type: %d\n", info->type);
 
 		if (!force)
 			return NULL;
@@ -85,36 +85,13 @@ struct ubbd_device *__dev_create(struct ubbd_dev_info *info, bool force)
 		if (ubbd_dev == NULL) {
 			return ubbd_dev;
 		}
+		ubbd_dev->dev_size = info->size;
 	}
-
-	ubbd_dev->num_queues = info->num_queues;
-	ubbd_dev->sh_mem_size = info->sh_mem_size;
-	memcpy(&ubbd_dev->dev_info, info, sizeof(*info));
-
-	ubbd_dev_set_default(ubbd_dev);
 
 	return ubbd_dev;
 }
 
-struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force)
-{
-	struct ubbd_device *ubbd_dev;
-
-	ubbd_dev = __dev_create(info, force);
-	if (!ubbd_dev) {
-		return NULL;
-	}
-
-	pthread_mutex_lock(&ubbd_dev_list_mutex);
-	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
-	pthread_mutex_unlock(&ubbd_dev_list_mutex);
-
-	return ubbd_dev;
-}
-
-struct ubbd_device *create_cache_dev(struct ubbd_dev_info *backing_dev_info,
-		struct ubbd_dev_info *cache_dev_info,
-		int cache_mode, bool force)
+struct ubbd_device *create_cache_dev(struct ubbd_dev_info *dev_info, bool force)
 {
 	struct ubbd_cache_device *cache_dev;
 	struct ubbd_device *ubbd_dev;
@@ -124,22 +101,21 @@ struct ubbd_device *create_cache_dev(struct ubbd_dev_info *backing_dev_info,
 		return NULL;
 	}
 
-	cache_dev->backing_device = __dev_create(backing_dev_info, force);
+	cache_dev->backing_device = __dev_create(&dev_info->cache_dev.backing_info, force);
 	if (!cache_dev->backing_device) {
 		goto free_cache_dev;
 	}
 
-	cache_dev->cache_device = __dev_create(cache_dev_info, force);
+	cache_dev->cache_device = __dev_create(&dev_info->cache_dev.cache_info, force);
 	if (!cache_dev->cache_device) {
 		goto free_backing_device;
 	}
 
 	ubbd_dev = &cache_dev->ubbd_dev;
-	cache_dev->cache_mode = ubbd_dev->cache_mode = cache_mode;
-
+	cache_dev->cache_mode = ubbd_dev->cache_mode = dev_info->cache_dev.cache_mode;
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_CACHE;
-	ubbd_dev->sh_mem_size = backing_dev_info->sh_mem_size;
 	ubbd_dev->dev_ops = &cache_dev_ops;
+	ubbd_dev->dev_size = cache_dev->backing_device->dev_size;
 
 	if (cache_dev->backing_device->status == UBBD_DEV_USTATUS_ERROR ||
 			cache_dev->cache_device->status == UBBD_DEV_USTATUS_ERROR) {
@@ -156,20 +132,29 @@ free_cache_dev:
 	return NULL;
 }
 
-struct ubbd_device *ubbd_cache_dev_create(struct ubbd_dev_info *backing_dev_info,
-		struct ubbd_dev_info *cache_dev_info, int cache_mode, bool force)
+struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force)
 {
 	struct ubbd_device *ubbd_dev;
+	int dev_type = info->type;
 
-	ubbd_dev = create_cache_dev(backing_dev_info, cache_dev_info, cache_mode, force);
-	if (!ubbd_dev)
+	if (dev_type >= UBBD_DEV_TYPE_MAX) {
+		ubbd_err("error dev_type: %d\n", dev_type);
 		return NULL;
+	} else if (dev_type == UBBD_DEV_TYPE_CACHE) {
+		ubbd_dev = create_cache_dev(info, force);
+	} else {
+		ubbd_dev = __dev_create(&info->generic_dev.info, force);
+	}
+
+	if (!ubbd_dev) {
+		return NULL;
+	}
+
+	ubbd_dev->num_queues = info->num_queues;
+	ubbd_dev->sh_mem_size = info->sh_mem_size;
+	memcpy(&ubbd_dev->dev_info, info, sizeof(*info));
 
 	ubbd_dev_set_default(ubbd_dev);
-	ubbd_dev->num_queues = backing_dev_info->num_queues;
-	ubbd_dev->sh_mem_size = backing_dev_info->sh_mem_size;
-	memcpy(&ubbd_dev->dev_info, backing_dev_info, sizeof(struct ubbd_dev_info));
-	memcpy(&ubbd_dev->extra_info, cache_dev_info, sizeof(struct ubbd_dev_info));
 
 	pthread_mutex_lock(&ubbd_dev_list_mutex);
 	list_add_tail(&ubbd_dev->dev_node, &ubbd_dev_list);
@@ -177,6 +162,7 @@ struct ubbd_device *ubbd_cache_dev_create(struct ubbd_dev_info *backing_dev_info
 
 	return ubbd_dev;
 }
+
 
 int ubbd_dev_init(struct ubbd_device *ubbd_dev)
 {
@@ -239,7 +225,6 @@ static int backend_conf_setup(struct ubbd_device *ubbd_dev)
 	}
 
 	memcpy(&backend_conf.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
-	memcpy(&backend_conf.extra_info, &ubbd_dev->extra_info, sizeof(struct ubbd_dev_info));
 
 	backend_conf.num_queues = ubbd_dev->num_queues;
 	memcpy(&backend_conf.queue_infos, &ubbd_dev->queue_infos, sizeof(struct ubbd_queue_info) * UBBD_QUEUE_MAX);
@@ -428,7 +413,6 @@ static int dev_conf_write(struct ubbd_device *ubbd_dev)
 	ubbd_conf_header_init(&dev_conf.conf_header, UBBD_CONF_TYPE_DEVICE);
 
 	memcpy(&dev_conf.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
-	memcpy(&dev_conf.extra_info, &ubbd_dev->extra_info, sizeof(struct ubbd_dev_info));
 	dev_conf.current_backend_id = ubbd_dev->current_backend_id;
 	dev_conf.new_backend_id = ubbd_dev->new_backend_id;
 	dev_conf.dev_id = ubbd_dev->dev_id;
@@ -964,13 +948,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 		return -1;
 	}
 
-	if (dev_conf->dev_type == UBBD_DEV_TYPE_CACHE) {
-		ubbd_dev = ubbd_cache_dev_create(&dev_conf->dev_info, &dev_conf->extra_info,
-				dev_conf->cache_mode, true);
-	} else {
-		ubbd_dev = ubbd_dev_create(&dev_conf->dev_info, true);
-	}
-
+	ubbd_dev = ubbd_dev_create(&dev_conf->dev_info, true);
 	if (!ubbd_dev) {
 		ret = -ENOMEM;
 		free(dev_conf);

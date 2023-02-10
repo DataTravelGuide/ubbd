@@ -25,8 +25,6 @@ struct ubbd_dev_conf {
 	int dev_id;
 	int num_queues;
 	struct ubbd_dev_info dev_info;
-	/* cache device need extra_info */
-	struct ubbd_dev_info extra_info;
 	/* current_backend_id is current running backend id, id will be 
 	 * used as part of namespace name for backend mgmt ipc.
 	 *
@@ -45,7 +43,6 @@ struct ubbd_backend_conf {
 	uint64_t dev_size;
 	int dev_id;
 	struct ubbd_dev_info dev_info;
-	struct ubbd_dev_info extra_info;
 	int num_queues;
 	struct ubbd_queue_info queue_infos[UBBD_QUEUE_MAX];
 	int cache_mode;
