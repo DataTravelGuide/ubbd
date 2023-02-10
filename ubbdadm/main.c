@@ -106,7 +106,7 @@ static void usage(int status)
 		print_opt_msg("data-pages-reserve-percnt", "update the data pages reserved for each queue: [0 - 100]");
 
 		/* dev-restart options */
-		printf("\n\t[dev-restart options ]");
+		printf("\n\t[dev-restart options ]\n");
 		print_opt_msg("restart-mode", "mode to restart device: dev, queue, default");
 
 		/* map options */
