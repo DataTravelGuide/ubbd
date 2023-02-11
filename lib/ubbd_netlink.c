@@ -526,7 +526,8 @@ int ubbd_nl_dev_status(int dev_id, struct ubbd_nl_dev_status *dev_status)
 	ret = nl_send_sync(socket, msg);
 	ubbd_socket_close(socket);
 	if (ret < 0) {
-		ubbd_err("Could not send netlink cmd %d: %d\n", UBBD_CMD_STATUS, ret);
+		ubbd_err("Could not send netlink cmd %d, with dev_id: %d: %d\n",
+				UBBD_CMD_STATUS, dev_id, ret);
 	}
 
 	return ret;
