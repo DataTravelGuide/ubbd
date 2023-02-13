@@ -102,7 +102,7 @@ static inline int wait_condition(int wait_count, uint64_t wait_interval_us, bool
 		usleep(wait_interval_us);
 	}
 
-	return -1;
+	return -ETIMEDOUT;
 }
 
 /* Atomic  */
