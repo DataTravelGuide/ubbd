@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "ubbd_uio.h"
 #include "ubbd_dev.h"
+#include <unistd.h>
 
 #define FILE_DEV(ubbd_dev) ((struct ubbd_file_device *)container_of(ubbd_dev, struct ubbd_file_device, ubbd_dev))
 
@@ -25,6 +26,26 @@ static struct ubbd_device *file_dev_create(struct __dev_info *info)
 
 static int file_dev_init(struct ubbd_device *ubbd_dev)
 {
+	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
+	int fd;
+	off_t len;
+
+	fd = open(file_dev->filepath, O_RDWR | O_DIRECT);
+	if (fd < 0) {
+		ubbd_err("failed to open filepath: %s: %d\n", file_dev->filepath, fd);
+		return fd;
+	}
+
+	len = lseek(fd, 0, SEEK_END);
+	if (len < 0) {
+		ubbd_err("failed to get size of file: %ld.", len);
+		close(fd);
+		return len;
+	}
+	close(fd);
+
+	ubbd_dev->dev_size = len;
+
 	ubbd_dev->dev_features.write_cache = false;
 	ubbd_dev->dev_features.fua = false;
 	ubbd_dev->dev_features.discard = false;

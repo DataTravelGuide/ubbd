@@ -384,7 +384,7 @@ int main(int argc, char **argv)
 			goto out;
 		}
 
-		if (strcmp("rbd", opts.type)) {
+		if (strcmp("rbd", opts.type) && strcmp("file", opts.type)) {
 			if (!opts.generic_dev.opts.dev_size) {
 				printf("--devsize is required.\n");
 				ret = -1;
