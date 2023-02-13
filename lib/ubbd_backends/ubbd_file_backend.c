@@ -9,6 +9,9 @@ static int file_backend_open(struct ubbd_backend *ubbd_b)
 	struct ubbd_file_backend *file_b = FILE_BACKEND(ubbd_b);
 
 	file_b->fd = open(file_b->filepath, O_RDWR | O_DIRECT);
+	if (file_b->fd < 0) {
+		return file_b->fd;
+	}
 
 	return 0;
 }
