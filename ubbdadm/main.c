@@ -43,6 +43,7 @@ static struct option const long_options[] =
 	UBBD_MAP_OPT(file, filepath)
 
 	UBBD_MAP_OPT(rbd, pool)
+	UBBD_MAP_OPT(rbd, ns)
 	UBBD_MAP_OPT(rbd, image)
 	UBBD_MAP_OPT(rbd, ceph-conf)
 	UBBD_MAP_OPT(rbd, user-name)
@@ -127,6 +128,7 @@ static void usage(int status)
 		printf("\n");
 
 		print_map_opt_msg("rbd-pool", "pool for rbd type mapping");
+		print_map_opt_msg("rbd-ns", "namespace for rbd type mapping");
 		print_map_opt_msg("rbd-image", "image for rbd type mapping");
 		print_map_opt_msg("rbd-ceph-conf", "ceph config file path for rbd type mapping");
 		print_map_opt_msg("rbd-user-name", "user name to connect ceph for rbd type mapping");
@@ -165,6 +167,8 @@ static int parse_map_options(struct __ubbd_map_opts *opts, const char *name, cha
 		opts->file.filepath = optarg;
 	} else if (!strcmp(name, "rbd-pool")) {
 		opts->rbd.pool = optarg;
+	} else if (!strcmp(name, "rbd-ns")) {
+		opts->rbd.ns = optarg;
 	} else if (!strcmp(name, "rbd-image")) {
 		opts->rbd.image = optarg;
 	} else if (!strcmp(name, "rbd-ceph-conf")) {
@@ -237,6 +241,7 @@ static int __output_dev_info_detail(struct __dev_info *dev_info)
 	} else if (dev_type == UBBD_DEV_TYPE_RBD) {
 		printf("\tceph_conf: %s\n", dev_info->rbd.ceph_conf);
 		printf("\tpool: %s\n", dev_info->rbd.pool);
+		printf("\tns: %s\n", dev_info->rbd.ns);
 		printf("\timage: %s\n", dev_info->rbd.image);
 		printf("\tcluster_name: %s\n", dev_info->rbd.cluster_name);
 		printf("\tuser_name: %s\n", dev_info->rbd.user_name);

@@ -171,6 +171,7 @@ struct ubbd_backend *backend_create(struct __dev_info *dev_info)
 		rbd_conn = &rbd_backend->rbd_conn;
 
 		strcpy(rbd_conn->pool, dev_info->rbd.pool);
+		strcpy(rbd_conn->ns, dev_info->rbd.ns);
 		strcpy(rbd_conn->imagename, dev_info->rbd.image);
 		strcpy(rbd_conn->ceph_conf, dev_info->rbd.ceph_conf);
 		strcpy(rbd_conn->user_name, dev_info->rbd.user_name);

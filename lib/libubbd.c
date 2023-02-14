@@ -12,6 +12,7 @@
 #define DEFAULT_CEPH_CONF "/etc/ceph/ceph.conf"
 #define DEFAULT_CEPH_USER	"client.admin"
 #define DEFAULT_CEPH_CLUSTER	"ceph"
+#define DEFAULT_RBD_NS		""
 
 char *cmd_to_str(enum ubbdd_mgmt_cmd cmd)
 {
@@ -150,6 +151,11 @@ void rbd_dev_info_setup(struct __dev_info *info,
 		strcpy(info->rbd.cluster_name, opts->rbd.cluster_name);
 	else
 		strcpy(info->rbd.cluster_name, DEFAULT_CEPH_CLUSTER);
+
+	if (opts->rbd.ns)
+		strcpy(info->rbd.ns, opts->rbd.ns);
+	else
+		strcpy(info->rbd.ns, DEFAULT_RBD_NS);
 }
 
 void null_dev_info_setup(struct __dev_info *info,
