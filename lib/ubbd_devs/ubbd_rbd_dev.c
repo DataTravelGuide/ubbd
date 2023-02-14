@@ -27,6 +27,12 @@ static struct ubbd_device *rbd_dev_create(struct __dev_info *info)
 	strcpy(rbd_conn->pool, info->rbd.pool);
 	strcpy(rbd_conn->ns, info->rbd.ns);
 	strcpy(rbd_conn->imagename, info->rbd.image);
+	if (info->rbd.flags & UBBD_DEV_INFO_RBD_FLAGS_SNAP) {
+		rbd_conn->flags |= UBBD_DEV_INFO_RBD_FLAGS_SNAP;
+		strcpy(rbd_conn->snap, info->rbd.snap);
+	}
+
+	strcpy(rbd_conn->snap, info->rbd.snap);
 	strcpy(rbd_conn->ceph_conf, info->rbd.ceph_conf);
 	strcpy(rbd_conn->user_name, info->rbd.user_name);
 	strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
@@ -63,6 +69,8 @@ static int rbd_dev_init(struct ubbd_device *ubbd_dev)
 #else
 	ubbd_dev->dev_features.write_zeros = false;
 #endif
+	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_SNAP)
+		ubbd_dev->dev_features.read_only = true;
 	ret = 0;
 
 close_rbd:

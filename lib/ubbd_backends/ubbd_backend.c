@@ -173,6 +173,10 @@ struct ubbd_backend *backend_create(struct __dev_info *dev_info)
 		strcpy(rbd_conn->pool, dev_info->rbd.pool);
 		strcpy(rbd_conn->ns, dev_info->rbd.ns);
 		strcpy(rbd_conn->imagename, dev_info->rbd.image);
+		if (dev_info->rbd.flags & UBBD_DEV_INFO_RBD_FLAGS_SNAP) {
+			rbd_conn->flags |= UBBD_DEV_INFO_RBD_FLAGS_SNAP;
+			strcpy(rbd_conn->snap, dev_info->rbd.snap);
+		}
 		strcpy(rbd_conn->ceph_conf, dev_info->rbd.ceph_conf);
 		strcpy(rbd_conn->user_name, dev_info->rbd.user_name);
 		strcpy(rbd_conn->cluster_name, dev_info->rbd.cluster_name);

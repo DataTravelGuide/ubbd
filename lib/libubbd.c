@@ -156,6 +156,11 @@ void rbd_dev_info_setup(struct __dev_info *info,
 		strcpy(info->rbd.ns, opts->rbd.ns);
 	else
 		strcpy(info->rbd.ns, DEFAULT_RBD_NS);
+
+	if (opts->rbd.snap) {
+		info->rbd.flags |= UBBD_DEV_INFO_RBD_FLAGS_SNAP;
+		strcpy(info->rbd.snap, opts->rbd.snap);
+	}
 }
 
 void null_dev_info_setup(struct __dev_info *info,

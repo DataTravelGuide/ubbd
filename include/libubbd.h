@@ -46,6 +46,9 @@ enum ubbd_dev_type {
 	UBBD_DEV_TYPE_MAX,
 };
 
+
+#define UBBD_DEV_INFO_RBD_FLAGS_SNAP	1 << 0	/* map snapshot of rbd image */
+
 struct __dev_info {
 	enum ubbd_dev_type type;
 	uint64_t size;
@@ -55,9 +58,11 @@ struct __dev_info {
 			char path[UBBD_PATH_MAX];
 		} file;
 		struct {
+			uint64_t  flags;
 			char pool[UBBD_NAME_MAX];
 			char ns[UBBD_NAME_MAX];
 			char image[UBBD_NAME_MAX];
+			char snap[UBBD_NAME_MAX];
 			char ceph_conf[UBBD_NAME_MAX];
 			char cluster_name[UBBD_NAME_MAX];
 			char user_name[UBBD_NAME_MAX];
@@ -140,6 +145,7 @@ struct __ubbd_map_opts {
 			char *pool;
 			char *ns;
 			char *image;
+			char *snap;
 			char *ceph_conf;
 			char *cluster_name;
 			char *user_name;

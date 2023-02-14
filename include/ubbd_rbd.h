@@ -10,6 +10,7 @@ struct ubbd_rbd_conn {
 	char pool[UBBD_NAME_MAX];
 	char ns[UBBD_NAME_MAX];
 	char imagename[UBBD_NAME_MAX];
+	char snap[UBBD_NAME_MAX];
         char cluster_name[UBBD_NAME_MAX];
         char user_name[UBBD_NAME_MAX];
         rados_t cluster;

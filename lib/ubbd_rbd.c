@@ -55,9 +55,10 @@ int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn)
 	/* rados_ioctx_set_namespace is void function */
 	rados_ioctx_set_namespace(rbd_conn->io_ctx, rbd_conn->ns);
 
-	err = rbd_open(rbd_conn->io_ctx, rbd_conn->imagename, &rbd_conn->image, NULL);
+	err = rbd_open(rbd_conn->io_ctx, rbd_conn->imagename, &rbd_conn->image, rbd_conn->snap);
         if (err < 0) {
-                ubbd_err("cannot open image(%s): %s\n", rbd_conn->imagename, strerror(-err));
+                ubbd_err("cannot open image(%s/%s): %s\n", rbd_conn->imagename, rbd_conn->snap,
+				strerror(-err));
 		goto destroy_ioctx;
         } else {
                 ubbd_info("\nimage opened.\n");
