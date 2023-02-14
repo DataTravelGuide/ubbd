@@ -49,6 +49,7 @@ enum ubbd_dev_type {
 struct __dev_info {
 	enum ubbd_dev_type type;
 	uint64_t size;
+	uint32_t io_timeout;
 	union {
 		struct {
 			char path[UBBD_PATH_MAX];
@@ -129,6 +130,7 @@ struct ubbdd_mgmt_rsp {
 struct __ubbd_map_opts {
 	char *type;
 	uint64_t dev_size;
+	uint32_t io_timeout;
 	union {
 		struct {
 			char *filepath;

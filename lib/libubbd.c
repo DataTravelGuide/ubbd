@@ -196,6 +196,7 @@ int generic_dev_info_setup(enum ubbd_dev_type dev_type,
 	}
 
 	info->size = opts->dev_size;
+	info->io_timeout = opts->io_timeout;
 	info->type = str_to_type(opts->type);
 
 	return 0;

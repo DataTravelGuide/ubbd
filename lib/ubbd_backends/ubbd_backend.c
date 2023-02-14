@@ -175,6 +175,7 @@ struct ubbd_backend *backend_create(struct __dev_info *dev_info)
 		strcpy(rbd_conn->ceph_conf, dev_info->rbd.ceph_conf);
 		strcpy(rbd_conn->user_name, dev_info->rbd.user_name);
 		strcpy(rbd_conn->cluster_name, dev_info->rbd.cluster_name);
+		rbd_conn->io_timeout = dev_info->io_timeout;
 	} else if (dev_info->type == UBBD_DEV_TYPE_NULL){
 		struct ubbd_null_backend *null_backend;
 

@@ -1,9 +1,18 @@
+#define _GNU_SOURCE
 #include "ubbd_rbd.h"
 #include "ubbd_log.h"
+
+#define RBD_DEV_SETUP_TIMEOUT		"30"
 
 int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn)
 {
         int err;
+	char *timeout_buf;
+
+	if (asprintf(&timeout_buf, "%d", rbd_conn->io_timeout) == -1) {
+		ubbd_err("failed to setup timeout_buf for ceph config.\n");
+		return -1;
+	}
 
         err = rados_create2(&rbd_conn->cluster, rbd_conn->cluster_name, rbd_conn->user_name, rbd_conn->flags);
         if (err < 0) {
@@ -22,7 +31,10 @@ int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn)
                 ubbd_info("\nRead the config file.\n");
         }
 
-	rados_conf_set(rbd_conn->cluster, "rbd_cache", "false");
+	rados_conf_set(rbd_conn->cluster, "client_mount_timeout", RBD_DEV_SETUP_TIMEOUT);
+	rados_conf_set(rbd_conn->cluster, "rados_osd_op_timeout", RBD_DEV_SETUP_TIMEOUT);
+	rados_conf_set(rbd_conn->cluster, "rados_mon_op_timeout", RBD_DEV_SETUP_TIMEOUT);
+
         /* Connect to the cluster */
         err = rados_connect(rbd_conn->cluster);
         if (err < 0) {
@@ -47,6 +59,11 @@ int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn)
         } else {
                 ubbd_info("\nimage opened.\n");
         }
+
+	rados_conf_set(rbd_conn->cluster, "client_mount_timeout", timeout_buf);
+	rados_conf_set(rbd_conn->cluster, "rados_osd_op_timeout", timeout_buf);
+	rados_conf_set(rbd_conn->cluster, "rados_mon_op_timeout", timeout_buf);
+
 	return 0;
 
 	rbd_close(rbd_conn->image);

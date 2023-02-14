@@ -86,6 +86,7 @@ struct ubbd_device *__dev_create(struct __dev_info *info, bool force)
 			return ubbd_dev;
 		}
 		ubbd_dev->dev_size = info->size;
+		ubbd_dev->io_timeout = info->io_timeout;
 	}
 
 	return ubbd_dev;
@@ -116,6 +117,7 @@ struct ubbd_device *create_cache_dev(struct ubbd_dev_info *dev_info, bool force)
 	ubbd_dev->dev_type = UBBD_DEV_TYPE_CACHE;
 	ubbd_dev->dev_ops = &cache_dev_ops;
 	ubbd_dev->dev_size = cache_dev->backing_device->dev_size;
+	ubbd_dev->io_timeout = cache_dev->backing_device->io_timeout;
 
 	if (cache_dev->backing_device->status == UBBD_DEV_USTATUS_ERROR ||
 			cache_dev->cache_device->status == UBBD_DEV_USTATUS_ERROR) {
@@ -484,6 +486,7 @@ bool disk_running(void *data)
 		goto out;
 	}
 
+	ubbd_err("status: %d\n", dev_status.status);
 	if (dev_status.status == UBBD_DEV_KSTATUS_RUNNING) {
 		running = true;
 	}

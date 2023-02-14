@@ -16,6 +16,7 @@ struct ubbd_rbd_conn {
 	rados_ioctx_t io_ctx;
 	rbd_image_t image;
 	uint64_t flags;
+	int io_timeout;
 };
 
 int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn);

@@ -35,6 +35,7 @@ static struct option const long_options[] =
 
 	UBBD_MAP_NOPRE_OPT(type)
 	UBBD_MAP_NOPRE_OPT(devsize)
+	UBBD_MAP_NOPRE_OPT(io-timeout)
 
 	{"dev-share-memory-size", required_argument, NULL, 0},
 	{"num-queues", required_argument, NULL, 0},
@@ -115,6 +116,7 @@ static void usage(int status)
 
 		print_map_opt_msg("type", "device type for mapping: file, rbd, null, ssh, cache, s3");
 		print_map_opt_msg("devsize", "size of device to map, --devsize is required except rbd type");
+		print_map_opt_msg("io-timeout", "timeout before IO fail, default as 0 means no timeout.");
 		print_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].");
 		print_opt_msg("num-queues", "number of queues for block layer multiqueue");
 
@@ -157,6 +159,8 @@ static int parse_map_options(struct __ubbd_map_opts *opts, const char *name, cha
 		opts->type = optarg;
 	} else if (!strcmp(name, "devsize")) {
 		opts->dev_size = atoll(optarg);
+	} else if (!strcmp(name, "io-timeout")) {
+		opts->io_timeout = atoll(optarg);
 	} else if (!strcmp(name, "file-filepath")) {
 		opts->file.filepath = optarg;
 	} else if (!strcmp(name, "rbd-pool")) {

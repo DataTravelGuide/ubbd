@@ -16,6 +16,7 @@
 #define UBBD_DEV_RESTART_MODE_DEV	1
 #define UBBD_DEV_RESTART_MODE_QUEUE	2
 
+
 enum ubbd_dev_ustatus {
 	UBBD_DEV_USTATUS_INIT,
 	UBBD_DEV_USTATUS_OPENED,
@@ -44,6 +45,7 @@ struct ubbd_device {
 	int32_t dev_id;
 	struct list_head dev_node;
 	uint64_t dev_size;
+	uint32_t io_timeout;
 	enum ubbd_dev_type dev_type;
 	struct ubbd_dev_info dev_info;
 	int cache_mode;

@@ -29,6 +29,7 @@ static struct ubbd_device *rbd_dev_create(struct __dev_info *info)
 	strcpy(rbd_conn->ceph_conf, info->rbd.ceph_conf);
 	strcpy(rbd_conn->user_name, info->rbd.user_name);
 	strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
+	rbd_conn->io_timeout = info->io_timeout;
 
 	return ubbd_dev;
 }
