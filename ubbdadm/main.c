@@ -39,6 +39,7 @@ static struct option const long_options[] =
 
 	{"dev-share-memory-size", required_argument, NULL, 0},
 	{"num-queues", required_argument, NULL, 0},
+	{"read-only", no_argument, NULL, 0},
 
 	UBBD_MAP_OPT(file, filepath)
 
@@ -120,6 +121,7 @@ static void usage(int status)
 		print_map_opt_msg("io-timeout", "timeout before IO fail, default as 0 means no timeout.");
 		print_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].");
 		print_opt_msg("num-queues", "number of queues for block layer multiqueue");
+		print_opt_msg("read-only", "map a read only device");
 
 		printf("\n");
 
@@ -330,6 +332,9 @@ int main(int argc, char **argv)
 				break;
 			} else if (!strcmp(long_options[longindex].name, "num-queues")) {
 				opts.num_queues = atoi(optarg);
+				break;
+			} else if (!strcmp(long_options[longindex].name, "read-only")) {
+				opts.read_only = true;
 				break;
 			} else if (!strcmp(long_options[longindex].name, "type")) {
 				opts.type = optarg;

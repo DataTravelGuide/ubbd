@@ -31,6 +31,7 @@ struct ubbd_dev_features {
 	bool	fua;
 	bool	discard;
 	bool	write_zeros;
+	bool	read_only;
 };
 
 

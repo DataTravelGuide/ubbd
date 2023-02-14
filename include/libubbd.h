@@ -84,6 +84,7 @@ struct ubbd_dev_info {
 	enum ubbd_dev_type type;
 	uint32_t num_queues;
 	uint32_t sh_mem_size;
+	bool read_only;
 	union {
 		struct {
 			struct __dev_info info;
@@ -166,6 +167,7 @@ struct ubbd_map_options {
 	char *type;
 	int num_queues;
 	uint32_t dev_share_memory_size;
+	bool read_only;
 	union {
 		struct {
 			struct __ubbd_map_opts opts;

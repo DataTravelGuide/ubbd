@@ -154,6 +154,7 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force)
 
 	ubbd_dev->num_queues = info->num_queues;
 	ubbd_dev->sh_mem_size = info->sh_mem_size;
+	ubbd_dev->dev_features.read_only = info->read_only;
 	memcpy(&ubbd_dev->dev_info, info, sizeof(*info));
 
 	ubbd_dev_set_default(ubbd_dev);

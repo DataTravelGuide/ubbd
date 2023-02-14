@@ -361,6 +361,9 @@ int send_netlink_add_dev(struct ubbd_nl_req *req)
 	if (ubbd_dev->dev_features.write_zeros)
 		dev_features |= UBBD_ATTR_FLAGS_ADD_WRITE_ZEROS;
 
+	if (ubbd_dev->dev_features.read_only)
+		dev_features |= UBBD_ATTR_FLAGS_ADD_READONLY;
+
         ret = nla_put_u64(msg, UBBD_ATTR_FLAGS, dev_features);
         if (ret < 0)
                 goto free_msg;
