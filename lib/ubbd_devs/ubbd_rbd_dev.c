@@ -69,8 +69,10 @@ static int rbd_dev_init(struct ubbd_device *ubbd_dev)
 #else
 	ubbd_dev->dev_features.write_zeros = false;
 #endif
-	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_SNAP)
+	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_SNAP) {
 		ubbd_dev->dev_features.read_only = true;
+		ubbd_dev->dev_info.read_only = true;
+	}
 	ret = 0;
 
 close_rbd:
