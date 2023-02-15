@@ -172,7 +172,8 @@ static int q_backend_io_finish(struct context *ctx, int ret)
 	struct ubbd_se *se = data->se;
 
 	if (ret) {
-		ubbd_err("ret of backend_io: %llu: %s\n", se->priv_data, strerror(-ret));
+		ubbd_err("ret of backend_io: %llu(type %d, %lu:%u): %s\n",
+				se->priv_data, io->io_type, io->offset, io->len, strerror(-ret));
 	}
 
 	ubbd_queue_add_ce(ubbd_q, se->priv_data, ret);

@@ -36,7 +36,8 @@ static int file_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_
 	ssize_t ret;
 
 	ret = pwritev(file_b->fd, io->iov, io->iov_cnt, io->offset);
-	ubbd_dbg("result of pwritev: %lu\n", ret);
+	if (ret < 0)
+		ubbd_err("result of pwritev: %ld\n", ret);
 	ubbd_backend_io_finish(io, (ret == io->len? 0 : ret));
 
 	return 0;
@@ -48,7 +49,8 @@ static int file_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_i
 	ssize_t ret;
 
 	ret = preadv(file_b->fd, io->iov, io->iov_cnt, io->offset);
-	ubbd_dbg("result of preadv: %lu\n", ret);
+	if (ret < 0)
+		ubbd_err("result of preadv: %ld\n", ret);
 	ubbd_backend_io_finish(io, (ret == io->len? 0 : ret));
 	
 	return 0;
