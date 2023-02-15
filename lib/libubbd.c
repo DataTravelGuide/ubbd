@@ -13,6 +13,7 @@
 #define DEFAULT_CEPH_USER	"client.admin"
 #define DEFAULT_CEPH_CLUSTER	"ceph"
 #define DEFAULT_RBD_NS		""
+#define DEFAULT_RBD_POOL	"rbd"
 
 char *cmd_to_str(enum ubbdd_mgmt_cmd cmd)
 {
@@ -135,24 +136,28 @@ void file_dev_info_setup(struct __dev_info *info,
 void rbd_dev_info_setup(struct __dev_info *info,
 		struct __ubbd_map_opts *opts)
 {
-	strcpy(info->rbd.pool, opts->rbd.pool);
 	strcpy(info->rbd.image, opts->rbd.image);
-	if (opts->rbd.ceph_conf)
+	if (opts->rbd.pool && strlen(opts->rbd.pool))
+		strcpy(info->rbd.pool, opts->rbd.pool);
+	else
+		strcpy(info->rbd.pool, DEFAULT_RBD_POOL);
+
+	if (opts->rbd.ceph_conf && strlen(opts->rbd.ceph_conf))
 		strcpy(info->rbd.ceph_conf, opts->rbd.ceph_conf);
 	else
 		strcpy(info->rbd.ceph_conf, DEFAULT_CEPH_CONF);
 
-	if (opts->rbd.user_name)
+	if (opts->rbd.user_name && strlen(opts->rbd.user_name))
 		strcpy(info->rbd.user_name, opts->rbd.user_name);
 	else
 		strcpy(info->rbd.user_name, DEFAULT_CEPH_USER);
 
-	if (opts->rbd.cluster_name)
+	if (opts->rbd.cluster_name && strlen(opts->rbd.cluster_name))
 		strcpy(info->rbd.cluster_name, opts->rbd.cluster_name);
 	else
 		strcpy(info->rbd.cluster_name, DEFAULT_CEPH_CLUSTER);
 
-	if (opts->rbd.ns)
+	if (opts->rbd.ns && strlen(opts->rbd.ns))
 		strcpy(info->rbd.ns, opts->rbd.ns);
 	else
 		strcpy(info->rbd.ns, DEFAULT_RBD_NS);

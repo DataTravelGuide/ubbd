@@ -487,7 +487,6 @@ bool disk_running(void *data)
 		goto out;
 	}
 
-	ubbd_err("status: %d\n", dev_status.status);
 	if (dev_status.status == UBBD_DEV_KSTATUS_RUNNING) {
 		running = true;
 	}
