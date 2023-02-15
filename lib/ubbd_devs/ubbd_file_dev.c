@@ -27,24 +27,11 @@ static struct ubbd_device *file_dev_create(struct __dev_info *info)
 static int file_dev_init(struct ubbd_device *ubbd_dev)
 {
 	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
-	int fd;
-	off_t len;
+	int ret;
 
-	fd = open(file_dev->filepath, O_RDWR | O_DIRECT);
-	if (fd < 0) {
-		ubbd_err("failed to open filepath: %s: %d\n", file_dev->filepath, fd);
-		return fd;
-	}
-
-	len = lseek(fd, 0, SEEK_END);
-	if (len < 0) {
-		ubbd_err("failed to get size of file: %ld.", len);
-		close(fd);
-		return len;
-	}
-	close(fd);
-
-	ubbd_dev->dev_size = len;
+	ret = ubbd_util_get_file_size(file_dev->filepath, &ubbd_dev->dev_size);
+	if (ret)
+		return ret;
 
 	ubbd_dev->dev_features.write_cache = false;
 	ubbd_dev->dev_features.fua = false;

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "utils.h"
 #include "ubbd_log.h"
 
@@ -30,6 +31,30 @@ int execute(char* program, char** arg_list)
 		wait(&status);
 		ubbd_info("status of child is : %d\n", status);
 	}
+
+	return 0;
+}
+
+int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size)
+{
+	int fd;
+	off_t len;
+
+	fd = open(filepath, O_RDWR | O_DIRECT);
+	if (fd < 0) {
+		ubbd_err("failed to open filepath: %s: %d\n", filepath, fd);
+		return fd;
+	}
+
+	len = lseek(fd, 0, SEEK_END);
+	if (len < 0) {
+		ubbd_err("failed to get size of file: %ld.", len);
+		close(fd);
+		return len;
+	}
+	close(fd);
+
+	*file_size = len;
 
 	return 0;
 }

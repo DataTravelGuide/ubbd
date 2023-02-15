@@ -7,6 +7,11 @@
 static int file_backend_open(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_file_backend *file_b = FILE_BACKEND(ubbd_b);
+	int ret;
+
+	ret = ubbd_util_get_file_size(file_b->filepath, &ubbd_b->dev_size);
+	if (ret)
+		return ret;
 
 	file_b->fd = open(file_b->filepath, O_RDWR | O_DIRECT);
 	if (file_b->fd < 0) {

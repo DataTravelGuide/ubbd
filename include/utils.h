@@ -40,6 +40,8 @@
         (type *)((char *)__mptr - offsetof(type, member));      \
 })
 
+int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size);
+
 int execute(char* program, char** arg_list);
 
 #include <time.h>
