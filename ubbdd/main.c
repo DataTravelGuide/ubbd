@@ -91,6 +91,12 @@ int main(int argc, char **argv)
 		}
 	}
 
+	ret = ubbd_load_module("ubbd");
+	if (ret) {
+		ubbd_err("error to load module of ubbd.\n");
+		goto out;
+	}
+
 	ret = ubbd_setup_log("/var/log/ubbd/", "ubbdd.log");
 	if (ret) {
 		ubbd_err("failed to setup log.\n");

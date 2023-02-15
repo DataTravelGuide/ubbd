@@ -58,3 +58,14 @@ int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size)
 
 	return 0;
 }
+
+int ubbd_load_module(char *mod_name)
+{
+	char *arg_list[] = {
+		"modprobe",
+		"ubbd",
+		NULL
+	};
+
+	return execute("modprobe", arg_list);
+}

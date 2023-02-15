@@ -41,6 +41,7 @@
 })
 
 int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size);
+int ubbd_load_module(char *mod_name);
 
 int execute(char* program, char** arg_list);
 
