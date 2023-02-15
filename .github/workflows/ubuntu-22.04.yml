@@ -1,4 +1,4 @@
-name: C/C++ CI
+name: Run ubbd tests on ubuntu-22.04
 
 on:
   push:
