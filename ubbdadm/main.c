@@ -428,7 +428,7 @@ int main(int argc, char **argv)
 
 		ret = ubbd_config(&config_opts, &rsp);
 	} else if (!strcmp("list", command)) {
-		struct ubbd_list_options list_opts = {};
+		struct ubbd_list_options list_opts = { .type = -1 };
 		int i;
 
 		ret = ubbd_list(&list_opts, &rsp);

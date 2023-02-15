@@ -204,6 +204,7 @@ struct ubbd_dev_restart_options {
 };
 
 struct ubbd_list_options {
+	enum ubbd_dev_type type;
 };
 
 struct ubbd_req_stats_options {

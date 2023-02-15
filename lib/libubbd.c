@@ -294,6 +294,7 @@ int ubbd_list(struct ubbd_list_options *opts, struct ubbdd_mgmt_rsp *rsp)
 	struct ubbdd_mgmt_request req = {0};
 
 	req.cmd = UBBDD_MGMT_CMD_LIST;
+	req.u.list.type = opts->type;
 
 	return generic_request_and_wait(&req, rsp);
 }

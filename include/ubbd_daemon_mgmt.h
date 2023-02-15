@@ -36,6 +36,7 @@ struct ubbdd_mgmt_request {
 			int data_pages_reserve_percnt;
 		} config;
 		struct {
+			enum ubbd_dev_type type;
 		} list;
 		struct {
 			int dev_id;

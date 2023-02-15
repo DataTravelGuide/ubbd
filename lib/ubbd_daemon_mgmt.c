@@ -189,6 +189,10 @@ static void *mgmt_thread_fn(void* args)
 						ubbd_err("ubbd device is too much than %d.\n", UBBD_DEV_MAX);
 						break;
 					}
+					if (mgmt_req.u.list.type != -1 &&
+							mgmt_req.u.list.type != ubbd_dev->dev_type)
+						continue;
+
 					mgmt_rsp.list.dev_list[mgmt_rsp.list.dev_num++] = ubbd_dev->dev_id;
 				}
 				pthread_mutex_unlock(&ubbd_dev_list_mutex);
