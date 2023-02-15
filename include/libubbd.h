@@ -134,43 +134,43 @@ struct ubbdd_mgmt_rsp {
 };
 
 struct __ubbd_map_opts {
-	char *type;
+	const char *type;
 	uint64_t dev_size;
 	uint32_t io_timeout;
 	union {
 		struct {
-			char *filepath;
+			const char *filepath;
 		} file;
 		struct {
-			char *pool;
-			char *ns;
-			char *image;
-			char *snap;
-			char *ceph_conf;
-			char *cluster_name;
-			char *user_name;
+			const char *pool;
+			const char *ns;
+			const char *image;
+			const char *snap;
+			const char *ceph_conf;
+			const char *cluster_name;
+			const char *user_name;
 		} rbd;
 		struct {
 		} null;
 		struct {
-			char *hostname;
-			char *path;
+			const char *hostname;
+			const char *path;
 		} ssh;
 		struct {
 			uint32_t block_size;
 			int port;
-			char *hostname;
-			char *accessid;
-			char *accesskey;
-			char *volume_name;
-			char *bucket_name;
+			const char *hostname;
+			const char *accessid;
+			const char *accesskey;
+			const char *volume_name;
+			const char *bucket_name;
 		} s3;
 
 	};
 };
 
 struct ubbd_map_options {
-	char *type;
+	const char *type;
 	int num_queues;
 	uint32_t dev_share_memory_size;
 	bool read_only;
@@ -180,7 +180,7 @@ struct ubbd_map_options {
 		} generic_dev;
 
 		struct {
-			char *cache_mode;
+			const char *cache_mode;
 			struct __ubbd_map_opts cache_opts; 
 			struct __ubbd_map_opts backing_opts; 
 		} cache_dev;
@@ -200,7 +200,7 @@ struct ubbd_config_options {
 
 struct ubbd_dev_restart_options {
 	int ubbdid;
-	char *restart_mode;
+	const char *restart_mode;
 };
 
 struct ubbd_list_options {
@@ -218,7 +218,7 @@ struct ubbd_info_options {
 	int ubbdid;
 };
 
-char* cache_mode_to_str(int cache_mode);
+const char* cache_mode_to_str(int cache_mode);
 
 int ubbd_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp);
 int ubbd_unmap(struct ubbd_unmap_options *opts, struct ubbdd_mgmt_rsp *rsp);

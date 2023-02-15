@@ -34,7 +34,7 @@ char *cmd_to_str(enum ubbdd_mgmt_cmd cmd)
 		return "UNKNOWN";
 }
 
-static enum ubbd_dev_type str_to_type(char *str)
+static enum ubbd_dev_type str_to_type(const char *str)
 {
 	enum ubbd_dev_type type;
 
@@ -56,7 +56,7 @@ static enum ubbd_dev_type str_to_type(char *str)
 	return type;
 }
 
-int str_to_cache_mode(char *str)
+int str_to_cache_mode(const char *str)
 {
 	int cache_mode;
 
@@ -71,7 +71,7 @@ int str_to_cache_mode(char *str)
 	return cache_mode;
 }
 
-char* cache_mode_to_str(int cache_mode)
+const char* cache_mode_to_str(int cache_mode)
 {
 	if (cache_mode == ocf_cache_mode_wb)
 		return "writeback";
@@ -81,7 +81,7 @@ char* cache_mode_to_str(int cache_mode)
 		return NULL;
 }
 
-int str_to_restart_mode(char *str)
+int str_to_restart_mode(const char *str)
 {
 	int restart_mode;
 
