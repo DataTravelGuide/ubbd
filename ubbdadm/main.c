@@ -88,8 +88,7 @@ static void usage(int status)
 		fprintf(stderr, "Try `ubbdadm --help' for more information.\n");
 	else {
 		printf("Usage:\n");
-		printf("\tubbdadm --command <cmd> [options]\n\n");
-		printf("\t--command	subcmd for ubbdadm: map, unmap, list, info, config, req-stats, req-stats-reset, dev-restart.\n");
+		printf("\tubbdadm <map|unmap|list|info|config|req-stats|req-stats-reset|dev-restart> [options]\n\n");
 
 		/* generic options */
 		printf("\n\t[generic options]:\n");
@@ -317,7 +316,7 @@ int main(int argc, char **argv)
 	struct ubbdd_mgmt_rsp rsp = { 0 };
 	struct ubbd_map_options opts;
 
-	optopt = 0;
+	optind = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
@@ -391,27 +390,20 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (optopt) {
-		printf("unrecognized character '%c'\n", optopt);
+	if (argc - optind > 1) {
+		printf("Too many subcommand.\n");
 		return -1;
 	}
 
+	if (optind >= argc) {
+		printf("Missing subcommand.\n");
+		return -1;
+	}
+
+	command = argv[optind];
+
 	/* action for command */
 	if (!strcmp("map", command)) {
-		if (!opts.type) {
-			printf("--type is required.\n");
-			ret = -1;
-			goto out;
-		}
-
-		if (strcmp("rbd", opts.type) && strcmp("file", opts.type)) {
-			if (!opts.generic_dev.opts.dev_size) {
-				printf("--devsize is required.\n");
-				ret = -1;
-				goto out;
-			}
-		}
-
 		ret = ubbd_map(&opts, &rsp);
 		if (ret)
 			goto out;
