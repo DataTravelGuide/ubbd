@@ -775,6 +775,7 @@ int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force,
 	case UBBD_DEV_USTATUS_PREPARED:
 	case UBBD_DEV_USTATUS_RUNNING:
 	case UBBD_DEV_USTATUS_STOPPING:
+	case UBBD_DEV_USTATUS_ERROR:
 		ret = dev_remove_disk(ubbd_dev, force, detach, ctx);
 		break;
 	default:
@@ -941,7 +942,7 @@ static int dev_reset(struct ubbd_device *ubbd_dev)
 static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 				struct ubbd_device **ubbd_dev_p)
 {
-	int ret;
+	int ret = 0;
 	struct ubbd_device *ubbd_dev;
 	struct ubbd_dev_conf *dev_conf;
 
@@ -955,7 +956,7 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	if (!ubbd_dev) {
 		ret = -ENOMEM;
 		free(dev_conf);
-		goto err;
+		goto out;
 	}
 
 	ubbd_dev->dev_id = dev_conf->dev_id;
@@ -982,18 +983,14 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	ret = dev_reset(ubbd_dev);
 	if (ret) {
 		ubbd_err("failed to reset dev: %d.\n", ret);
-		goto release_dev;
+		ubbd_dev->status = UBBD_DEV_USTATUS_ERROR;
+		goto out;
 	}
 
 dev_running:
 	ubbd_dev->status = UBBD_DEV_USTATUS_RUNNING;
 out:
 	*ubbd_dev_p = ubbd_dev;
-	return 0;
-
-release_dev:
-	free(ubbd_dev);
-err:
 	return ret;
 }
 

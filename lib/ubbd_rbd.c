@@ -25,7 +25,7 @@ int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn)
         /* Read a Ceph configuration file to configure the cluster handle. */
         err = rados_conf_read_file(rbd_conn->cluster, rbd_conn->ceph_conf);
         if (err < 0) {
-                ubbd_err("cannot read config file: %s\n", strerror(-err));
+                ubbd_err("cannot read config file: %s, %s\n", rbd_conn->ceph_conf, strerror(-err));
 		goto shutdown_cluster;
         } else {
                 ubbd_info("\nRead the config file.\n");
