@@ -313,7 +313,7 @@ int main(int argc, char **argv)
 	bool force = false;
 	int ret = 0;
 	bool detach = false;
-	char *restart_mode;
+	char *restart_mode = "default";
 	struct ubbdd_mgmt_rsp rsp = { 0 };
 	struct ubbd_map_options opts;
 

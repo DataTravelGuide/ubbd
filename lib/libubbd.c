@@ -325,6 +325,8 @@ int ubbd_device_restart(struct ubbd_dev_restart_options *opts, struct ubbdd_mgmt
 
 	req.cmd = UBBDD_MGMT_CMD_DEV_RESTART;
 	req.u.dev_restart.dev_id = opts->ubbdid;
+	if (!opts->restart_mode)
+		opts->restart_mode = "default";
 	req.u.dev_restart.restart_mode = str_to_restart_mode(opts->restart_mode);
 
 	return generic_request_and_wait(&req, rsp);
