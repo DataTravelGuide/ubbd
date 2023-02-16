@@ -5,7 +5,7 @@ Source: ubbd-%{version}.tar.gz
 Summary: UBBD's Project Software
 Group: Applications/System
 License: LGPL
-URL: https://github.com/ubbd/ubbd
+URL: https://github.com/DataTravelGuide/ubbd
 BuildRequires: librbd-devel glibc-devel libnl3-devel libcurl-devel openssl-devel libxml2-devel
 Requires: librbd1 libnl3 libssh >= 0.9.3 libcurl openssl libxml2
 

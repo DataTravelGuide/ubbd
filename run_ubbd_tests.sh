@@ -11,9 +11,9 @@ replace_option()
 
 ./run_check.sh
 
-git clone https://github.com/ubbd/ubbd-tests
+git clone https://github.com/DataTravelGuide/ubbd-tests
 
-git clone https://github.com/ubbd/ubbd-kernel
+git clone https://github.com/DataTravelGuide/ubbd-kernel
 
 git clone https://github.com/kdave/xfstests
 

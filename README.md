@@ -145,7 +145,7 @@ kernelspace unittests is in ktf test framework.
 
 ubbd-tests is a test-suite runnnig via avocado which is a gread test framework.
 
-[https://github.com/ubbd/ubbd-tests](https://github.com/ubbd/ubbd-tests)
+[https://github.com/DataTravelGuide/ubbd-tests](https://github.com/DataTravelGuide/ubbd-tests)
 
 ![ubbd-tests](doc/ubbd_tests.gif)
 
