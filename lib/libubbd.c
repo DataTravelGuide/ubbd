@@ -93,7 +93,7 @@ int str_to_restart_mode(const char *str)
 	else if (!strcmp("queue", str))
 		restart_mode = UBBD_DEV_RESTART_MODE_QUEUE;
 	else {
-		printf("unrecognized restart mode: %s\n", str);
+		fprintf(stderr, "unrecognized restart mode: %s\n", str);
 		restart_mode = -1;
 	}
 
@@ -253,10 +253,94 @@ int dev_info_setup(struct ubbd_dev_info *dev_info,
 	return 0;
 }
 
+static int validate_generic_map_opts(struct __ubbd_map_opts *opts)
+{
+	if (!opts->type) {
+		fprintf(stderr, "type is required in __ubbd_map_opts.\n");
+		return -EINVAL;
+	}
+
+	if (!strcmp("file", opts->type)) {
+		if (!opts->file.filepath) {
+			fprintf(stderr, "filepath is required for file mapping.\n");
+			return -EINVAL;
+		}
+	} else if (!strcmp("rbd", opts->type)) {
+		if (!opts->rbd.image) {
+			fprintf(stderr, "image is required for rbd mapping.\n");
+			return -EINVAL;
+		}
+	} else if (!strcmp("ssh", opts->type)) {
+		if (!opts->ssh.hostname ||
+			!opts->ssh.path) {
+			fprintf(stderr, "hostname and path is required for ssh mapping.\n");
+			return -EINVAL;
+		}
+	} else if (!strcmp("s3", opts->type)) {
+		if (!opts->s3.block_size ||
+				!opts->s3.hostname ||
+				!opts->s3.accessid ||
+				!opts->s3.accesskey ||
+				!opts->s3.volume_name ||
+				!opts->s3.bucket_name) {
+			fprintf(stderr, "block_size, hostname, accessid, accesskey, \
+					volume_name, bucket_name are required for ssh mapping.\n");
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
+static int validate_map_opts(struct ubbd_map_options *opts)
+{
+	int ret;
+
+	if (!opts->type) {
+		fprintf(stderr, "type is required for mapping.\n");
+		return -EINVAL;
+	}
+
+	if (strcmp("rbd", opts->type) && strcmp("file", opts->type)) {
+		if (!opts->generic_dev.opts.dev_size) {
+			fprintf(stderr, "devsize is required.\n");
+			return -EINVAL;
+		}
+	}
+
+	if (!strcmp("cache", opts->type)) {
+		if (!opts->cache_dev.cache_mode) {
+			fprintf(stderr, "cache_mode is required for cache mapping.\n");
+			return -EINVAL;
+		}
+
+		ret = validate_generic_map_opts(&opts->cache_dev.cache_opts);
+		if (ret) {
+			fprintf(stderr, "cache options is invalid\n");
+			return ret;
+		}
+
+		ret = validate_generic_map_opts(&opts->cache_dev.backing_opts);
+		if (ret) {
+			fprintf(stderr, "backing options is invalid\n");
+			return ret;
+		}
+	} else {
+		opts->generic_dev.opts.type = opts->type;
+		return validate_generic_map_opts(&opts->generic_dev.opts);
+	}
+
+	return 0;
+}
+
 int ubbd_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
 	struct ubbdd_mgmt_request req = { 0 };
 	int ret;
+
+	ret = validate_map_opts(opts);
+	if (ret)
+		return ret;
 
 	req.cmd = UBBDD_MGMT_CMD_MAP;
 	ret = dev_info_setup(&req.u.add.info, str_to_type(opts->type), opts);
