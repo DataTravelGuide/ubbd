@@ -9,7 +9,11 @@
 #include "utils.h"
 #include "ubbd_netlink.h"
 
-#define DEFAULT_CEPH_CONF "/etc/ceph/ceph.conf"
+/* 32M */
+#define DEFAULT_SHMEM_SIZE	(32 * 1024 *1024)
+#define DEFAULT_NUM_QUEUES	1
+
+#define DEFAULT_CEPH_CONF	"/etc/ceph/ceph.conf"
 #define DEFAULT_CEPH_USER	"client.admin"
 #define DEFAULT_CEPH_CLUSTER	"ceph"
 #define DEFAULT_RBD_NS		""
@@ -307,6 +311,12 @@ static int validate_map_opts(struct ubbd_map_options *opts)
 			return -EINVAL;
 		}
 	}
+
+	if (!opts->num_queues)
+		opts->num_queues = DEFAULT_NUM_QUEUES;
+
+	if (!opts->dev_share_memory_size)
+		opts->dev_share_memory_size = DEFAULT_SHMEM_SIZE;
 
 	if (!strcmp("cache", opts->type)) {
 		if (!opts->cache_dev.cache_mode) {
