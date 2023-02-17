@@ -3,9 +3,7 @@ KERNEL_TREE ?= /lib/modules/$(KERNEL_SOURCE_VERSION)/build
 UBBD_SRC := $(shell pwd)
 KTF_SRC := $(shell pwd)/unittests/ktf
 EXTRA_CFLAGS += $(call cc-option,-Wno-tautological-compare) -Wall -Wmaybe-uninitialized -Werror
-ifdef UBBD_DEBUG
 EXTRA_CFLAGS += -g
-endif
 VERSION ?= $(shell cat VERSION)
 UBBD_VERSION ?= ubbd-$(VERSION)
 $(shell rm -rf include/ubbd_compat.h)
