@@ -237,7 +237,7 @@ static void output_dev_generic_info(struct ubbdd_mgmt_rsp *rsp)
 	printf("\tsize: %lu\n\n",	rsp->dev_info.dev_info.generic_dev.info.size);
 }
 
-static int __output_dev_info_detail(struct __dev_info *dev_info)
+static int __output_dev_info_detail(struct __ubbd_dev_info *dev_info)
 {
 	int dev_type = dev_info->type;
 	int ret = 0;
@@ -277,7 +277,7 @@ static int output_dev_info_detail(int dev_type, struct ubbdd_mgmt_rsp_dev_info *
 	int ret = 0;
 
 	if (dev_type == UBBD_DEV_TYPE_CACHE) {
-		printf("\tcache_mode: %s\n", cache_mode_to_str(mgmt_dev_info->dev_info.cache_dev.cache_mode));
+		printf("\tcache_mode: %s\n", ubbd_cache_mode_to_str(mgmt_dev_info->dev_info.cache_dev.cache_mode));
 		printf("\n\tcache_dev: type %s\n", type_to_str(mgmt_dev_info->dev_info.cache_dev.cache_info.type));
 		ret = __output_dev_info_detail(&mgmt_dev_info->dev_info.cache_dev.cache_info);
 		if (ret)

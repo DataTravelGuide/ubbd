@@ -37,7 +37,7 @@ struct ubbd_dev_features {
 
 struct ubbd_device;
 struct ubbd_dev_ops {
-	struct ubbd_device* (*create) (struct __dev_info *info);
+	struct ubbd_device* (*create) (struct __ubbd_dev_info *info);
 	int (*init) (struct ubbd_device *ubbd_dev);
 	void (*release) (struct ubbd_device *ubbd_dev);
 };

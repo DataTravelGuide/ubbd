@@ -147,7 +147,7 @@ out:
 	return ret;
 }
 
-struct ubbd_backend *backend_create(struct __dev_info *dev_info)
+struct ubbd_backend *backend_create(struct __ubbd_dev_info *dev_info)
 {
 	struct ubbd_backend *ubbd_b;
 

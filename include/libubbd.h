@@ -30,12 +30,6 @@
 
 #define PAGE_SIZE	4096
 
-#define COMPILE_ASSERT(predicate, name) _impl_COMPILE_ASSERT_LINE(predicate,__LINE__, name)
-
-#define _impl_PASTE(a,b) a##b
-#define _impl_COMPILE_ASSERT_LINE(predicate, line, file) \
-	    typedef char _impl_PASTE(assertion_failed_##file##_,line)[2*!!(predicate)-1];
-
 enum ubbd_dev_type {
 	UBBD_DEV_TYPE_FILE,
 	UBBD_DEV_TYPE_RBD,
@@ -49,7 +43,7 @@ enum ubbd_dev_type {
 
 #define UBBD_DEV_INFO_RBD_FLAGS_SNAP	1 << 0	/* map snapshot of rbd image */
 
-struct __dev_info {
+struct __ubbd_dev_info {
 	enum ubbd_dev_type type;
 	uint64_t size;
 	uint32_t io_timeout;
@@ -92,17 +86,15 @@ struct ubbd_dev_info {
 	bool read_only;
 	union {
 		struct {
-			struct __dev_info info;
+			struct __ubbd_dev_info info;
 		} generic_dev;
 		struct {
 			int cache_mode;
-			struct __dev_info backing_info;
-			struct __dev_info cache_info;
+			struct __ubbd_dev_info backing_info;
+			struct __ubbd_dev_info cache_info;
 		} cache_dev;
 	};
 };
-
-COMPILE_ASSERT(sizeof(struct ubbd_dev_info) < UBBD_INFO_SIZE, ubbd_dev_info_too_large);
 
 struct ubbd_req_stats {
 	uint64_t reqs;
@@ -219,7 +211,7 @@ struct ubbd_info_options {
 	int ubbdid;
 };
 
-const char* cache_mode_to_str(int cache_mode);
+const char* ubbd_cache_mode_to_str(int cache_mode);
 
 int ubbd_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp);
 int ubbd_unmap(struct ubbd_unmap_options *opts, struct ubbdd_mgmt_rsp *rsp);

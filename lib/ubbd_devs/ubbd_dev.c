@@ -51,7 +51,7 @@ static void ubbd_dev_set_default(struct ubbd_device *ubbd_dev)
 	pthread_mutex_init(&ubbd_dev->lock, NULL);
 }
 
-struct ubbd_device *__dev_create(struct __dev_info *info, bool force)
+struct ubbd_device *__dev_create(struct __ubbd_dev_info *info, bool force)
 {
 	struct ubbd_device *ubbd_dev;
 	struct ubbd_dev_ops *dev_ops = NULL;

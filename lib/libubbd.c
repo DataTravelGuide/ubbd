@@ -76,7 +76,7 @@ int str_to_cache_mode(const char *str)
 	return cache_mode;
 }
 
-const char* cache_mode_to_str(int cache_mode)
+const char* ubbd_cache_mode_to_str(int cache_mode)
 {
 	if (cache_mode == ocf_cache_mode_wb)
 		return "writeback";
@@ -131,13 +131,13 @@ int generic_request_and_wait(struct ubbdd_mgmt_request *req, struct ubbdd_mgmt_r
 	return request_and_wait(req, rsp);
 }
 
-void file_dev_info_setup(struct __dev_info *info,
+void file_dev_info_setup(struct __ubbd_dev_info *info,
 		struct __ubbd_map_opts *opts)
 {
 	strcpy(info->file.path, opts->file.filepath);
 }
 
-void rbd_dev_info_setup(struct __dev_info *info,
+void rbd_dev_info_setup(struct __ubbd_dev_info *info,
 		struct __ubbd_map_opts *opts)
 {
 	strcpy(info->rbd.image, opts->rbd.image);
@@ -172,13 +172,13 @@ void rbd_dev_info_setup(struct __dev_info *info,
 	}
 }
 
-void null_dev_info_setup(struct __dev_info *info,
+void null_dev_info_setup(struct __ubbd_dev_info *info,
 		struct __ubbd_map_opts *opts)
 {
 	return;
 }
 
-void s3_dev_info_setup(struct __dev_info *info,
+void s3_dev_info_setup(struct __ubbd_dev_info *info,
 		struct __ubbd_map_opts *opts)
 {
 	info->s3.block_size = opts->s3.block_size;
@@ -190,7 +190,7 @@ void s3_dev_info_setup(struct __dev_info *info,
 	strcpy(info->s3.bucket_name, opts->s3.bucket_name);
 }
 
-void ssh_dev_info_setup(struct __dev_info *info,
+void ssh_dev_info_setup(struct __ubbd_dev_info *info,
 		struct __ubbd_map_opts *opts)
 {
 	strcpy(info->ssh.path, opts->ssh.path);
@@ -198,7 +198,7 @@ void ssh_dev_info_setup(struct __dev_info *info,
 }
 
 int generic_dev_info_setup(enum ubbd_dev_type dev_type,
-		struct __dev_info *info, struct __ubbd_map_opts *opts)
+		struct __ubbd_dev_info *info, struct __ubbd_map_opts *opts)
 {
 	if (dev_type == UBBD_DEV_TYPE_FILE) {
 		file_dev_info_setup(info, opts);

@@ -9,7 +9,7 @@
 
 struct ubbd_dev_ops rbd_dev_ops;
 
-static struct ubbd_device *rbd_dev_create(struct __dev_info *info)
+static struct ubbd_device *rbd_dev_create(struct __ubbd_dev_info *info)
 {
 	struct ubbd_rbd_device *rbd_dev;
 	struct ubbd_rbd_conn *rbd_conn;

@@ -7,7 +7,7 @@
 
 struct ubbd_dev_ops file_dev_ops;
 
-static struct ubbd_device *file_dev_create(struct __dev_info *info)
+static struct ubbd_device *file_dev_create(struct __ubbd_dev_info *info)
 {
 	struct ubbd_file_device *file_dev;
 	struct ubbd_device *ubbd_dev;

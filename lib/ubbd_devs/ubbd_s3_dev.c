@@ -6,7 +6,7 @@
 
 struct ubbd_dev_ops s3_dev_ops;
 
-static struct ubbd_device *s3_dev_create(struct __dev_info *info)
+static struct ubbd_device *s3_dev_create(struct __ubbd_dev_info *info)
 {
 	struct ubbd_s3_device *s3_dev;
 	struct ubbd_device *ubbd_dev;
