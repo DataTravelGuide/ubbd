@@ -1,0 +1,64 @@
+Name: ubbd
+Version: @VERSION@
+Release: 0%{?dist}
+Source: ubbd-%{version}.tar.gz
+Summary: UBBD: Userspace Backend Block Device
+Group: Applications/System
+License: LGPL
+URL: https://github.com/DataTravelGuide/ubbd
+BuildRequires: librbd-devel glibc-devel libnl3-devel libssh-devel libcurl-devel libxml2-devel openssl-devel
+Requires: librbd1 glibc libnl3 libssh >= 0.9.3 libcurl openssl libxml2
+
+%description
+UBBD: Userspace Backend Block Device
+
+
+%package devel
+Summary: UBBD: Userspace Backend Block Device development package
+Group: Applications/System
+License: LGPL
+Requires: ubbd
+
+%description devel
+UBBD development package
+
+%prep
+%setup -q
+
+%build
+make
+
+%install
+make DESTDIR=%{buildroot} install
+
+%pre
+
+%post
+ldconfig
+systemctl daemon-reload
+systemctl restart ubbdd
+
+%files
+%defattr(-,root,root)
+/usr/bin/ubbdadm
+/usr/bin/ubbdd
+/usr/bin/ubbd-backend
+/etc/ld.so.conf.d/ubbd.conf
+/etc/systemd/system/ubbdd.service
+/usr/lib/ubbd/libs3-ubbd.so.4
+/usr/lib/ubbd/libubbd-daemon.so.@LIBVER@
+/usr/lib/ubbd/libubbd.so.@LIBVER@
+
+
+%files devel
+/usr/lib/ubbd/libubbd-daemon.so
+/usr/lib/ubbd/libubbd.so
+/usr/include/ubbd/libubbd.h
+/usr/include/ubbd/ubbd.h
+
+%clean
+rm -rf %_env
+
+%changelog
+* Sat Feb 19 2023 Dongsheng Yang <dongsheng.yang.linux@gmail.com> - 0.1.0-0
+- First Release.
