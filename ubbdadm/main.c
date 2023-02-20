@@ -314,7 +314,7 @@ int main(int argc, char **argv)
 	bool detach = false;
 	char *restart_mode = "default";
 	struct ubbdd_mgmt_rsp rsp = { 0 };
-	struct ubbd_map_options opts;
+	struct ubbd_map_options opts = { 0 };
 
 	optind = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
