@@ -1,0 +1,4 @@
+usr/lib/ubbd/libubbd-daemon.so
+usr/lib/ubbd/libubbd.so
+usr/include/ubbd/libubbd.h
+usr/include/ubbd/ubbd.h

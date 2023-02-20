@@ -1,0 +1,30 @@
+Source: ubbd
+Section: admin
+Priority: optional
+Maintainer: Dongsheng Yang <dongsheng.yang.linux@gmail.com>
+
+Package: ubbd
+Section: admin
+Architecture: amd64
+Depends: librbd1,
+	libnl-3-200,
+	libnl-genl-3-200,
+	libssh-4,
+	libcurl4,
+	libxml2,
+	libssl3,
+Homepage: https://github.com/DataTravelGuide/ubbd
+Description: UBBD: Userspace Backend Block Device
+
+Package: ubbd-dev
+Section: admin
+Architecture: amd64
+Homepage: https://github.com/DataTravelGuide/ubbd
+Depends: ubbd
+Description: UBBD developement package
+
+Package: ubbd-dbg
+Section: debug
+Architecture: amd64
+Homepage: https://github.com/DataTravelGuide/ubbd
+Description: UBBD debug package

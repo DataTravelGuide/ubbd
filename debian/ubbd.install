@@ -1,0 +1,8 @@
+usr/bin/ubbdadm
+usr/bin/ubbdd
+usr/bin/ubbd-backend
+etc/ld.so.conf.d/ubbd.conf
+etc/systemd/system/ubbdd.service
+usr/lib/ubbd/libs3-ubbd.so.*
+usr/lib/ubbd/libubbd-daemon.so.*
+usr/lib/ubbd/libubbd.so.*

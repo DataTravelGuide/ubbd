@@ -1,0 +1,26 @@
+#!/usr/bin/make -f
+
+CC = $(DEB_HOST_GNU_TYPE)-gcc
+CFLAGS := `dpkg-buildflags --get CFLAGS` -Wall
+LDFLAGS := `dpkg-buildflags --get LDFLAGS`
+CPPFLAGS := `dpkg-buildflags --get CPPFLAGS`
+
+DEB_VERSION = $(shell dpkg-parsechangelog --show-field Version)
+
+clean:
+	echo clean
+	make clean
+
+build:
+	echo make
+	make
+
+.PHONY: override_dh_strip
+override_dh_strip:
+	dh_strip -pubbd --dbg-package=ubbd-dbg
+
+override_dh_shlibdeps:
+	echo dep
+
+%:
+	dh $@
