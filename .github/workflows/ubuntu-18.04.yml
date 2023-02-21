@@ -16,4 +16,4 @@ jobs:
     - name: install dependency
       run: sudo add-apt-repository "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse"; sudo apt update; sudo apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev libssh-dev
     - name: run_check
-      run: sudo ./build_deb.sh; sudo apt install ../ubbd*.deb; sudo ./run_check.sh
+      run: sudo ./build_deb.sh; sudo ./run_check.sh
