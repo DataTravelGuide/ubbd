@@ -2,6 +2,7 @@
 
 set -e
 
+./install_dep.sh
 version=`cat VERSION`
 
 make dist
