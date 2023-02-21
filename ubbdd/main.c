@@ -7,11 +7,13 @@
 #include "utils.h"
 #include "ubbd_log.h"
 
+static bool ubbdd_killed = false;
 static void catch_signal(int signo)
 {
 	switch (signo) {
 	case SIGTERM:
 	case SIGINT:
+		ubbdd_killed = true;
 		ubbdd_mgmt_stop_thread();
 		break;
 	case SIGPIPE:
@@ -142,6 +144,10 @@ stop_nl_thread:
 destroy_log:
 	ubbd_destroy_log();
 out:
+	if (ubbdd_killed) {
+		ret = -1;
+	}
+
 	if (ret) {
 		printf("ubbd daemon exit with error: %d.\n", ret);
 	}
