@@ -12,7 +12,7 @@ Depends: librbd1,
 	libssh-4,
 	libcurl4,
 	libxml2,
-	libssl3,
+	libssl-dev,
 Homepage: https://github.com/DataTravelGuide/ubbd
 Description: UBBD: Userspace Backend Block Device
 
