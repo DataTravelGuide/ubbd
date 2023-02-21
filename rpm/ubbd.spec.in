@@ -7,7 +7,7 @@ Group: Applications/System
 License: LGPL
 URL: https://github.com/DataTravelGuide/ubbd
 BuildRequires: librbd-devel glibc-devel libnl3-devel libssh-devel libcurl-devel libxml2-devel openssl-devel
-Requires: librbd1 glibc libnl3 libssh >= 0.9.3 libcurl openssl libxml2
+Requires: librbd1 glibc libnl3 libssh >= 0.9.3 libcurl openssl libxml2 ubbd-kernel
 
 %description
 UBBD: Userspace Backend Block Device
