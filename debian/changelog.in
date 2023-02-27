@@ -1,4 +1,4 @@
-ubbd (0.0.1-0) stable; urgency=medium
+ubbd (0.0.1-0-@CODENAME@) stable; urgency=medium
 
   * New ubbd release
 

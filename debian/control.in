@@ -5,7 +5,7 @@ Maintainer: Dongsheng Yang <dongsheng.yang.linux@gmail.com>
 
 Package: ubbd
 Section: admin
-Architecture: amd64
+Architecture: @ARCH@
 Depends: librbd1,
 	libnl-3-200,
 	libnl-genl-3-200,
@@ -18,13 +18,13 @@ Description: UBBD: Userspace Backend Block Device
 
 Package: ubbd-dev
 Section: admin
-Architecture: amd64
+Architecture: @ARCH@
 Homepage: https://github.com/DataTravelGuide/ubbd
 Depends: ubbd
 Description: UBBD developement package
 
 Package: ubbd-dbg
 Section: debug
-Architecture: amd64
+Architecture: @ARCH@
 Homepage: https://github.com/DataTravelGuide/ubbd
 Description: UBBD debug package
