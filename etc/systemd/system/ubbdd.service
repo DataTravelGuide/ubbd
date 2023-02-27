@@ -10,7 +10,7 @@ ExecReload=/bin/kill -HUP $MAINPID
 KillMode=process
 Restart=on-failure
 Type=simple
-StartLimitIntervalSec=30
+StartLimitInterval=30
 StartLimitBurst=30
 
 [Install]
