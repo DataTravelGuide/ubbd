@@ -10,7 +10,7 @@ a) block device driver upgrade online.
 
 b) driver bug dont crash kernel.
 
-c) Dont reinvent the wheel.
+c) Dont reinvent the wheel
 
 Some block storage especially cloud storage has a userspace library
 but there is no linux kernel driver to use it. ubbd can make it very easy
@@ -23,36 +23,22 @@ d) Decoupling the storage specified logical from a linux kernel block device log
 Who should not use UBBD?  
   Very care about latency(~10us overhead), dont use UBBD driver.
 
-# 4. build and use
-<img src="doc/make_and_use_ubbd_file.gif" alt="use ubbd" title="use ubbd">
+# 4. How to use ubbd
+**install from source**
 
-    a) install requirements  
+    a) install ubbd-kernel  
+	   $ git clone https://github.com/DataTravelGuide/ubbd-kernel
+	   $ cd ubbd-kernel
+	   $ ./build_and_install.sh
+	
+    b) install ubbd  
+	   $ git clone https://github.com/DataTravelGuide/ubbd
+	   $ cd ubbd
+	   $ ./build_and_install.sh
 
-    install requirement packages:  
-
-	   [centos]  
-            yum install librbd-devel glibc-devel libnl3-devel libssh-devel libcurl-devel libxml2-devel  make gcc openssl-devel kernel-devel elfutils-libelf-devel -y
-
-	   [ubuntu]  
-	    apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev libssh-dev libcurl4-openssl-dev libxml2-dev libssl-dev
-
-    b) compile  
-	   $ make
-	   $ make install
-
-    c) insert kernel module  
-	   $ modprobe uio  
-	   $ insmod kmods/ubbd.ko  
-
-    d) start ubbdd daemon  
-	   $ ubbdd &  
-
-    e) setup a ramdisk and map ubbd device by ubbdadm  
-	   $ modprobe brd rd_nr=1 rd_size=2048000 max_part=0  
-	   $ ubbdadm --command map --type file --filepath /dev/ram0 --devsize $((1*1024*1024*1024))  
-
-    f) use the /dev/ubbd0 device  
-	   $ mkfs.xfs /dev/ubbd0  `
+**install from package**
+	
+	wget https://github.com/DataTravelGuide/ubbd/install-ubbd.sh |bash
 
 # 5. performance
 
@@ -72,7 +58,7 @@ We can get **15us** latency and **1.8 million** iops with null type ubbd device.
 |----------|-----|--------|---------------|-------------------|
 |   librbd |10184|  1549us|       support |       No          |
 |    krbd  |10724|  1385us|    Not support|       Yes         |
-|    ubbd  |10830|  1652us|       support |       Yes         |
+|    ubbd  |10130|  1652us|       support |       Yes         |
 |          |     |        |               |                   |
 
 
@@ -156,5 +142,10 @@ result like that:
 
 # 9 package build
 
-rpm build:
+**rpm build:**
+
 	# ./build_rpm.sh
+	
+**deb build:**
+
+	# ./build_deb.sh
