@@ -116,8 +116,8 @@ static void usage(int status)
 		/* map options */
 		printf("\n\t[map options]:\n");
 
-		print_map_opt_msg("type", "device type for mapping: file, rbd, null, ssh, cache (Experimental), s3 (Experimental)");
-		print_map_opt_msg("devsize", "size of device to map, --devsize is required except rbd type");
+		print_map_opt_msg("type", "device type for mapping: file, rbd, null, ssh (Experimental), cache (Experimental), s3 (Experimental)");
+		print_map_opt_msg("devsize", "size of device to map, --devsize is required except rbd and file type");
 		print_map_opt_msg("io-timeout", "timeout before IO fail, default as 0 means no timeout.");
 		print_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].");
 		print_opt_msg("num-queues", "number of queues for block layer multiqueue");
