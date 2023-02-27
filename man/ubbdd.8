@@ -1,0 +1,29 @@
+.\" Copyright (c) 2023 Dongsheng Yang <dongsheng.yang.linux@gmail.com>
+.\"
+.TH UBBDD 8
+.SH NAME
+ubbdd \- ubbd daemon in userspace
+.SH SYNOPSIS
+\fBubbdadm\fR \fIOPTIONS\fR
+.SH DESCRIPTION
+UBBD (Userspace Backend Block Device) is a framework to implement block device
+in userspace. There are a linux kernel module named ubbd, userspace daemon named
+ubbdd (ubbd daemon), and a tool named ubbdadm.
+.PP
+ubbdadm is a tool to send command to ubbd daemon, and ubbd daemon will
+handle these commands. ubbd daemon is connecting with ubbd kernel module via netlink.
+Commands for ubbdadm includes map, unmap, list, info and so on.
+Currently, ubbd supports the following types of userspace block device: null, file, rbd, 
+ssh (Experimental), s3 (Experimental), cache (Experimental).
+ubbdd is the userspace daemon to manage ubbd devices.
+.SH OPTIONS
+.TP
+.BI "\--daemon "
+start ubbd daemon backgroud
+.SH AUTHOR
+Dongsheng Yang <dongsheng.yang.linux@gmail.com>
+.SH AVAILABILITY
+\fBubbdadm\fR is part of ubbd package and is available from
+https://github.com/DataTravelGuide/ubbd.
+.SH SEE ALSO
+.BR ubbdadm (8).

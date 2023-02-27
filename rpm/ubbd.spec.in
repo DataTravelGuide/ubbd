@@ -48,6 +48,8 @@ systemctl restart ubbdd
 /usr/lib/ubbd/libs3-ubbd.so.4
 /usr/lib/ubbd/libubbd-daemon.so.@LIBVER@
 /usr/lib/ubbd/libubbd.so.@LIBVER@
+/usr/share/man/man8/ubbdadm.8.gz
+/usr/share/man/man8/ubbdd.8.gz
 
 
 %files devel

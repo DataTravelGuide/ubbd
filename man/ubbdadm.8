@@ -1,0 +1,182 @@
+.\" Copyright (c) 2023 Dongsheng Yang <dongsheng.yang.linux@gmail.com>
+.\"
+.TH UBBDADM 8
+.SH NAME
+ubbdadm \- administrator tool for user to operate userspace backend block device
+.SH SYNOPSIS
+\fBubbdadm\fR \fICOMMAND\fR \fIOPTIONS\fR
+.SH DESCRIPTION
+UBBD (Userspace Backend Block Device) is a framework to implement block device
+in userspace. There are a linux kernel module named ubbd, userspace daemon named
+ubbdd (ubbd daemon), and a tool named ubbdadm.
+.PP
+ubbdadm is a tool to send command to ubbd daemon, and ubbd daemon will
+handle these commands. ubbd daemon is connecting with ubbd kernel module via netlink.
+Commands for ubbdadm includes map, unmap, list, info and so on.
+Currently, ubbd supports the following types of userspace block device: null, file, rbd, 
+ssh (Experimental), s3 (Experimental), cache (Experimental).
+ubbdadm is used to manage these ubbd device
+
+.SH COMMAND
+.TP
+.BI "map "
+is subcommand to create userspace block device, it will start a ubbd-backend process to handle IOs
+for this block device such as /dev/ubbdX.
+.TP
+.BI "unmap"
+is subcommand to destroy ubbd device, it will stop ubbd-backend process and delete /dev/ubbdX
+block device.
+.TP
+.BI "list"
+is subcommand to list all mapped ubbd device.
+.TP
+.BI "info"
+is subcommand to get detail info of specified ubbd device, including backend information.
+.TP
+.BI "config"
+is subcommand to change the configurations of ubbd device.
+.TP
+.BI "req-stats"
+is subcommand to get stats of request, it will print latency of requests for each queue.
+.TP
+.BI "req-stats-reset"
+is subcommand to reset request stats, then it will reset all old data for requests latency and start collecting requests latency again.
+.TP
+.BI "dev-restart"
+is subcommand to restart ubbd-backend process for ubbd device, this is helpful for ubbd-backend upgrading. That means
+we can upgrade ubbd-backend binary, and then restart ubbd device one by one. dev-restart supports two restart-mode: dev or queue.
+
+.SH GENERIC OPTIONS
+.TP
+.BI "\--ubbdid "
+id of ubbd device command operating on.
+.SH MAP OPTIONS
+.TP
+.BI "\--type " <null|file|rbd|ssh|s3|cache>"
+.TP
+null: it's desinged for testing, all IO will be finished directly in null backend.
+.TP
+file: make a file as a backend, to create a block device to use it.
+.TP
+rbd: make a rbd image in ceph to be a backend, to create a block device such as /dev/ubbdX.
+All IO to /dev/ubbdX will be handled in userspace backend process, and it will pass
+these request to ceph cluster by librbd. That means, the /dev/ubbdX support any
+feature that supported in librbd.
+.TP
+ssh (Experimental): all IO to /dev/ubbdX will be handled by file in remote node, io is
+transfered by ssh protacol.
+.TP
+S3 (Experimental): all data for /dev/ubbdx will be stored in bucket of object storage cluster,
+io is transfered by S3 protacol. Then you can get an block device in cloud, and you can
+access it anywhere.
+.TP
+Cache (Experimental): we can allow user to create a block device /dev/ubbdX with two backend,
+one is fast work as cache, and another is slower but larger as a backing. (the cache algrithm
+is ocf, that will be replaced by our own cache engine in future.)
+.TP
+.BI "\--devsize " size-of-device "
+Set the device size of block device, it is required for device mapping except rbd and file type.
+rbd and file backend will overwrite devsize by getting the real size of rbd image or file size.
+unit for --devsize is byte.
+.TP
+.BI "\--io-timeout Seconds" 
+timeout before IO fail, default as 0 means no timeout. it will be set in /sys/block/ubbdX/queue/io_timeout
+.TP
+.BI "\--dev-share-memory-size "
+share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].
+Default is 32M, unit of it is byte.
+.TP
+.BI "\--num-queues "
+number of queues for block layer multiqueue, default is 1.
+.TP
+.BI "\--read-only "
+create a read only block device.
+
+.SH FILE MAP OPTIONS
+.TP
+.BI "\--file-filepath PATH"
+file path for file type mapping.
+
+.SH RBD MAP OPTIONS
+.TP
+.BI "\--rbd-pool POOL"
+pool for rbd type mapping, default is rbd.
+.TP
+.BI "\--rbd-ns NAMESPACE"
+namespace of pool for rbd type mapping, default is "".
+.TP
+.BI "\--rbd-image IMAGE"
+image name for rbd type mapping, this is required.
+.TP
+.BI "\--rbd-snap SNAP"
+ubbd allow user to map a snapshot to a block device, this block devcie will be created as read-only.
+.TP
+.BI "\--rbd-ceph-conf CONF_PATH"
+ceph config file path for rbd type mapping, default is "/etc/ceph/ceph.conf"
+.TP
+.BI "\--rbd-user-name USER"
+user name to connect ceph for rbd type mapping, default is "client.admin"
+.TP
+.BI "\--rbd-cluster-name CLUSTER_NAME"
+ceph cluster name for rbd type mapping, default is "ceph"
+
+.SH SSH MAP OPTIONS
+.TP
+.BI "\--ssh-hostname HOSTNAME"
+hostname for ssh type mapping, backend file is on this host.
+.TP
+.BI "\--ssh-filepath FILEPATH"
+filepath on remote host for ssh mapping.
+
+.SH S3 MAP OPTIONS
+.TP
+.BI "\--s3-block-size BYTES"
+object size in s3 cluster, s3 type ubbd data is stored in object.
+.TP
+.BI "\--s3-hostname HOSTNAME"
+hostname to connect s3 cluster.
+.TP
+.BI "\--s3-port PORT"
+port to connect s3 cluster.
+.TP
+.BI "\--s3-accessid ID"
+accessid to connect s3 cluster.
+.TP
+.BI "\--s3-accesskey KEY"
+accesskey to connect s3 cluster.
+.TP
+.BI "\--s3-volume-name NAME"
+create a volume in s3 cluster, all data will stored in object prefixed by volumename.
+.TP
+.BI "\--bucket-name BUCKETNAME"
+bucket to store volume data.
+.SH CACHE MAP OPTIONS
+.TP
+.BI "\--cache-mode MODE"
+cache mode for cache type mapping: writeback or writethrough.
+
+.SH UNMAP OPTIONS
+.TP
+.BI "\--force"
+force unmap a device, that means this command will fail inflight IO and unmap device.
+.TP
+.BI "\--detach"
+this option works for cache type device, if detach is specified, cache device will be detached from backing in unmap.
+
+.SH CONFIG OPTIONS
+.TP
+.BI "\--data-page-reserve-percnt PERCENT"
+update the data pages reserved for each queue: [0 - 100].
+
+.SH DEV-RESTART OPTIONS
+.TP
+.BI "\--restart-mode MODE"
+mode to restart device: dev, queue, default.
+
+.SH AUTHOR
+Dongsheng Yang <dongsheng.yang.linux@gmail.com>
+.SH AVAILABILITY
+\fBubbdadm\fR is part of ubbd package and is available from
+https://github.com/DataTravelGuide/ubbd.
+.SH SEE ALSO
+.BR ubbdd (8).

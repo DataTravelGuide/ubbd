@@ -6,3 +6,4 @@ etc/systemd/system/ubbdd.service
 usr/lib/ubbd/libs3-ubbd.so.*
 usr/lib/ubbd/libubbd-daemon.so.*
 usr/lib/ubbd/libubbd.so.*
+usr/share/man/man8/*

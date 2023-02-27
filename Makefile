@@ -46,6 +46,8 @@ all: $(UBBDCONF_HEADER)
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C ubbdadm
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C ubbdd
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C backend
+	gzip -fk man/ubbdadm.8
+	gzip -fk man/ubbdd.8
 	@echo "Compile completed."
 
 clean:
@@ -55,6 +57,7 @@ clean:
 	$(MAKE) -C unittests clean
 	$(MAKE) -C lib clean
 	rm -vf rhed/ubbd.spec
+	rm -vf man/*.gz
 
 install:
 	mkdir -p $(DESTDIR)/usr/bin
@@ -74,6 +77,8 @@ install:
 	install etc/ld.so.conf.d/ubbd.conf $(DESTDIR)/etc/ld.so.conf.d/ubbd.conf
 	install include/libubbd.h $(DESTDIR)/usr/include/ubbd/libubbd.h
 	install include/ubbd-headers/ubbd.h $(DESTDIR)/usr/include/ubbd/ubbd.h
+	install -D -g 0 -o 0 -m 0644 man/ubbdadm.8.gz $(DESTDIR)/usr/share/man/man8/ubbdadm.8.gz
+	install -D -g 0 -o 0 -m 0644 man/ubbdd.8.gz $(DESTDIR)/usr/share/man/man8/ubbdd.8.gz
 
 uninstall:
 	rm -vf $(DESTDIR)/etc/ld.so.conf.d/ubbd.conf
@@ -84,12 +89,14 @@ uninstall:
 	rm -vrf $(DESTDIR)/usr/include/ubbd/
 	rm -vf $(DESTDIR)/etc/lib.so.conf.d/ubbd.conf
 	rm -vf $(DESTDIR)/etc/systemd/system/ubbdd.service
+	rm -vf $(DESTDIR)/usr/share/man/man8/ubbdd.8*
+	rm -vf $(DESTDIR)/usr/share/man/man8/ubbdadm.8*
 
 dist:
 	git submodule update --init --recursive
 	sed "s/@VERSION@/$(VERSION)/g" rpm/ubbd.spec.in > rpm/ubbd.spec
 	sed -i 's/@LIBVER@/$(LIBVER)/g' rpm/ubbd.spec
 	cd /tmp && mkdir -p $(UBBD_VERSION) && \
-	cp -rf $(UBBD_SRC)/{ubbdadm,ubbdd,backend,lib,include,doc,Makefile,ocf,libs3,etc} $(UBBD_VERSION) && \
+	cp -rf $(UBBD_SRC)/{ubbdadm,ubbdd,backend,lib,include,doc,Makefile,ocf,libs3,etc,man} $(UBBD_VERSION) && \
 	tar --format=posix -chf - $(UBBD_VERSION) | gzip -c > $(UBBD_SRC)/$(UBBD_VERSION).tar.gz && \
 	rm -rf $(UBBD_VERSION)
