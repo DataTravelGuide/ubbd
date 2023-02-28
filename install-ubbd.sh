@@ -63,6 +63,7 @@ install_ubbd_pkg() {
 	debian|ubuntu|devuan|elementary|softiron)
 		echo "deb [trusted=yes] http://${UBBD_DOWNLOAD_URL}/ubbd/ubbd-0.1.0/debian/${VERSION_CODENAME}/ ./" > /etc/apt/sources.list.d/ubbd.list
 		apt install -y ${pkg_name} ${pkg_name}-dev|| need_install_from_source=1
+		rm -rf /etc/apt/sources.list.d/ubbd.list
 		;;
 	rocky|centos|fedora|rhel|ol|virtuozzo)
 		echo "[ubbd]
@@ -73,6 +74,7 @@ sslverify=0
 gpgcheck=0" > /etc/yum.repos.d/ubbd.repo
 
 		yum install -y ${pkg_name} ${pkg_name}-devel || need_install_from_source=1
+		rm -rf /etc/yum.repos.d/ubbd.repo
 		;;
 	*)
 		echo "$ID is unknown, ${pkg_name} will have to be installed manually."
