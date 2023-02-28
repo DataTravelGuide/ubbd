@@ -97,6 +97,6 @@ dist:
 	sed "s/@VERSION@/$(VERSION)/g" rpm/ubbd.spec.in > rpm/ubbd.spec
 	sed -i 's/@LIBVER@/$(LIBVER)/g' rpm/ubbd.spec
 	cd /tmp && mkdir -p $(UBBD_VERSION) && \
-	cp -rf $(UBBD_SRC)/{ubbdadm,ubbdd,backend,lib,include,doc,Makefile,ocf,libs3,etc,man} $(UBBD_VERSION) && \
+	cp -rf $(UBBD_SRC)/{ubbdadm,ubbdd,backend,lib,include,Makefile,ocf,libs3,etc,man,install_dep.sh} $(UBBD_VERSION) && \
 	tar --format=posix -chf - $(UBBD_VERSION) | gzip -c > $(UBBD_SRC)/$(UBBD_VERSION).tar.gz && \
 	rm -rf $(UBBD_VERSION)
