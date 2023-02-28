@@ -38,7 +38,7 @@ Who should not use UBBD?
 
 **install from package**
 	
-	wget https://github.com/DataTravelGuide/ubbd/install-ubbd.sh |bash
+	bash -c "$(wget https://raw.githubusercontent.com/DataTravelGuide/ubbd/master/install-ubbd.sh -O -)"
 
 # 5. performance
 
