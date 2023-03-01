@@ -61,18 +61,20 @@ install_ubbd_pkg() {
 	pkg_name=$1
 	case "$ID" in
 	debian|ubuntu|devuan|elementary|softiron)
-		echo "deb [trusted=yes] http://${UBBD_DOWNLOAD_URL}/ubbd/ubbd-0.1.0/debian/${VERSION_CODENAME}/ ./" > /etc/apt/sources.list.d/ubbd.list
+		echo "deb [trusted=yes] http://${UBBD_DOWNLOAD_URL}/ubbd/${UBBD_VERSION}/debian/${VERSION_CODENAME}/ ./" > /etc/apt/sources.list.d/ubbd.list
+		apt update
 		apt install -y ${pkg_name} ${pkg_name}-dev|| need_install_from_source=1
 		rm -rf /etc/apt/sources.list.d/ubbd.list
 		;;
 	rocky|centos|fedora|rhel|ol|virtuozzo)
 		echo "[ubbd]
 name=UBBD
-baseurl=https://${UBBD_DOWNLOAD_URL}/ubbd/ubbd-0.1.0/rpm/\$releasever/\$basearch/
+baseurl=https://${UBBD_DOWNLOAD_URL}/ubbd/${UBBD_VERSION}/rpm/\$releasever/\$basearch/
 enabled=1
 sslverify=0
 gpgcheck=0" > /etc/yum.repos.d/ubbd.repo
 
+		yum makecache
 		yum install -y ${pkg_name} ${pkg_name}-devel || need_install_from_source=1
 		rm -rf /etc/yum.repos.d/ubbd.repo
 		;;
