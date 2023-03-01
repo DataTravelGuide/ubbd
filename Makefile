@@ -10,6 +10,7 @@ $(shell rm -rf include/ubbd_compat.h)
 UBBDCONF_HEADER := include/ubbd_compat.h
 OCFDIR = ocf/
 LIBVER := 1
+DIST_FILES = ubbdadm ubbdd backend lib include Makefile ocf libs3 etc man install_dep.sh
 
 UBBD_FLAGS = "-I /usr/include/libnl3/ -I$(UBBD_SRC)/libs3/inc -I $(UBBD_SRC)/include/ubbd-headers/ -I $(UBBD_SRC)/include/ -I$(UBBD_SRC)/src/ocf/env/ -I$(UBBD_SRC)/src/ocf/ -L$(UBBD_SRC)/libs3/build/lib/ -ls3-ubbd"
 
@@ -97,6 +98,6 @@ dist:
 	sed "s/@VERSION@/$(VERSION)/g" rpm/ubbd.spec.in > rpm/ubbd.spec
 	sed -i 's/@LIBVER@/$(LIBVER)/g' rpm/ubbd.spec
 	cd /tmp && mkdir -p $(UBBD_VERSION) && \
-	cp -rf $(UBBD_SRC)/{ubbdadm,ubbdd,backend,lib,include,Makefile,ocf,libs3,etc,man,install_dep.sh} $(UBBD_VERSION) && \
+	for u in $(DIST_FILES); do cp -rf $(UBBD_SRC)/$$u $(UBBD_VERSION); done && \
 	tar --format=posix -chf - $(UBBD_VERSION) | gzip -c > $(UBBD_SRC)/$(UBBD_VERSION).tar.gz && \
 	rm -rf $(UBBD_VERSION)
