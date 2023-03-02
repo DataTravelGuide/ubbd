@@ -64,7 +64,7 @@ We can get **15us** latency and **1.8 million** iops with null type ubbd device.
 
 	Note:
 		a) ubbd + librbd is mapped by:
-			$ ubbdadm/ubbdadm --command map --type rbd --pool rbd --image test --ceph-conf /etc/ceph/ceph.conf
+			$ ubbdadm map --type rbd --rbd-image test
 		b) krbd is mapped by:
 			$ rbd map test
 		c) librbd is tested by fio with ioengine=rbd.
@@ -94,7 +94,7 @@ then you can upgrade it with IO inflight.
 
 (2) restart backend one-by-one. we can restart each backend one time, that means it is smooth to restart 
 
-all ubbd devices with ubbdadm --command dev-restart command. 
+all ubbd devices with ubbdadm dev-restart command.
 
 and you can choose the restart-mode in dev-restart command: 
 
