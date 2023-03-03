@@ -55,6 +55,8 @@ static enum ubbd_dev_type str_to_type(const char *str)
 		type = UBBD_DEV_TYPE_CACHE;
 	else if (!strcmp("s3", str))
 		type = UBBD_DEV_TYPE_S3;
+	else if (!strcmp("mem", str))
+		type = UBBD_DEV_TYPE_MEM;
 	else
 		type = -1;
 
@@ -178,6 +180,12 @@ void null_dev_info_setup(struct __ubbd_dev_info *info,
 	return;
 }
 
+void mem_dev_info_setup(struct __ubbd_dev_info *info,
+		struct __ubbd_map_opts *opts)
+{
+	return;
+}
+
 void s3_dev_info_setup(struct __ubbd_dev_info *info,
 		struct __ubbd_map_opts *opts)
 {
@@ -210,6 +218,8 @@ int generic_dev_info_setup(enum ubbd_dev_type dev_type,
 		ssh_dev_info_setup(info, opts);
 	} else if (dev_type == UBBD_DEV_TYPE_S3) {
 		s3_dev_info_setup(info, opts);
+	} else if (dev_type == UBBD_DEV_TYPE_MEM) {
+		mem_dev_info_setup(info, opts);
 	} else {
 		ubbd_err("error dev_type: %d\n", dev_type);
 		return -EINVAL;

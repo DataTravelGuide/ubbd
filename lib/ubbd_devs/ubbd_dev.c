@@ -21,6 +21,7 @@ extern struct ubbd_dev_ops null_dev_ops;
 extern struct ubbd_dev_ops ssh_dev_ops;
 extern struct ubbd_dev_ops cache_dev_ops;
 extern struct ubbd_dev_ops s3_dev_ops;
+extern struct ubbd_dev_ops mem_dev_ops;
 
 LIST_HEAD(ubbd_dev_list);
 pthread_mutex_t ubbd_dev_list_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -66,6 +67,8 @@ struct ubbd_device *__dev_create(struct __ubbd_dev_info *info, bool force)
 		dev_ops = &ssh_dev_ops;
 	} else if (info->type == UBBD_DEV_TYPE_S3) {
 		dev_ops = &s3_dev_ops;
+	} else if (info->type == UBBD_DEV_TYPE_MEM) {
+		dev_ops = &mem_dev_ops;
 	}
 	
 	if (dev_ops == NULL) {

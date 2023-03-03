@@ -16,6 +16,10 @@
 #define UBBD_DEV_RESTART_MODE_DEV	1
 #define UBBD_DEV_RESTART_MODE_QUEUE	2
 
+#define	UBBD_MEM_BLK_SIZE	(1024 * 1024)
+#define	UBBD_MEM_BLK_SHIFT	20
+#define	UBBD_MEM_BLK_MASK	0xFFFFF
+#define	UBBD_MEM_BLK_COUNT	(100 * 1024)
 
 enum ubbd_dev_ustatus {
 	UBBD_DEV_USTATUS_INIT,
@@ -89,6 +93,10 @@ struct ubbd_rbd_device {
 };
 
 struct ubbd_null_device {
+	struct ubbd_device ubbd_dev;
+};
+
+struct ubbd_mem_device {
 	struct ubbd_device ubbd_dev;
 };
 

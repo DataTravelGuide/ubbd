@@ -116,7 +116,7 @@ static void usage(int status)
 		/* map options */
 		printf("\n\t[map options]:\n");
 
-		print_map_opt_msg("type", "device type for mapping: file, rbd, null, ssh (Experimental), cache (Experimental), s3 (Experimental)");
+		print_map_opt_msg("type", "device type for mapping: file, rbd, null, mem, ssh (Experimental), cache (Experimental), s3 (Experimental)");
 		print_map_opt_msg("devsize", "size of device to map, --devsize is required except rbd and file type");
 		print_map_opt_msg("io-timeout", "timeout before IO fail, default as 0 means no timeout.");
 		print_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].");
@@ -217,6 +217,8 @@ static char *type_to_str(enum ubbd_dev_type type)
 		return "rbd";
 	else if (type == UBBD_DEV_TYPE_NULL)
 		return "null";
+	else if (type == UBBD_DEV_TYPE_MEM)
+		return "mem";
 	else if (type == UBBD_DEV_TYPE_SSH)
 		return "ssh";
 	else if (type == UBBD_DEV_TYPE_CACHE)
@@ -253,6 +255,7 @@ static int __output_dev_info_detail(struct __ubbd_dev_info *dev_info)
 		printf("\tcluster_name: %s\n", dev_info->rbd.cluster_name);
 		printf("\tuser_name: %s\n", dev_info->rbd.user_name);
 	} else if (dev_type == UBBD_DEV_TYPE_NULL) {
+	} else if (dev_type == UBBD_DEV_TYPE_MEM) {
 	} else if (dev_type == UBBD_DEV_TYPE_SSH) {
 		printf("\thostname: %s\n", dev_info->ssh.hostname);
 		printf("\tpath: %s\n", dev_info->ssh.path);

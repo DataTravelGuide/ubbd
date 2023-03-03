@@ -76,6 +76,10 @@ struct ubbd_null_backend {
 	struct ubbd_backend ubbd_b;
 };
 
+struct ubbd_mem_backend {
+	struct ubbd_backend ubbd_b;
+};
+
 struct ubbd_file_backend {
 	struct ubbd_backend ubbd_b;
 	char filepath[UBBD_PATH_MAX];

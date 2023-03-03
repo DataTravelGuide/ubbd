@@ -15,10 +15,6 @@ struct ubbd_conf_header {
 #define UBBD_CONF_TYPE_BACKEND		1
 #define UBBD_CONF_TYPE_DEVICE		2
 
-#define UBBD_CONF_TYPE_RBD_BACKEND	1
-#define UBBD_CONF_TYPE_FILE_BACKEND	2
-#define UBBD_CONF_TYPE_NULL_BACKEND	3
-
 struct ubbd_dev_conf {
 	struct ubbd_conf_header conf_header;
 	enum ubbd_dev_type dev_type;

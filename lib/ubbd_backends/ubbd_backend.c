@@ -16,6 +16,7 @@ extern struct ubbd_backend_ops null_backend_ops;
 extern struct ubbd_backend_ops ssh_backend_ops;
 extern struct ubbd_backend_ops cache_backend_ops;
 extern struct ubbd_backend_ops s3_backend_ops;
+extern struct ubbd_backend_ops mem_backend_ops;
 
 struct ubbd_ssh_backend *create_ssh_backend(void)
 {
@@ -61,6 +62,22 @@ struct ubbd_null_backend *create_null_backend(void)
 	ubbd_b = &dev->ubbd_b;
 	ubbd_b->dev_type = UBBD_DEV_TYPE_NULL;
 	ubbd_b->backend_ops = &null_backend_ops;
+
+	return dev;
+}
+
+struct ubbd_mem_backend *create_mem_backend(void)
+{
+	struct ubbd_backend *ubbd_b;
+	struct ubbd_mem_backend *dev;
+
+	dev = calloc(1, sizeof(*dev));
+	if (!dev)
+		return NULL;
+
+	ubbd_b = &dev->ubbd_b;
+	ubbd_b->dev_type = UBBD_DEV_TYPE_MEM;
+	ubbd_b->backend_ops = &mem_backend_ops;
 
 	return dev;
 }
@@ -189,7 +206,7 @@ struct ubbd_backend *backend_create(struct __ubbd_dev_info *dev_info)
 			return NULL;
 		ubbd_b = &null_backend->ubbd_b;
 		ubbd_b->dev_size = dev_info->size;
-	}else if (dev_info->type == UBBD_DEV_TYPE_SSH){
+	} else if (dev_info->type == UBBD_DEV_TYPE_SSH){
 		struct ubbd_ssh_backend *ssh_backend;
 
 		ssh_backend = create_ssh_backend();
@@ -200,7 +217,7 @@ struct ubbd_backend *backend_create(struct __ubbd_dev_info *dev_info)
 		strcpy(ssh_backend->hostname, dev_info->ssh.hostname);
 		strcpy(ssh_backend->path, dev_info->ssh.path);
 		ubbd_b->dev_size = dev_info->size;
-	}else if (dev_info->type == UBBD_DEV_TYPE_S3){
+	} else if (dev_info->type == UBBD_DEV_TYPE_S3){
 		struct ubbd_s3_backend *s3_backend;
 
 		s3_backend = create_s3_backend();
@@ -214,6 +231,14 @@ struct ubbd_backend *backend_create(struct __ubbd_dev_info *dev_info)
 		strcpy(s3_backend->bucket_name, dev_info->s3.bucket_name);
 		s3_backend->port = dev_info->s3.port;
 		s3_backend->block_size = dev_info->s3.block_size;
+		ubbd_b->dev_size = dev_info->size;
+	} else if (dev_info->type == UBBD_DEV_TYPE_MEM){
+		struct ubbd_mem_backend *mem_backend;
+
+		mem_backend = create_mem_backend();
+		if (!mem_backend)
+			return NULL;
+		ubbd_b = &mem_backend->ubbd_b;
 		ubbd_b->dev_size = dev_info->size;
 	} else {
 		ubbd_err("Unknown dev type\n");
