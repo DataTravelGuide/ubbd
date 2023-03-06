@@ -446,7 +446,7 @@ int main(int argc, char **argv)
 			req_stats = &rsp.req_stats.req_stats[i];
 			fprintf(stdout, "Queue-%d:\n", i);
 			fprintf(stdout, "\tRequests:%lu\n", req_stats->reqs);
-			fprintf(stdout, "\tHandle_time:%lu\n", req_stats->reqs? req_stats->handle_time / req_stats->reqs : 0);
+			fprintf(stdout, "\tHandle_time_avg:%lu\n", req_stats->reqs? req_stats->handle_time / req_stats->reqs : 0);
 		}
 	} else if (!strcmp("req-stats-reset", command)) {
 		struct ubbd_req_stats_reset_options req_stats_reset_opts = { .ubbdid = ubbdid };
