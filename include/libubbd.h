@@ -37,6 +37,7 @@ enum ubbd_dev_type {
 	UBBD_DEV_TYPE_SSH,
 	UBBD_DEV_TYPE_CACHE,
 	UBBD_DEV_TYPE_S3,
+	UBBD_DEV_TYPE_MEM,
 	UBBD_DEV_TYPE_MAX,
 };
 
@@ -76,6 +77,8 @@ struct __ubbd_dev_info {
 			char volume_name[UBBD_NAME_MAX];
 			char bucket_name[UBBD_NAME_MAX];
 		} s3;
+		struct {
+		} mem;
 	};
 };
 
@@ -157,6 +160,8 @@ struct __ubbd_map_opts {
 			const char *volume_name;
 			const char *bucket_name;
 		} s3;
+		struct {
+		} mem;
 
 	};
 };
