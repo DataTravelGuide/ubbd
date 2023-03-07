@@ -271,4 +271,7 @@ static inline long ubbd_atomic64_cmpxchg(ubbd_atomic64 *a, long old, long new)
 	return atomic_cmpxchg(a, old, new);
 }
 
+int ubbd_mkdirs(const char *pathname);
+int ubbd_mkdir(const char *path);
+int ubbd_rmdirs(const char *pathname, const char *remain);
 #endif /* UTILS_H */

@@ -6,7 +6,9 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/wait.h> 
+#include <dirent.h>
 
 
 int execute(char* program, char** arg_list)
@@ -68,4 +70,97 @@ int ubbd_load_module(char *mod_name)
 	};
 
 	return execute("modprobe", arg_list);
+}
+
+
+int ubbd_mkdir(const char *path)
+{
+	DIR *dir;
+
+	dir = opendir(path);
+	if (dir) {
+		closedir(dir);
+	} else if (errno == ENOENT) {
+		if (mkdir(path, 0755) == -1) {
+			ubbd_err("mkdir(%s) failed: %m\n", path);
+			return -errno;
+		}
+	} else {
+		ubbd_err("opendir(%s) failed: %m\n", path);
+		return -errno;
+	}
+
+	return 0;
+}
+
+int ubbd_mkdirs(const char *pathname)
+{
+	char path[PATH_MAX], *ch;
+	int ind = 0, ret;
+
+	strncpy(path, pathname, PATH_MAX);
+
+	if (path[0] == '/')
+		ind++;
+
+	do {
+		ch = strchr(path + ind, '/');
+		if (!ch)
+			break;
+
+		*ch = '\0';
+
+		ret = ubbd_mkdir(path);
+		if (ret)
+			return ret;
+
+		*ch = '/';
+		ind = ch - path + 1;
+	} while (1);
+
+	return ubbd_mkdir(path);
+}
+
+int ubbd_rmdir(const char *path)
+{
+	int ret;
+
+	ret = rmdir(path);
+	if (ret < 0) {
+		if (errno == ENOENT) {
+			ret = 0;
+		} else {
+			ubbd_err("failed to rmdir %s: %d\n", path, errno);
+			ret = -errno;
+		}
+	}
+
+	return ret;
+}
+
+int ubbd_rmdirs(const char *pathname, const char *remain)
+{
+	char path[PATH_MAX], *ch;
+	int ret;
+
+	strncpy(path, pathname, PATH_MAX);
+
+	do {
+		ret = ubbd_rmdir(path);
+		if (ret < 0) {
+			break;
+		}
+
+		ch = strrchr(path, '/');
+		if (!ch)
+			break;
+
+		*ch = '\0';
+		if (!strcmp(path, remain)) {
+			ret = 0;
+			break;
+		}
+	} while (1);
+
+	return ret;
 }

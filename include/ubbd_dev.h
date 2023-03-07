@@ -17,6 +17,8 @@
 #define UBBD_DEV_RESTART_MODE_QUEUE	2
 
 
+#define UBBD_DEV_LINK_DIR	"/dev/ubbd/"
+
 enum ubbd_dev_ustatus {
 	UBBD_DEV_USTATUS_INIT,
 	UBBD_DEV_USTATUS_OPENED,
@@ -40,6 +42,8 @@ struct ubbd_dev_ops {
 	struct ubbd_device* (*create) (struct __ubbd_dev_info *info);
 	int (*init) (struct ubbd_device *ubbd_dev);
 	void (*release) (struct ubbd_device *ubbd_dev);
+	int (*before_dev_remove) (struct ubbd_device *ubbd_dev);
+	int (*post_disk_added) (struct ubbd_device *ubbd_dev);
 };
 
 struct ubbd_device {
@@ -86,6 +90,7 @@ struct ubbd_file_device {
 struct ubbd_rbd_device {
 	struct ubbd_device ubbd_dev;
 	struct ubbd_rbd_conn rbd_conn;
+	char dev_link_dir[PATH_MAX];
 };
 
 struct ubbd_null_device {
