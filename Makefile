@@ -21,6 +21,7 @@ $(UBBDCONF_HEADER):
 	@echo $(CHECK_BUILD) compat-tests/have_sftp_fsync.c
 	@if $(CC) compat-tests/have_sftp_fsync.c -lssh > /dev/null 2>&1; then echo "#define HAVE_SFTP_FSYNC 1"; else echo "/*#undefined HAVE_SFTP_FSYNC*/"; fi >> $@
 	@>> $@
+	sed "s/@UBBD_VERSION@/$(VERSION)/g" include/ubbd_version.h.in > include/ubbd_version.h
 
 ubbdadm: $(UBBDCONF_HEADER)
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C ubbdadm

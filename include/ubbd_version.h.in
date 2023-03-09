@@ -1,0 +1,6 @@
+#ifndef UBBD_VERSION_H
+#define UBBD_VERSION_H
+
+#define	UBBD_U_VERSION	"@UBBD_VERSION@"
+
+#endif
