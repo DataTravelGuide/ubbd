@@ -117,7 +117,19 @@ static void *mgmt_thread_fn(void* args)
 			struct context *ctx;
 
 			ubbd_ipc_read_data(read_fd, &mgmt_req, sizeof(mgmt_req));
-			ubbd_info("receive mgmt request: %d. fd: %d\n", mgmt_req.cmd, read_fd);
+			ubbd_info("receive mgmt request: %d, version: %d . fd: %d\n", mgmt_req.cmd, mgmt_req.header.version, read_fd);
+
+			if (mgmt_req.header.magic != UBBDD_MGMT_REQ_MAGIC) {
+				ubbd_err("ubbd mgmt request magic number check failed, please make sure ubbd installed correctly.\n");
+				ret = -EPROTO;
+				goto response;
+			}
+
+			if (mgmt_req.header.version != UBBDD_MGMT_REQ_VERSION) {
+				ubbd_err("ubbd mgmt request version check failed, please make sure libubbd and libubbd-daemon are in same version.\n");
+				ret = -EPROTO;
+				goto response;
+			}
 
 			switch (mgmt_req.cmd) {
 			case UBBDD_MGMT_CMD_MAP:
@@ -288,6 +300,7 @@ static void *mgmt_thread_fn(void* args)
 				ret = -EINVAL;
 				break;
 			}
+response:
 			ubbd_err("write ret: %d to fd: %d\n", ret, read_fd);
 			mgmt_rsp.ret = ret;
 			write(read_fd, &mgmt_rsp, sizeof(mgmt_rsp));
