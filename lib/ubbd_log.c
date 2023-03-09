@@ -366,54 +366,6 @@ static int ubbd_log_dir_set(const char *log_dir)
 	return 0;
 }
 
-static int ubbd_mkdir(const char *path)
-{
-	DIR *dir;
-
-	dir = opendir(path);
-	if (dir) {
-		closedir(dir);
-	} else if (errno == ENOENT) {
-		if (mkdir(path, 0755) == -1) {
-			ubbd_err("mkdir(%s) failed: %m\n", path);
-			return -errno;
-		}
-	} else {
-		ubbd_err("opendir(%s) failed: %m\n", path);
-		return -errno;
-	}
-
-	return 0;
-}
-
-static int ubbd_mkdirs(const char *pathname)
-{
-	char path[PATH_MAX], *ch;
-	int ind = 0, ret;
-
-	strncpy(path, pathname, PATH_MAX);
-
-	if (path[0] == '/')
-		ind++;
-
-	do {
-		ch = strchr(path + ind, '/');
-		if (!ch)
-			break;
-
-		*ch = '\0';
-
-		ret = ubbd_mkdir(path);
-		if (ret)
-			return ret;
-
-		*ch = '/';
-		ind = ch - path + 1;
-	} while (1);
-
-	return ubbd_mkdir(path);
-}
-
 static void cleanup_log_dir_lock(void *arg)
 {
 	pthread_mutex_unlock(&ubbd_log_dir_lock);

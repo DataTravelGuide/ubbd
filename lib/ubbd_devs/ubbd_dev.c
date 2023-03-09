@@ -503,6 +503,13 @@ int wait_disk_running(struct ubbd_device *ubbd_dev)
 	return wait_condition(1000, 10000, disk_running, ubbd_dev);
 }
 
+static int post_disk_added(struct ubbd_device *ubbd_dev) {
+	if (!ubbd_dev->dev_ops->post_disk_added)
+		return 0;
+
+	return ubbd_dev->dev_ops->post_disk_added(ubbd_dev);
+}
+
 int dev_add_disk_finish(struct context *ctx, int ret)
 {
 	struct dev_add_disk_data *add_disk_data = (struct dev_add_disk_data *)ctx->data;
@@ -516,6 +523,12 @@ int dev_add_disk_finish(struct context *ctx, int ret)
 	ret = wait_disk_running(ubbd_dev);
 	if (ret) {
 		ubbd_dev_err(ubbd_dev, "error to wait disk running: %d\n", ret);
+		goto clean_dev;
+	}
+
+	ret = post_disk_added(ubbd_dev);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "error in post disk added: %d\n", ret);
 		goto clean_dev;
 	}
 
@@ -759,12 +772,25 @@ static int dev_remove_disk(struct ubbd_device *ubbd_dev, bool force,
 	return ret;
 }
 
+static int before_dev_remove(struct ubbd_device *ubbd_dev) {
+	if (!ubbd_dev->dev_ops->before_dev_remove)
+		return 0;
+
+	return ubbd_dev->dev_ops->before_dev_remove(ubbd_dev);
+}
+
 int ubbd_dev_remove(struct ubbd_device *ubbd_dev, bool force,
 		bool detach, struct context *ctx)
 {
 	int ret = 0;
 
 	ubbd_dev_info(ubbd_dev, "status : %d.\n", ubbd_dev->status);
+
+	ret = before_dev_remove(ubbd_dev);
+	if (ret) {
+		ubbd_dev_err(ubbd_dev, "error in before dev remove: %d\n", ret);
+		return ret;
+	}
 
 	pthread_mutex_lock(&ubbd_dev->lock);
 	switch (ubbd_dev->status) {

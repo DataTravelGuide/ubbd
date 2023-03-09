@@ -88,8 +88,122 @@ static void rbd_dev_release(struct ubbd_device *ubbd_dev)
 	free(rbd_dev);
 }
 
+#define	UBBD_DEV_RBD_LINK_DIR	UBBD_DEV_LINK_DIR"/rbd"
+
+static int mkdir_and_chdir(char *dir)
+{
+	int ret;
+
+	ret = ubbd_mkdirs(dir);
+	if (ret < 0)
+		return ret;
+
+	return chdir(dir);
+}
+
+static int rbd_dev_post_disk_added(struct ubbd_device *ubbd_dev)
+{
+	char target_path[PATH_MAX], link_path[PATH_MAX];
+	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
+	struct ubbd_rbd_conn *rbd_conn = &rbd_dev->rbd_conn;
+	char *retp;
+	int ret;
+
+	ret = mkdir_and_chdir(UBBD_DEV_RBD_LINK_DIR);
+	if (ret < 0)
+		goto out;
+
+	ret = mkdir_and_chdir(rbd_conn->pool);
+	if (ret < 0) {
+		goto out;
+	}
+
+	if (strcmp(rbd_conn->ns, "")) {
+		ret = mkdir_and_chdir(rbd_conn->ns);
+		if (ret < 0)
+			goto out;
+	}
+
+	ret = mkdir_and_chdir(rbd_conn->imagename);
+	if (ret < 0)
+		goto out;
+
+	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_SNAP) {
+		ret = mkdir_and_chdir(rbd_conn->snap);
+		if (ret < 0) {
+			goto out;
+		}
+	}
+
+	if ((ret = snprintf(target_path, PATH_MAX, "/dev/ubbd%d", ubbd_dev->dev_id)) < 0 ||
+			(ret = snprintf(link_path, PATH_MAX, "%d", ubbd_dev->dev_id)) < 0) {
+		ubbd_dev_err(ubbd_dev, "failed to setup target_path or link_path.\n");
+		goto out;
+	}
+
+	retp = getcwd(rbd_dev->dev_link_dir, PATH_MAX);
+	if (!retp) {
+		ubbd_dev_err(ubbd_dev, "failed to get dev link dir.\n");
+		ret = -errno;
+		goto out;
+	}
+
+symlink:
+	ret = symlink(target_path, link_path);
+	if (ret < 0) {
+		if (errno == EEXIST) {
+			ret = unlink(link_path);
+			if (ret < 0 && errno != ENOENT) {
+				ubbd_dev_err(ubbd_dev, "link path exist and cant cleanup.\n");
+				goto out;
+			}
+			goto symlink;
+		}
+		ubbd_dev_err(ubbd_dev, "failed to create symlink: %d\n", ret);
+		goto out;
+	}
+
+
+	ret = 0;
+
+out:
+	return ret;
+}
+
+static int rbd_dev_before_dev_remove(struct ubbd_device *ubbd_dev)
+{
+	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
+	char link_path[PATH_MAX];
+	int ret;
+
+	ret = snprintf(link_path, PATH_MAX, "%s/%d", rbd_dev->dev_link_dir, ubbd_dev->dev_id);
+	if (ret < 0) {
+		ubbd_dev_err(ubbd_dev, "failed to setup link path.\n");
+		goto out;
+	}
+
+	ret = unlink(link_path);
+	if (ret < 0 && errno != ENOENT) {
+		ubbd_dev_err(ubbd_dev, "failed to unlink dev link path: %s\n", link_path);
+		ret = -errno;
+		goto out;
+	}
+	/* try to rm dir, it will do nothing if this dir is not empty */
+	ret = ubbd_rmdirs(rbd_dev->dev_link_dir, UBBD_DEV_RBD_LINK_DIR);
+	if (ret < 0 && ret != -ENOTEMPTY) {
+		ubbd_dev_err(ubbd_dev, "failed to rmdirs: %s\n", rbd_dev->dev_link_dir);
+	}
+
+	ret = 0;
+out:
+	return ret;
+
+}
+
 struct ubbd_dev_ops rbd_dev_ops = {
 	.create = rbd_dev_create,
 	.init = rbd_dev_init,
 	.release = rbd_dev_release,
+	.before_dev_remove = rbd_dev_before_dev_remove,
+	.post_disk_added = rbd_dev_post_disk_added,
 };
