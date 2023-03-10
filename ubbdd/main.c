@@ -6,6 +6,7 @@
 #include "ubbd_netlink.h"
 #include "utils.h"
 #include "ubbd_log.h"
+#include "ubbd_version.h"
 
 static bool ubbdd_killed = false;
 static void catch_signal(int signo)
@@ -41,10 +42,11 @@ static struct option const long_options[] =
 {
 	{"daemon", no_argument, NULL, 'd'},
 	{"help", no_argument, NULL, 'h'},
+	{"version", no_argument, NULL, 'v'},
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "d:h";
+static char *short_options = "d:h:v";
 
 static void usage(int status)
 { 
@@ -73,6 +75,9 @@ int main(int argc, char **argv)
 			break;
 		case 'h':
 			usage(0);
+		case 'v':
+			printf("ubbdd: %s\n", UBBD_U_VERSION);
+			return 0;
 		}
 	}
 

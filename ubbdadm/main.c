@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "libubbd.h"
+#include "ubbd_version.h"
 
 
 #define UBBD_MAP_OPT(prefix, name)					\
@@ -32,6 +33,7 @@ static struct option const long_options[] =
 	{"data-pages-reserve-percnt", required_argument, NULL, 'r'},
 	{"restart-mode", required_argument, NULL, 'm'},
 	{"detach", no_argument, NULL, 'd'},
+	{"version", no_argument, NULL, 'v'},
 
 	UBBD_MAP_NOPRE_OPT(type)
 	UBBD_MAP_NOPRE_OPT(devsize)
@@ -68,7 +70,7 @@ static struct option const long_options[] =
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:o:u:r:m:d:h";
+static char *short_options = "c:o:u:r:m:d:h:v";
 
 static void print_map_opt_msg(char *name, char *msg)
 {
@@ -386,6 +388,9 @@ int main(int argc, char **argv)
 			break;
 		case 'h':
 			usage(0);
+			return 0;
+		case 'v':
+			printf("ubbdadm: %s\n", UBBD_U_VERSION);
 			return 0;
 		default:
 			printf("unrecognized ubbd option.\n");

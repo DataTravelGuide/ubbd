@@ -41,6 +41,7 @@ struct ubbd_backend_opts {
 
 struct ubbd_backend;
 struct ubbd_backend_ops {
+	struct ubbd_backend* (*create) (struct __ubbd_dev_info *info);
 	int (*open) (struct ubbd_backend *ubbd_b);
 	void (*close) (struct ubbd_backend *ubbd_b);
 	void (*release) (struct ubbd_backend *ubbd_b);

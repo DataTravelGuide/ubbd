@@ -358,6 +358,7 @@ int ubbd_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
 	struct ubbdd_mgmt_request req = { 0 };
 	int ret;
 
+	ubbd_request_header_init(&req.header);
 	ret = validate_map_opts(opts);
 	if (ret)
 		return ret;
@@ -372,8 +373,9 @@ int ubbd_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
 
 int ubbd_unmap(struct ubbd_unmap_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
-	struct ubbdd_mgmt_request req = {0};
+	struct ubbdd_mgmt_request req = { 0 };
 
+	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_UNMAP;
 	req.u.remove.dev_id = opts->ubbdid;
 	req.u.remove.force = opts->force;
@@ -384,8 +386,9 @@ int ubbd_unmap(struct ubbd_unmap_options *opts, struct ubbdd_mgmt_rsp *rsp)
 
 int ubbd_config(struct ubbd_config_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
-	struct ubbdd_mgmt_request req = {0};
+	struct ubbdd_mgmt_request req = { 0 };
 
+	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_CONFIG;
 	req.u.config.dev_id = opts->ubbdid;
 	req.u.config.data_pages_reserve_percnt = opts->data_pages_reserve_percnt;
@@ -395,8 +398,9 @@ int ubbd_config(struct ubbd_config_options *opts, struct ubbdd_mgmt_rsp *rsp)
 
 int ubbd_list(struct ubbd_list_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
-	struct ubbdd_mgmt_request req = {0};
+	struct ubbdd_mgmt_request req = { 0 };
 
+	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_LIST;
 	req.u.list.type = opts->type;
 
@@ -405,8 +409,9 @@ int ubbd_list(struct ubbd_list_options *opts, struct ubbdd_mgmt_rsp *rsp)
 
 int ubbd_req_stats(struct ubbd_req_stats_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
-	struct ubbdd_mgmt_request req = {0};
+	struct ubbdd_mgmt_request req = { 0 };
 
+	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_REQ_STATS;
 	req.u.req_stats.dev_id = opts->ubbdid;
 
@@ -415,8 +420,9 @@ int ubbd_req_stats(struct ubbd_req_stats_options *opts, struct ubbdd_mgmt_rsp *r
 
 int ubbd_req_stats_reset(struct ubbd_req_stats_reset_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
-	struct ubbdd_mgmt_request req = {0};
+	struct ubbdd_mgmt_request req = { 0 };
 
+	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_REQ_STATS_RESET;
 	req.u.req_stats_reset.dev_id = opts->ubbdid;
 
@@ -425,8 +431,9 @@ int ubbd_req_stats_reset(struct ubbd_req_stats_reset_options *opts, struct ubbdd
 
 int ubbd_device_restart(struct ubbd_dev_restart_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
-	struct ubbdd_mgmt_request req = {0};
+	struct ubbdd_mgmt_request req = { 0 };
 
+	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_DEV_RESTART;
 	req.u.dev_restart.dev_id = opts->ubbdid;
 	if (!opts->restart_mode)
@@ -440,6 +447,7 @@ int ubbd_device_info(struct ubbd_info_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
 	struct ubbdd_mgmt_request req = { 0 };
 
+	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_DEV_INFO;
 	req.u.dev_info.dev_id = opts->ubbdid;
 

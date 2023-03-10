@@ -20,8 +20,14 @@ enum ubbdd_mgmt_cmd {
 	UBBDD_MGMT_CMD_DEV_INFO,
 };
 
+struct ubbdd_mgmt_request_header {
+	uint64_t		magic;
+	uint32_t		version;
+};
+
 struct ubbdd_mgmt_request {
-	enum ubbdd_mgmt_cmd cmd;
+	struct ubbdd_mgmt_request_header header;
+	enum ubbdd_mgmt_cmd	cmd;
 	union {
 		struct {
 			struct ubbd_dev_info info;
@@ -63,6 +69,15 @@ static inline int ubbdd_response(int fd, struct ubbdd_mgmt_rsp *rsp,
 		    int timeout)
 {
 	return ubbd_response(fd, rsp, sizeof(*rsp), timeout);
+}
+
+#define UBBDD_MGMT_REQ_MAGIC	0xa3b15aULL
+#define UBBDD_MGMT_REQ_VERSION	1
+
+static inline void ubbd_request_header_init(struct ubbdd_mgmt_request_header *hdr)
+{
+	hdr->magic = UBBDD_MGMT_REQ_MAGIC;
+	hdr->version = UBBDD_MGMT_REQ_VERSION;
 }
 
 int ubbdd_mgmt_start_thread(void);

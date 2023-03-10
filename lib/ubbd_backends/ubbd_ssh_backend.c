@@ -6,6 +6,29 @@
 
 #define SSH_BACKEND(ubbd_b) ((struct ubbd_ssh_backend *)container_of(ubbd_b, struct ubbd_ssh_backend, ubbd_b))
 
+struct ubbd_backend_ops ssh_backend_ops;
+
+static struct ubbd_backend* ssh_backend_create(struct __ubbd_dev_info *info)
+{
+	struct ubbd_ssh_backend *ssh_backend;
+	struct ubbd_backend *ubbd_b;
+
+	ssh_backend = calloc(1, sizeof(*ssh_backend));
+	if (!ssh_backend)
+		return NULL;
+
+	ubbd_b = &ssh_backend->ubbd_b;
+	ubbd_b->dev_type = UBBD_DEV_TYPE_SSH;
+	ubbd_b->backend_ops = &ssh_backend_ops;
+
+	pthread_mutex_init(&ssh_backend->lock, NULL);
+	strcpy(ssh_backend->hostname, info->ssh.hostname);
+	strcpy(ssh_backend->path, info->ssh.path);
+	ubbd_b->dev_size = info->size;
+
+	return ubbd_b;
+}
+
 static ssh_session connect_ssh(const char *host, const char *user, int verbosity){
 	ssh_session session;
 	int auth=0;
@@ -198,6 +221,7 @@ static int ssh_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io
 }
 
 struct ubbd_backend_ops ssh_backend_ops = {
+	.create = ssh_backend_create,
 	.open = ssh_backend_open,
 	.close = ssh_backend_close,
 	.release = ssh_backend_release,

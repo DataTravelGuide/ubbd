@@ -43,6 +43,25 @@ out:
 	return ret;
 }
 
+struct ubbd_backend_ops mem_backend_ops;
+
+static struct ubbd_backend* mem_backend_create(struct __ubbd_dev_info *info)
+{
+	struct ubbd_mem_backend *mem_backend;
+	struct ubbd_backend *ubbd_b;
+
+	mem_backend = calloc(1, sizeof(*mem_backend));
+	if (!mem_backend)
+		return NULL;
+
+	ubbd_b = &mem_backend->ubbd_b;
+	ubbd_b->dev_type = UBBD_DEV_TYPE_MEM;
+	ubbd_b->backend_ops = &mem_backend_ops;
+	ubbd_b->dev_size = info->size;
+
+	return ubbd_b;
+}
+
 static int mem_backend_open(struct ubbd_backend *ubbd_b)
 {
 	return 0;
@@ -160,6 +179,7 @@ static int mem_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io
 }
 
 struct ubbd_backend_ops mem_backend_ops = {
+	.create = mem_backend_create,
 	.open = mem_backend_open,
 	.close = mem_backend_close,
 	.release = mem_backend_release,
