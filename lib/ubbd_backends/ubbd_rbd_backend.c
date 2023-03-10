@@ -6,6 +6,39 @@
 
 // rbd ops
 #define RBD_BACKEND(ubbd_b) ((struct ubbd_rbd_backend *)container_of(ubbd_b, struct ubbd_rbd_backend, ubbd_b))
+
+struct ubbd_backend_ops rbd_backend_ops;
+
+static struct ubbd_backend* rbd_backend_create(struct __ubbd_dev_info *info)
+{
+	struct ubbd_rbd_backend *rbd_backend;
+	struct ubbd_rbd_conn *rbd_conn;
+	struct ubbd_backend *ubbd_b;
+
+	rbd_backend = calloc(1, sizeof(*rbd_backend));
+	if (!rbd_backend)
+		return NULL;
+
+	ubbd_b = &rbd_backend->ubbd_b;
+	ubbd_b->dev_type = UBBD_DEV_TYPE_RBD;
+	ubbd_b->backend_ops = &rbd_backend_ops;
+	rbd_conn = &rbd_backend->rbd_conn;
+
+	strcpy(rbd_conn->pool, info->rbd.pool);
+	strcpy(rbd_conn->ns, info->rbd.ns);
+	strcpy(rbd_conn->imagename, info->rbd.image);
+	if (info->rbd.flags & UBBD_DEV_INFO_RBD_FLAGS_SNAP) {
+		rbd_conn->flags |= UBBD_DEV_INFO_RBD_FLAGS_SNAP;
+		strcpy(rbd_conn->snap, info->rbd.snap);
+	}
+	strcpy(rbd_conn->ceph_conf, info->rbd.ceph_conf);
+	strcpy(rbd_conn->user_name, info->rbd.user_name);
+	strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
+	rbd_conn->io_timeout = info->io_timeout;
+
+	return ubbd_b;
+}
+
 static int rbd_backend_open(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
@@ -144,6 +177,7 @@ static int rbd_backend_write_zeros(struct ubbd_backend *ubbd_b, struct ubbd_back
 #endif
 
 struct ubbd_backend_ops rbd_backend_ops = {
+	.create = rbd_backend_create,
 	.open = rbd_backend_open,
 	.close = rbd_backend_close,
 	.release = rbd_backend_release,

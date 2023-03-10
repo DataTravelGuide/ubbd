@@ -2,8 +2,28 @@
 #include "ubbd_uio.h"
 #include "ubbd_backend.h"
 #include "ubbd_queue.h"
+#include "ubbd_backend.h"
 
 #define NULL_BACKEND(ubbd_b) ((struct ubbd_null_backend *)container_of(ubbd_b, struct ubbd_null_backend, ubbd_b))
+
+struct ubbd_backend_ops null_backend_ops;
+
+static struct ubbd_backend* null_backend_create(struct __ubbd_dev_info *info)
+{
+	struct ubbd_null_backend *null_backend;
+	struct ubbd_backend *ubbd_b;
+
+	null_backend = calloc(1, sizeof(*null_backend));
+	if (!null_backend)
+		return NULL;
+
+	ubbd_b = &null_backend->ubbd_b;
+	ubbd_b->dev_type = UBBD_DEV_TYPE_NULL;
+	ubbd_b->backend_ops = &null_backend_ops;
+	ubbd_b = &null_backend->ubbd_b;
+
+	return ubbd_b;
+}
 
 static int null_backend_open(struct ubbd_backend *ubbd_b)
 {
@@ -45,6 +65,7 @@ static int null_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_i
 }
 
 struct ubbd_backend_ops null_backend_ops = {
+	.create = null_backend_create,
 	.open = null_backend_open,
 	.close = null_backend_close,
 	.release = null_backend_release,

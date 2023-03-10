@@ -423,6 +423,33 @@ static int write_object(char *oid, uint64_t off, uint64_t len, struct obj_io_ctx
 
 #define S3_BACKEND(ubbd_b) ((struct ubbd_s3_backend *)container_of(ubbd_b, struct ubbd_s3_backend, ubbd_b))
 
+struct ubbd_backend_ops s3_backend_ops;
+
+static struct ubbd_backend* s3_backend_create(struct __ubbd_dev_info *info)
+{
+	struct ubbd_s3_backend *s3_backend;
+	struct ubbd_backend *ubbd_b;
+
+	s3_backend = calloc(1, sizeof(*s3_backend));
+	if (!s3_backend)
+		return NULL;
+
+	ubbd_b = &s3_backend->ubbd_b;
+	ubbd_b->dev_type = UBBD_DEV_TYPE_S3;
+	ubbd_b->backend_ops = &s3_backend_ops;
+
+	strcpy(s3_backend->hostname, info->s3.hostname);
+	strcpy(s3_backend->accessid, info->s3.accessid);
+	strcpy(s3_backend->accesskey, info->s3.accesskey);
+	strcpy(s3_backend->volume_name, info->s3.volume_name);
+	strcpy(s3_backend->bucket_name, info->s3.bucket_name);
+	s3_backend->port = info->s3.port;
+	s3_backend->block_size = info->s3.block_size;
+	ubbd_b->dev_size = info->size;
+
+	return ubbd_b;
+}
+
 static int s3_backend_open(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_s3_backend *s3_b = S3_BACKEND(ubbd_b);
@@ -510,6 +537,7 @@ static int s3_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_io 
 }
 
 struct ubbd_backend_ops s3_backend_ops = {
+	.create = s3_backend_create,
 	.open = s3_backend_open,
 	.close = s3_backend_close,
 	.release = s3_backend_release,
