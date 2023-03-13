@@ -22,7 +22,7 @@ static struct ubbd_device *ssh_dev_create(struct __ubbd_dev_info *info)
 	return ubbd_dev;
 }
 
-static int ssh_dev_init(struct ubbd_device *ubbd_dev)
+static int ssh_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 {
 	ubbd_dev->dev_features.write_cache = false;
 	ubbd_dev->dev_features.fua = false;

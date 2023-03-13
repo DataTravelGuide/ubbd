@@ -26,6 +26,7 @@ struct ubbd_nl_req {
 		} remove_opts;
 		struct config_options {
 			int data_pages_reserve_percnt;
+			uint64_t dev_size;
 		} config_opts;
 	} req_opts;
 	struct ubbd_device *ubbd_dev;
@@ -49,7 +50,8 @@ int ubbd_nl_req_add_dev(struct ubbd_device *ubbd_dev, struct context *ctx);
 int ubbd_nl_req_add_disk(struct ubbd_device *ubbd_dev, struct context *ctx);
 int ubbd_nl_req_remove_disk(struct ubbd_device *ubbd_dev, bool force, struct context *ctx);
 int ubbd_nl_req_remove_dev(struct ubbd_device *ubbd_dev, struct context *ctx);
-int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve_percnt, struct context *ctx);
+int ubbd_nl_req_config(struct ubbd_device *ubbd_dev, int data_pages_reserve_percnt,
+		uint64_t dev_size, struct context *ctx);
 int ubbd_nl_start_thread(void);
 void ubbd_nl_stop_thread(void);
 int ubbd_nl_wait_thread(void);

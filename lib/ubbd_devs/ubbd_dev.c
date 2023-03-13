@@ -170,11 +170,11 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force)
 }
 
 
-int ubbd_dev_init(struct ubbd_device *ubbd_dev)
+int ubbd_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 {
 	int ret = 0;
 
-	ret = ubbd_dev->dev_ops->init(ubbd_dev);
+	ret = ubbd_dev->dev_ops->init(ubbd_dev, reopen);
 	if (ret)
 		goto out;
 
@@ -670,7 +670,7 @@ int ubbd_dev_add(struct ubbd_device *ubbd_dev, struct context *ctx)
 	int ret;
 
 	pthread_mutex_lock(&ubbd_dev->lock);
-	ret = ubbd_dev_init(ubbd_dev);
+	ret = ubbd_dev_init(ubbd_dev, false);
 	if (ret) {
 		goto release_dev;
 	}
@@ -842,7 +842,7 @@ int ubbd_dev_config(struct ubbd_device *ubbd_dev, int data_pages_reserve_percnt,
 	if (!config_ctx)
 		return -ENOMEM;
 
-	ret = ubbd_nl_req_config(ubbd_dev, data_pages_reserve_percnt, config_ctx);
+	ret = ubbd_nl_req_config(ubbd_dev, data_pages_reserve_percnt, 0, config_ctx);
 	pthread_mutex_unlock(&ubbd_dev->lock);
 	if (ret)
 		context_free(config_ctx);
@@ -993,6 +993,12 @@ static int reopen_dev(struct ubbd_nl_dev_status *dev_status,
 	ubbd_dev->current_backend_id = dev_conf->current_backend_id;
 	ubbd_dev->new_backend_id = dev_conf->new_backend_id;
 	free(dev_conf);
+
+	ret = ubbd_dev_init(ubbd_dev, true);
+	if (ret) {
+		ubbd_dev->status = UBBD_DEV_USTATUS_ERROR;
+		goto out;
+	}
 
 	if (ubbd_dev->status == UBBD_DEV_USTATUS_ERROR)
 		goto out;

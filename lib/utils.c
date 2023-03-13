@@ -42,7 +42,7 @@ int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size)
 	int fd;
 	off_t len;
 
-	fd = open(filepath, O_RDWR | O_DIRECT);
+	fd = open(filepath, O_RDONLY);
 	if (fd < 0) {
 		ubbd_err("failed to open filepath: %s: %d\n", filepath, fd);
 		return fd;

@@ -22,7 +22,7 @@ static struct ubbd_device *s3_dev_create(struct __ubbd_dev_info *info)
 	return ubbd_dev;
 }
 
-static int s3_dev_init(struct ubbd_device *ubbd_dev)
+static int s3_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 {
 	ubbd_dev->dev_features.write_cache = false;
 	ubbd_dev->dev_features.fua = false;

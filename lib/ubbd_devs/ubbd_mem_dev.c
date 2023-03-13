@@ -22,7 +22,7 @@ static struct ubbd_device *mem_dev_create(struct __ubbd_dev_info *info)
 	return ubbd_dev;
 }
 
-static int mem_dev_init(struct ubbd_device *ubbd_dev)
+static int mem_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 {
 	if (ubbd_dev->dev_size > ((uint64_t)UBBD_MEM_BLK_SIZE * UBBD_MEM_BLK_COUNT)) {
 		ubbd_err("dev size for mem type is too large: %lu (max %lu)\n",
