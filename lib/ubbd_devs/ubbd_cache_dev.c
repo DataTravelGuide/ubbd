@@ -3,16 +3,16 @@
 
 // cache ops
 
-static int cache_dev_init(struct ubbd_device *ubbd_dev)
+static int cache_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 {
 	struct ubbd_cache_device *cache_dev = CACHE_DEV(ubbd_dev);
 	int ret;
 
-	ret = ubbd_dev_init(cache_dev->backing_device);
+	ret = ubbd_dev_init(cache_dev->backing_device, reopen);
 	if (ret)
 		return ret;
 
-	ret = ubbd_dev_init(cache_dev->cache_device);
+	ret = ubbd_dev_init(cache_dev->cache_device, reopen);
 	if (ret)
 		return ret;
 

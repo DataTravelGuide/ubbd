@@ -1,8 +1,11 @@
+#define _GNU_SOURCE
 #include <rados/librados.h>
 #include <pthread.h>
 
 #include "ubbd_dev.h"
 #include "ubbd_uio.h"
+#include "ubbd_netlink.h"
+#include "utils.h"
 
 // rbd ops
 #define RBD_DEV(ubbd_dev) ((struct ubbd_rbd_device *)container_of(ubbd_dev, struct ubbd_rbd_device, ubbd_dev))
@@ -37,14 +40,42 @@ static struct ubbd_device *rbd_dev_create(struct __ubbd_dev_info *info)
 	strcpy(rbd_conn->user_name, info->rbd.user_name);
 	strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
 	rbd_conn->io_timeout = info->io_timeout;
+	rbd_conn->update_handle = 0;
 
 	return ubbd_dev;
 }
 
-static int rbd_dev_init(struct ubbd_device *ubbd_dev)
+static void rbd_dev_update_cb(void *arg)
+{
+	struct ubbd_rbd_device *rbd_b = (struct ubbd_rbd_device *)arg;
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
+	struct ubbd_device *ubbd_dev = &rbd_b->ubbd_dev;
+	uint64_t dev_size;
+	int ret;
+
+	ret = ubbd_rbd_get_size(rbd_conn, &dev_size);
+	if (ret < 0) {
+		ubbd_err("failed to get size of ubbd in update watcher.\n");
+		return;
+	}
+
+	if (dev_size != ubbd_dev->dev_size) {
+		ret = ubbd_nl_req_config(ubbd_dev, -1, dev_size, NULL);
+		if (ret) {
+			ubbd_err("failed to send netlink request to resize.\n");
+			return;
+		}
+	}
+
+	ubbd_dev->dev_size = dev_size;
+}
+
+static int rbd_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 {
 	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
 	struct ubbd_rbd_conn *rbd_conn = &rbd_dev->rbd_conn;
+	char *dev_path;
+	uint64_t dev_size;
         int ret;
 
 	ret = ubbd_rbd_conn_open(rbd_conn);
@@ -61,6 +92,37 @@ static int rbd_dev_init(struct ubbd_device *ubbd_dev)
                 ubbd_dev_info(ubbd_dev, "\nimage get size: %lu.\n", ubbd_dev->dev_size);
         }
 
+	/* check the dev_size for real device */
+	if (reopen) {
+		if (asprintf(&dev_path, "/dev/ubbd%d", ubbd_dev->dev_id) == -1) {
+			ubbd_err("cant init dev path\n");
+			goto close_rbd;
+		}
+
+
+		ret = ubbd_util_get_file_size(dev_path, &dev_size);
+		free(dev_path);
+		if (ret) {
+			ubbd_err("failed to get dev size\n");
+			goto close_rbd;
+		}
+
+		if (dev_size != ubbd_dev->dev_size) {
+			ret = ubbd_nl_req_config(ubbd_dev, -1, ubbd_dev->dev_size, NULL);
+			if (ret) {
+				ubbd_err("failed to send netlink request to update dev_size.\n");
+				goto close_rbd;
+			}
+		}
+	}
+
+	ret = rbd_update_watch(rbd_conn->image, &rbd_conn->update_handle,
+			rbd_dev_update_cb, rbd_dev);
+	if (ret) {
+		ubbd_err("failed to register rbd update watcher:%d\n", ret);
+		goto close_rbd;
+	}
+
 	ubbd_dev->dev_features.write_cache = false;
 	ubbd_dev->dev_features.fua = false;
 	ubbd_dev->dev_features.discard = true;
@@ -73,7 +135,8 @@ static int rbd_dev_init(struct ubbd_device *ubbd_dev)
 		ubbd_dev->dev_features.read_only = true;
 		ubbd_dev->dev_info.read_only = true;
 	}
-	ret = 0;
+
+	return 0;
 
 close_rbd:
 	ubbd_rbd_conn_close(rbd_conn);
@@ -84,7 +147,12 @@ out:
 static void rbd_dev_release(struct ubbd_device *ubbd_dev)
 {
 	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
+	struct ubbd_rbd_conn *rbd_conn = &rbd_dev->rbd_conn;
 
+	if (rbd_conn->update_handle) {
+		rbd_update_unwatch(rbd_conn->image, rbd_conn->update_handle);
+	}
+	ubbd_rbd_conn_close(rbd_conn);
 	free(rbd_dev);
 }
 

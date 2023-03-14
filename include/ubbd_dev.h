@@ -44,7 +44,7 @@ struct ubbd_dev_features {
 struct ubbd_device;
 struct ubbd_dev_ops {
 	struct ubbd_device* (*create) (struct __ubbd_dev_info *info);
-	int (*init) (struct ubbd_device *ubbd_dev);
+	int (*init) (struct ubbd_device *ubbd_dev, bool reopen);
 	void (*release) (struct ubbd_device *ubbd_dev);
 	int (*before_dev_remove) (struct ubbd_device *ubbd_dev);
 	int (*post_disk_added) (struct ubbd_device *ubbd_dev);
@@ -127,7 +127,7 @@ void ubbd_dev_put(struct ubbd_device *ubbd_dev);
 
 struct ubbd_device *find_ubbd_dev(int dev_id);
 struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force);
-int ubbd_dev_init(struct ubbd_device *ubbd_dev);
+int ubbd_dev_init(struct ubbd_device *ubbd_dev, bool reopen);
 struct ubbd_device *ubbd_cache_dev_create(struct ubbd_dev_info *backing_dev_info,
 		struct ubbd_dev_info *cache_dev_info, int cache_mode, bool force);
 int ubbd_dev_restart(struct ubbd_device *ubbd_dev, int restart_mode);

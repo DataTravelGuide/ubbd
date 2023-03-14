@@ -24,7 +24,7 @@ static struct ubbd_device *file_dev_create(struct __ubbd_dev_info *info)
 	return ubbd_dev;
 }
 
-static int file_dev_init(struct ubbd_device *ubbd_dev)
+static int file_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 {
 	struct ubbd_file_device *file_dev = FILE_DEV(ubbd_dev);
 	int ret;
