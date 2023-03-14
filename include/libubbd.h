@@ -43,6 +43,7 @@ enum ubbd_dev_type {
 
 
 #define UBBD_DEV_INFO_RBD_FLAGS_SNAP	1 << 0	/* map snapshot of rbd image */
+#define UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE	1 << 1	/* exclusive mapping */
 
 struct __ubbd_dev_info {
 	enum ubbd_dev_type type;
@@ -144,6 +145,7 @@ struct __ubbd_map_opts {
 			const char *ceph_conf;
 			const char *cluster_name;
 			const char *user_name;
+			bool exclusive;
 		} rbd;
 		struct {
 		} null;

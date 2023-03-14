@@ -36,6 +36,10 @@ static struct ubbd_backend* rbd_backend_create(struct __ubbd_dev_info *info)
 	strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
 	rbd_conn->io_timeout = info->io_timeout;
 
+	if (info->rbd.flags & UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE) {
+		rbd_conn->flags |= UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE;
+	}
+
 	return ubbd_b;
 }
 
@@ -43,8 +47,26 @@ static int rbd_backend_open(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
 	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
+	int ret;
 
-	return ubbd_rbd_conn_open(rbd_conn);
+	ret = ubbd_rbd_conn_open(rbd_conn);
+	if (ret) {
+		ubbd_err("failed to open rbd connection: %d\n", ret);
+		return ret;
+	}
+
+	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE) {
+		ret = rbd_lock_acquire(rbd_conn->image, RBD_LOCK_MODE_EXCLUSIVE);
+		if (ret) {
+			ubbd_err("failed to get exclusive lock: %d\n", ret);
+			goto close_rbd;
+		}
+	}
+	return 0;
+
+close_rbd:
+	ubbd_rbd_conn_close(rbd_conn);
+	return ret;
 }
 
 static void rbd_backend_close(struct ubbd_backend *ubbd_b)
@@ -52,6 +74,7 @@ static void rbd_backend_close(struct ubbd_backend *ubbd_b)
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
 	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
 
+	rbd_lock_release(rbd_conn->image);
 	ubbd_rbd_conn_close(rbd_conn);
 }
 

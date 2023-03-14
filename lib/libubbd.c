@@ -172,6 +172,10 @@ void rbd_dev_info_setup(struct __ubbd_dev_info *info,
 		info->rbd.flags |= UBBD_DEV_INFO_RBD_FLAGS_SNAP;
 		strcpy(info->rbd.snap, opts->rbd.snap);
 	}
+
+	if (opts->rbd.exclusive) {
+		info->rbd.flags |= UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE;
+	}
 }
 
 void null_dev_info_setup(struct __ubbd_dev_info *info,
