@@ -34,7 +34,7 @@ int execute(char* program, char** arg_list)
 		ubbd_info("status of child is : %d\n", status);
 	}
 
-	return 0;
+	return status;
 }
 
 int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size)

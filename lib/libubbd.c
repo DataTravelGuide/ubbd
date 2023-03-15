@@ -8,6 +8,7 @@
 #include "ubbd_dev.h"
 #include "utils.h"
 #include "ubbd_netlink.h"
+#include "ubbd_compat.h"
 
 /* 32M */
 #define DEFAULT_SHMEM_SIZE	(32 * 1024 *1024)
