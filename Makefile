@@ -20,6 +20,8 @@ $(UBBDCONF_HEADER):
 	@> $@
 	@echo $(CHECK_BUILD) compat-tests/have_sftp_fsync.c
 	@if $(CC) compat-tests/have_sftp_fsync.c -lssh > /dev/null 2>&1; then echo "#define HAVE_SFTP_FSYNC 1"; else echo "/*#undefined HAVE_SFTP_FSYNC*/"; fi >> $@
+	@echo $(CHECK_BUILD) compat-tests/have_rbd_quiesce.c
+	@if $(CC) compat-tests/have_rbd_quiesce.c -lrbd > /dev/null 2>&1; then echo "#define HAVE_RBD_QUIESCE 1"; else echo "/*#undefined HAVE_RBD_QUIESCE*/"; fi >> $@
 	@>> $@
 	sed "s/@UBBD_VERSION@/$(VERSION)/g" include/ubbd_version.h.in > include/ubbd_version.h
 
@@ -72,6 +74,7 @@ install:
 	install lib/libubbd-daemon.so.$(LIBVER) $(DESTDIR)/usr/lib/ubbd/libubbd-daemon.so.$(LIBVER)
 	install lib/libubbd.so $(DESTDIR)/usr/lib/ubbd/libubbd.so
 	install lib/libubbd-daemon.so $(DESTDIR)/usr/lib/ubbd/libubbd-daemon.so
+	install lib/ubbd-rbd_quiesce $(DESTDIR)/usr/lib/ubbd/ubbd-rbd_quiesce
 	install libs3/build/lib/libs3-ubbd.so.4 $(DESTDIR)/usr/lib/ubbd/libs3-ubbd.so.4
 	install ubbdadm/ubbdadm $(DESTDIR)/usr/bin/ubbdadm
 	install ubbdd/ubbdd $(DESTDIR)/usr/bin/ubbdd

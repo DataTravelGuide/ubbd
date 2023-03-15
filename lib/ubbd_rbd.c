@@ -68,6 +68,9 @@ int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn)
 	rados_conf_set(rbd_conn->cluster, "rados_osd_op_timeout", timeout_buf);
 	rados_conf_set(rbd_conn->cluster, "rados_mon_op_timeout", timeout_buf);
 
+	rbd_conn->update_handle = 0;
+	rbd_conn->quiesce_handle = 0;
+
 	return 0;
 
 	rbd_close(rbd_conn->image);

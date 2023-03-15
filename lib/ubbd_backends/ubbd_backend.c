@@ -57,6 +57,11 @@ struct ubbd_backend *backend_create(struct __ubbd_dev_info *info)
 	struct ubbd_backend *ubbd_b;
 	struct ubbd_backend_ops *backend_ops = NULL;
 
+	if (info->header.magic != UBBD_DEV_INFO_MAGIC) {
+		ubbd_err("bad magic in ubbd_dev_info: %llx.\n", info->header.magic);
+		return NULL;
+	}
+
 	if (info->type == UBBD_DEV_TYPE_FILE) {
 		backend_ops = &file_backend_ops;
 	} else if (info->type == UBBD_DEV_TYPE_RBD) {

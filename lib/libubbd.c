@@ -18,6 +18,7 @@
 #define DEFAULT_CEPH_CLUSTER	"ceph"
 #define DEFAULT_RBD_NS		""
 #define DEFAULT_RBD_POOL	"rbd"
+#define DEFAULT_RBD_QUIESCE_HOOK	"/usr/lib/ubbd/ubbd-rbd_quiesce"
 
 char *cmd_to_str(enum ubbdd_mgmt_cmd cmd)
 {
@@ -176,6 +177,15 @@ void rbd_dev_info_setup(struct __ubbd_dev_info *info,
 	if (opts->rbd.exclusive) {
 		info->rbd.flags |= UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE;
 	}
+
+	if (opts->rbd.quiesce) {
+		info->rbd.flags |= UBBD_DEV_INFO_RBD_FLAGS_QUIESCE;
+		if (opts->rbd.quiesce_hook && strlen(opts->rbd.quiesce_hook)) {
+			strcpy(info->rbd.quiesce_hook, opts->rbd.quiesce_hook);
+		} else {
+			strcpy(info->rbd.quiesce_hook, DEFAULT_RBD_QUIESCE_HOOK);
+		}
+	}
 }
 
 void null_dev_info_setup(struct __ubbd_dev_info *info,
@@ -229,6 +239,8 @@ int generic_dev_info_setup(enum ubbd_dev_type dev_type,
 		return -EINVAL;
 	}
 
+	info->header.magic = UBBD_DEV_INFO_MAGIC;
+	info->header.version = UBBD_DEV_INFO_VERSION;
 	info->size = opts->dev_size;
 	info->io_timeout = opts->io_timeout;
 	info->type = str_to_type(opts->type);
@@ -288,6 +300,14 @@ static int validate_generic_map_opts(struct __ubbd_map_opts *opts)
 			fprintf(stderr, "image is required for rbd mapping.\n");
 			return -EINVAL;
 		}
+
+#ifndef HAVE_RBD_QUIESCE
+		if (opts->rbd.quiesce) {
+			fprintf(stderr, "rbd quiesce is not supported by librbd,\
+					please make sure rbd_quiesce_complete is in your librbd.so\n");
+			return -EINVAL;
+		}
+#endif
 	} else if (!strcmp("ssh", opts->type)) {
 		if (!opts->ssh.hostname ||
 			!opts->ssh.path) {
