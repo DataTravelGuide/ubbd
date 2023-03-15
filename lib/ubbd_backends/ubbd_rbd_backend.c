@@ -4,6 +4,7 @@
 
 #include "ubbd_backend.h"
 #include "ubbd_uio.h"
+#include "ubbd_compat.h"
 
 // rbd ops
 #define RBD_BACKEND(ubbd_b) ((struct ubbd_rbd_backend *)container_of(ubbd_b, struct ubbd_rbd_backend, ubbd_b))
@@ -80,6 +81,10 @@ static void rbd_backend_quiesce_cb(void *arg)
 
 	free(dev_str);
 out:
+	ubbd_info("quiesce complete: %d\n", ret);
+	if (ret) {
+		ret = -1;
+	}
 	rbd_quiesce_complete(rbd_conn->image, rbd_conn->quiesce_handle, ret);
 }
 
