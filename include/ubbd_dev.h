@@ -23,6 +23,9 @@
 
 #define UBBD_DEV_LINK_DIR	"/dev/ubbd/"
 
+#define UBBD_DEV_INFO_VERSION		1
+#define UBBD_DEV_INFO_MAGIC		0x67685c0f7c73
+
 enum ubbd_dev_ustatus {
 	UBBD_DEV_USTATUS_INIT,
 	UBBD_DEV_USTATUS_OPENED,

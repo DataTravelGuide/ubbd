@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <rados/librados.h>
 #include <pthread.h>
 
@@ -36,15 +37,117 @@ static struct ubbd_backend* rbd_backend_create(struct __ubbd_dev_info *info)
 	strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
 	rbd_conn->io_timeout = info->io_timeout;
 
+	if (info->rbd.flags & UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE) {
+		rbd_conn->flags |= UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE;
+	}
+
+	if (info->header.version >= 1) {
+		if (info->rbd.flags & UBBD_DEV_INFO_RBD_FLAGS_QUIESCE) {
+			rbd_conn->flags |= UBBD_DEV_INFO_RBD_FLAGS_QUIESCE;
+			strcpy(rbd_conn->quiesce_hook, info->rbd.quiesce_hook);
+		}
+	}
+
 	return ubbd_b;
 }
+
+#ifdef HAVE_RBD_QUIESCE
+static void rbd_backend_quiesce_cb(void *arg)
+{
+	struct ubbd_rbd_backend *rbd_b = (struct ubbd_rbd_backend *)arg;
+	struct ubbd_backend *ubbd_b = &rbd_b->ubbd_b;
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
+	char *dev_str;
+	int ret = 0;
+
+	ubbd_info("quiesce /dev/ubbd%d : %s: %lu\n", ubbd_b->dev_id,
+			rbd_conn->quiesce_hook, rbd_conn->quiesce_handle);
+
+	if (asprintf(&dev_str, "/dev/ubbd%d", ubbd_b->dev_id) == -1) {
+		ubbd_err("cont init dev_str\n");
+		ret = -1;
+		goto out;
+	}
+
+	char *arg_list[] = {
+		rbd_conn->quiesce_hook,
+		dev_str,
+		"quiesce",
+		NULL
+	};
+
+	ret = execute(rbd_conn->quiesce_hook, arg_list);
+
+	free(dev_str);
+out:
+	rbd_quiesce_complete(rbd_conn->image, rbd_conn->quiesce_handle, ret);
+}
+
+static void rbd_backend_unquiesce_cb(void *arg)
+{
+	struct ubbd_rbd_backend *rbd_b = (struct ubbd_rbd_backend *)arg;
+	struct ubbd_backend *ubbd_b = &rbd_b->ubbd_b;
+	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
+	char *dev_str;
+
+	ubbd_info("unquiesce /dev/ubbd%d : %s: %lu\n", ubbd_b->dev_id,
+			rbd_conn->quiesce_hook, rbd_conn->quiesce_handle);
+
+	if (asprintf(&dev_str, "/dev/ubbd%d", ubbd_b->dev_id) == -1) {
+		ubbd_err("cont init dev_str for unquiesce\n");
+		return;
+	}
+
+	char *arg_list[] = {
+		rbd_conn->quiesce_hook,
+		dev_str,
+		"unquiesce",
+		NULL
+	};
+
+	execute(rbd_conn->quiesce_hook, arg_list);
+	free(dev_str);
+}
+#endif /* HAVE_RBD_QUIESCE */
 
 static int rbd_backend_open(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
 	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
+	int ret;
 
-	return ubbd_rbd_conn_open(rbd_conn);
+	ret = ubbd_rbd_conn_open(rbd_conn);
+	if (ret) {
+		ubbd_err("failed to open rbd connection: %d\n", ret);
+		return ret;
+	}
+
+	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE) {
+		ret = rbd_lock_acquire(rbd_conn->image, RBD_LOCK_MODE_EXCLUSIVE);
+		if (ret) {
+			ubbd_err("failed to get exclusive lock: %d\n", ret);
+			goto close_rbd;
+		}
+	}
+
+#ifdef HAVE_RBD_QUIESCE
+	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_QUIESCE) {
+		ret = rbd_quiesce_watch(rbd_conn->image, rbd_backend_quiesce_cb,
+				rbd_backend_unquiesce_cb, ubbd_b,
+				&rbd_conn->quiesce_handle);
+		if (ret) {
+			ubbd_err("failed to register quiesce watcher: %d\n", ret);
+			rbd_lock_release(rbd_conn->image);
+			goto close_rbd;
+		}
+	}
+#endif
+
+	return 0;
+
+close_rbd:
+	ubbd_rbd_conn_close(rbd_conn);
+	return ret;
 }
 
 static void rbd_backend_close(struct ubbd_backend *ubbd_b)
@@ -52,6 +155,10 @@ static void rbd_backend_close(struct ubbd_backend *ubbd_b)
 	struct ubbd_rbd_backend *rbd_b = RBD_BACKEND(ubbd_b);
 	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
 
+#ifdef HAVE_RBD_QUIESCE
+	rbd_quiesce_unwatch(rbd_conn->image, rbd_conn->quiesce_handle);
+#endif
+	rbd_lock_release(rbd_conn->image);
 	ubbd_rbd_conn_close(rbd_conn);
 }
 

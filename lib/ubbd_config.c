@@ -34,8 +34,10 @@ static char *get_dev_conf_path(int dev_id)
 static size_t get_conf_size(struct ubbd_conf_header *conf_header)
 {
 	if (conf_header->conf_type == UBBD_CONF_TYPE_BACKEND) {
+		ubbd_err("backend size: %lu\n", sizeof(struct ubbd_backend_conf));
 		return sizeof(struct ubbd_backend_conf);
 	} else if (conf_header->conf_type == UBBD_CONF_TYPE_DEVICE) {
+		ubbd_err("dev size: %lu\n", sizeof(struct ubbd_dev_conf));
 		return sizeof(struct ubbd_dev_conf);
 	} else {
 		ubbd_err("unrecognized config type: %d\n", conf_header->conf_type);
@@ -103,8 +105,8 @@ static int __conf_read(char *conf_path, void *data, size_t len)
 
 	read_len = read(fd, data, len);
 	close(fd);
-	if (read_len != len) {
-		ubbd_err("read config len is %lu not expected: %lu\n", read_len, len);
+	if (read_len < 0) {
+		ubbd_err("read config failed: %ld, %s\n", read_len, strerror(errno));
 		return -1;
 	}
 
@@ -217,8 +219,8 @@ static int __conf_write(char *conf_path, void *data, size_t len)
 
 	write_len = write(fd, data, len);
 	close(fd);
-	if (write_len != len) {
-		ubbd_err("write config len is %lu not expected: %lu\n", write_len, len);
+	if (write_len < 0 ) {
+		ubbd_err("write config failed: %ld, %s\n", write_len, strerror(errno));
 		return -1;
 	}
 

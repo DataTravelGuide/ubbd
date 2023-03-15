@@ -18,6 +18,7 @@
 #define DEFAULT_CEPH_CLUSTER	"ceph"
 #define DEFAULT_RBD_NS		""
 #define DEFAULT_RBD_POOL	"rbd"
+#define DEFAULT_RBD_QUIESCE_HOOK	"/usr/lib/ubbd/ubbd-rbd_quiesce"
 
 char *cmd_to_str(enum ubbdd_mgmt_cmd cmd)
 {
@@ -172,6 +173,19 @@ void rbd_dev_info_setup(struct __ubbd_dev_info *info,
 		info->rbd.flags |= UBBD_DEV_INFO_RBD_FLAGS_SNAP;
 		strcpy(info->rbd.snap, opts->rbd.snap);
 	}
+
+	if (opts->rbd.exclusive) {
+		info->rbd.flags |= UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE;
+	}
+
+	if (opts->rbd.quiesce) {
+		info->rbd.flags |= UBBD_DEV_INFO_RBD_FLAGS_QUIESCE;
+		if (opts->rbd.quiesce_hook && strlen(opts->rbd.quiesce_hook)) {
+			strcpy(info->rbd.quiesce_hook, opts->rbd.quiesce_hook);
+		} else {
+			strcpy(info->rbd.quiesce_hook, DEFAULT_RBD_QUIESCE_HOOK);
+		}
+	}
 }
 
 void null_dev_info_setup(struct __ubbd_dev_info *info,
@@ -225,6 +239,8 @@ int generic_dev_info_setup(enum ubbd_dev_type dev_type,
 		return -EINVAL;
 	}
 
+	info->header.magic = UBBD_DEV_INFO_MAGIC;
+	info->header.version = UBBD_DEV_INFO_VERSION;
 	info->size = opts->dev_size;
 	info->io_timeout = opts->io_timeout;
 	info->type = str_to_type(opts->type);
@@ -284,6 +300,14 @@ static int validate_generic_map_opts(struct __ubbd_map_opts *opts)
 			fprintf(stderr, "image is required for rbd mapping.\n");
 			return -EINVAL;
 		}
+
+#ifndef HAVE_RBD_QUIESCE
+		if (opts->rbd.quiesce) {
+			fprintf(stderr, "rbd quiesce is not supported by librbd,\
+					please make sure rbd_quiesce_complete is in your librbd.so\n");
+			return -EINVAL;
+		}
+#endif
 	} else if (!strcmp("ssh", opts->type)) {
 		if (!opts->ssh.hostname ||
 			!opts->ssh.path) {
@@ -371,9 +395,31 @@ int ubbd_map(struct ubbd_map_options *opts, struct ubbdd_mgmt_rsp *rsp)
 	return request_and_wait(&req, rsp);
 }
 
+static int validate_ubbdid(int ubbdid) {
+	if (ubbdid < 0) {
+		fprintf(stderr, "invalid ubbdid: %d\n", ubbdid);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int validate_unmap_opts(struct ubbd_unmap_options *opts) {
+	int ret;
+
+	ret = validate_ubbdid(opts->ubbdid);
+
+	return ret;
+}
+
 int ubbd_unmap(struct ubbd_unmap_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
 	struct ubbdd_mgmt_request req = { 0 };
+	int ret;
+
+	ret = validate_unmap_opts(opts);
+	if (ret)
+		return ret;
 
 	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_UNMAP;
@@ -384,9 +430,22 @@ int ubbd_unmap(struct ubbd_unmap_options *opts, struct ubbdd_mgmt_rsp *rsp)
 	return generic_request_and_wait(&req, rsp);
 }
 
+static int validate_config_opts(struct ubbd_config_options *opts) {
+	int ret;
+
+	ret = validate_ubbdid(opts->ubbdid);
+
+	return ret;
+}
+
 int ubbd_config(struct ubbd_config_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
 	struct ubbdd_mgmt_request req = { 0 };
+	int ret;
+
+	ret = validate_config_opts(opts);
+	if (ret)
+		return ret;
 
 	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_CONFIG;
@@ -396,9 +455,23 @@ int ubbd_config(struct ubbd_config_options *opts, struct ubbdd_mgmt_rsp *rsp)
 	return generic_request_and_wait(&req, rsp);
 }
 
+static int validate_list_opts(struct ubbd_list_options *opts) {
+	if (opts->type >= UBBD_DEV_TYPE_MAX && opts->type != -1) {
+		fprintf(stderr, "invalid type for list: %d\n", opts->type);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 int ubbd_list(struct ubbd_list_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
 	struct ubbdd_mgmt_request req = { 0 };
+	int ret;
+
+	ret = validate_list_opts(opts);
+	if (ret)
+		return ret;
 
 	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_LIST;
@@ -407,9 +480,22 @@ int ubbd_list(struct ubbd_list_options *opts, struct ubbdd_mgmt_rsp *rsp)
 	return generic_request_and_wait(&req, rsp);
 }
 
+static int validate_req_stats_opts(struct ubbd_req_stats_options *opts) {
+	int ret;
+
+	ret = validate_ubbdid(opts->ubbdid);
+
+	return ret;
+}
+
 int ubbd_req_stats(struct ubbd_req_stats_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
 	struct ubbdd_mgmt_request req = { 0 };
+	int ret;
+
+	ret = validate_req_stats_opts(opts);
+	if (ret)
+		return ret;
 
 	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_REQ_STATS;
@@ -418,9 +504,22 @@ int ubbd_req_stats(struct ubbd_req_stats_options *opts, struct ubbdd_mgmt_rsp *r
 	return generic_request_and_wait(&req, rsp);
 }
 
+static int validate_req_stats_reset_opts(struct ubbd_req_stats_reset_options *opts) {
+	int ret;
+
+	ret = validate_ubbdid(opts->ubbdid);
+
+	return ret;
+}
+
 int ubbd_req_stats_reset(struct ubbd_req_stats_reset_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
 	struct ubbdd_mgmt_request req = { 0 };
+	int ret;
+
+	ret = validate_req_stats_reset_opts(opts);
+	if (ret)
+		return ret;
 
 	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_REQ_STATS_RESET;
@@ -429,9 +528,22 @@ int ubbd_req_stats_reset(struct ubbd_req_stats_reset_options *opts, struct ubbdd
 	return generic_request_and_wait(&req, rsp);
 }
 
+static int validate_dev_restart_opts(struct ubbd_dev_restart_options *opts) {
+	int ret;
+
+	ret = validate_ubbdid(opts->ubbdid);
+
+	return ret;
+}
+
 int ubbd_device_restart(struct ubbd_dev_restart_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
 	struct ubbdd_mgmt_request req = { 0 };
+	int ret;
+
+	ret = validate_dev_restart_opts(opts);
+	if (ret)
+		return ret;
 
 	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_DEV_RESTART;
@@ -443,9 +555,22 @@ int ubbd_device_restart(struct ubbd_dev_restart_options *opts, struct ubbdd_mgmt
 	return generic_request_and_wait(&req, rsp);
 }
 
+static int validate_info_opts(struct ubbd_info_options *opts) {
+	int ret;
+
+	ret = validate_ubbdid(opts->ubbdid);
+
+	return ret;
+}
+
 int ubbd_device_info(struct ubbd_info_options *opts, struct ubbdd_mgmt_rsp *rsp)
 {
 	struct ubbdd_mgmt_request req = { 0 };
+	int ret;
+
+	ret = validate_info_opts(opts);
+	if (ret)
+		return ret;
 
 	ubbd_request_header_init(&req.header);
 	req.cmd = UBBDD_MGMT_CMD_DEV_INFO;

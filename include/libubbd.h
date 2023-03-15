@@ -41,10 +41,17 @@ enum ubbd_dev_type {
 	UBBD_DEV_TYPE_MAX,
 };
 
+#define UBBD_DEV_INFO_RBD_FLAGS_SNAP		1 << 0	/* map snapshot of rbd image */
+#define UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE	1 << 1	/* exclusive mapping */
+#define UBBD_DEV_INFO_RBD_FLAGS_QUIESCE		1 << 2	/* enable quiesce for rbd mapping */
 
-#define UBBD_DEV_INFO_RBD_FLAGS_SNAP	1 << 0	/* map snapshot of rbd image */
+struct ubbd_dev_info_header {
+	__u64 magic;
+	__u32 version;
+};
 
 struct __ubbd_dev_info {
+	struct ubbd_dev_info_header header;
 	enum ubbd_dev_type type;
 	uint64_t size;
 	uint32_t io_timeout;
@@ -61,6 +68,7 @@ struct __ubbd_dev_info {
 			char ceph_conf[UBBD_NAME_MAX];
 			char cluster_name[UBBD_NAME_MAX];
 			char user_name[UBBD_NAME_MAX];
+			char quiesce_hook[UBBD_PATH_MAX];
 		} rbd;
 		struct {
 		} null;
@@ -144,6 +152,9 @@ struct __ubbd_map_opts {
 			const char *ceph_conf;
 			const char *cluster_name;
 			const char *user_name;
+			bool exclusive;
+			bool quiesce;
+			const char *quiesce_hook;
 		} rbd;
 		struct {
 		} null;

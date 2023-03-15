@@ -17,7 +17,7 @@ int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn)
         err = rados_create2(&rbd_conn->cluster, rbd_conn->cluster_name, rbd_conn->user_name, rbd_conn->flags);
         if (err < 0) {
                 ubbd_err("Couldn't create the cluster handle! %s\n", strerror(-err));
-                return err;
+		goto out;
         } else {
                 ubbd_info("\nCreated a cluster handle.\n");
         }
@@ -68,6 +68,9 @@ int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn)
 	rados_conf_set(rbd_conn->cluster, "rados_osd_op_timeout", timeout_buf);
 	rados_conf_set(rbd_conn->cluster, "rados_mon_op_timeout", timeout_buf);
 
+	rbd_conn->update_handle = 0;
+	rbd_conn->quiesce_handle = 0;
+
 	return 0;
 
 	rbd_close(rbd_conn->image);
@@ -75,6 +78,8 @@ destroy_ioctx:
 	rados_ioctx_destroy(rbd_conn->io_ctx);
 shutdown_cluster:
 	rados_shutdown(rbd_conn->cluster);
+out:
+	free(timeout_buf);
 	return err;
 }
 

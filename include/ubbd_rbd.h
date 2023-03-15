@@ -20,6 +20,9 @@ struct ubbd_rbd_conn {
 	int io_timeout;
 
 	uint64_t update_handle;
+
+	char quiesce_hook[UBBD_PATH_MAX];
+	uint64_t quiesce_handle;
 };
 
 int ubbd_rbd_conn_open(struct ubbd_rbd_conn *rbd_conn);

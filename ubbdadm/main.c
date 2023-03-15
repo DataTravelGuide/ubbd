@@ -19,6 +19,11 @@
 	{"cache-dev-"#prefix"-"#name, required_argument, NULL, 0},	\
 	{"backing-dev-"#prefix"-"#name, required_argument, NULL, 0},
 
+#define UBBD_MAP_OPT_NOARG(prefix, name)					\
+	{#prefix"-"#name, no_argument, NULL, 0},			\
+	{"cache-dev-"#prefix"-"#name, no_argument, NULL, 0},	\
+	{"backing-dev-"#prefix"-"#name, no_argument, NULL, 0},
+
 #define UBBD_MAP_NOPRE_OPT(name)					\
 	{#name, required_argument, NULL, 0},				\
 	{"cache-dev-"#name, required_argument, NULL, 0},		\
@@ -52,6 +57,9 @@ static struct option const long_options[] =
 	UBBD_MAP_OPT(rbd, ceph-conf)
 	UBBD_MAP_OPT(rbd, user-name)
 	UBBD_MAP_OPT(rbd, cluster-name)
+	UBBD_MAP_OPT_NOARG(rbd, exclusive)
+	UBBD_MAP_OPT_NOARG(rbd, quiesce)
+	UBBD_MAP_OPT(rbd, quiesce-hook)
 
 	UBBD_MAP_OPT(ssh, hostname)
 	UBBD_MAP_OPT(ssh, filepath)
@@ -138,6 +146,9 @@ static void usage(int status)
 		print_map_opt_msg("rbd-ceph-conf", "ceph config file path for rbd type mapping");
 		print_map_opt_msg("rbd-user-name", "user name to connect ceph for rbd type mapping");
 		print_map_opt_msg("rbd-cluster-name", "ceph cluster name for rbd type mapping");
+		print_map_opt_msg("rbd-exclusive", "map rbd with exclusive mode");
+		print_map_opt_msg("rbd-quiesce", "use quiesce callbacks for rbd mapping");
+		print_map_opt_msg("rbd-exclusive", "specify quiesce hook path (default: /usr/lib/ubbd/ubbd-rbd_quiesce)");
 
 		printf("\n");
 
@@ -184,6 +195,12 @@ static int parse_map_options(struct __ubbd_map_opts *opts, const char *name, cha
 		opts->rbd.user_name = optarg;
 	} else if (!strcmp(name, "rbd-cluster-name")) {
 		opts->rbd.cluster_name = optarg;
+	} else if (!strcmp(name, "rbd-exclusive")) {
+		opts->rbd.exclusive = true;
+	} else if (!strcmp(name, "rbd-quiesce")) {
+		opts->rbd.quiesce = true;
+	} else if (!strcmp(name, "rbd-quiesce-hook")) {
+		opts->rbd.quiesce_hook = optarg;
 	} else if (!strcmp(name, "ssh-hostname")) {
 		opts->ssh.hostname = optarg;
 	} else if (!strcmp(name, "ssh-filepath")) {
@@ -256,6 +273,9 @@ static int __output_dev_info_detail(struct __ubbd_dev_info *dev_info)
 		printf("\tsnapshot: %s\n", dev_info->rbd.snap);
 		printf("\tcluster_name: %s\n", dev_info->rbd.cluster_name);
 		printf("\tuser_name: %s\n", dev_info->rbd.user_name);
+		printf("\texclusive: %s\n", dev_info->rbd.flags & UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE? "true" : "false");
+		printf("\tquiesce: %s\n", dev_info->rbd.flags & UBBD_DEV_INFO_RBD_FLAGS_QUIESCE? "true" : "false");
+		printf("\tquiesce_hook: %s\n", dev_info->rbd.quiesce_hook);
 	} else if (dev_type == UBBD_DEV_TYPE_NULL) {
 	} else if (dev_type == UBBD_DEV_TYPE_MEM) {
 	} else if (dev_type == UBBD_DEV_TYPE_SSH) {

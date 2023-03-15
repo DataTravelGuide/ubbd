@@ -40,16 +40,15 @@ static struct ubbd_device *rbd_dev_create(struct __ubbd_dev_info *info)
 	strcpy(rbd_conn->user_name, info->rbd.user_name);
 	strcpy(rbd_conn->cluster_name, info->rbd.cluster_name);
 	rbd_conn->io_timeout = info->io_timeout;
-	rbd_conn->update_handle = 0;
 
 	return ubbd_dev;
 }
 
 static void rbd_dev_update_cb(void *arg)
 {
-	struct ubbd_rbd_device *rbd_b = (struct ubbd_rbd_device *)arg;
-	struct ubbd_rbd_conn *rbd_conn = &rbd_b->rbd_conn;
-	struct ubbd_device *ubbd_dev = &rbd_b->ubbd_dev;
+	struct ubbd_rbd_device *rbd_dev = (struct ubbd_rbd_device *)arg;
+	struct ubbd_rbd_conn *rbd_conn = &rbd_dev->rbd_conn;
+	struct ubbd_device *ubbd_dev = &rbd_dev->ubbd_dev;
 	uint64_t dev_size;
 	int ret;
 
