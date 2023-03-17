@@ -148,7 +148,7 @@ static void usage(int status)
 		print_map_opt_msg("rbd-cluster-name", "ceph cluster name for rbd type mapping");
 		print_map_opt_msg("rbd-exclusive", "map rbd with exclusive mode");
 		print_map_opt_msg("rbd-quiesce", "use quiesce callbacks for rbd mapping");
-		print_map_opt_msg("rbd-exclusive", "specify quiesce hook path (default: /usr/lib/ubbd/ubbd-rbd_quiesce)");
+		print_map_opt_msg("rbd-quiesce-hook", "specify quiesce hook path (default: /usr/lib/ubbd/ubbd-rbd_quiesce)");
 
 		printf("\n");
 
