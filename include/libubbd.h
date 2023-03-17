@@ -90,11 +90,13 @@ struct __ubbd_dev_info {
 	};
 };
 
+#define UBBD_DEV_INFO_FLAGS_READONLY		1 << 0
+
 struct ubbd_dev_info {
 	enum ubbd_dev_type type;
 	uint32_t num_queues;
 	uint32_t sh_mem_size;
-	bool read_only;
+	uint64_t flags;
 	union {
 		struct {
 			struct __ubbd_dev_info info;

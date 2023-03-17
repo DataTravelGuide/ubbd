@@ -254,7 +254,7 @@ static void output_dev_generic_info(struct ubbdd_mgmt_rsp *rsp)
 	printf("UBBD: /dev/ubbd%d:\n", rsp->dev_info.devid);
 	printf("\ttype: %s\n", type_to_str(rsp->dev_info.dev_info.type));
 	printf("\tqueues: %u\n", rsp->dev_info.dev_info.num_queues);
-	printf("\tread_only: %u\n", rsp->dev_info.dev_info.read_only);
+	printf("\tread_only: %s\n", rsp->dev_info.dev_info.flags & UBBD_DEV_INFO_FLAGS_READONLY ? "true" : "false");
 	printf("\tsize: %lu\n\n",	rsp->dev_info.dev_info.generic_dev.info.size);
 }
 

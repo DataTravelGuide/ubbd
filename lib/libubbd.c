@@ -281,7 +281,9 @@ int dev_info_setup(struct ubbd_dev_info *dev_info,
 	dev_info->num_queues = opts->num_queues;
 	dev_info->type = dev_type;
 	dev_info->sh_mem_size = opts->dev_share_memory_size;
-	dev_info->read_only = opts->read_only;
+	if (opts->read_only) {
+		dev_info->flags |= UBBD_DEV_INFO_FLAGS_READONLY;
+	}
 
 	return 0;
 }
