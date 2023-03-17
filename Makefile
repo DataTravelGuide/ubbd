@@ -10,7 +10,7 @@ $(shell rm -rf include/ubbd_compat.h)
 UBBDCONF_HEADER := include/ubbd_compat.h
 OCFDIR = ocf/
 LIBVER := 1
-DIST_FILES = ubbdadm ubbdd backend lib include Makefile ocf libs3 etc man install_dep.sh
+DIST_FILES = ubbdadm ubbdd backend lib include Makefile ocf libs3 etc man install_dep.sh VERSION
 
 UBBD_FLAGS = "-I /usr/include/libnl3/ -I$(UBBD_SRC)/libs3/inc -I $(UBBD_SRC)/include/ubbd-headers/ -I $(UBBD_SRC)/include/ -I$(UBBD_SRC)/src/ocf/env/ -I$(UBBD_SRC)/src/ocf/ -L$(UBBD_SRC)/libs3/build/lib/"
 
