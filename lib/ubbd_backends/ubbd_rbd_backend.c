@@ -78,11 +78,10 @@ static void rbd_backend_quiesce_cb(void *arg)
 	};
 
 	ret = execute(rbd_conn->quiesce_hook, arg_list);
-
 	free(dev_str);
 out:
 	ubbd_info("quiesce complete: %d\n", ret);
-	if (ret) {
+	if (ret > 0) {
 		ret = -1;
 	}
 	rbd_quiesce_complete(rbd_conn->image, rbd_conn->quiesce_handle, ret);

@@ -3,7 +3,6 @@
 #include <sys/types.h>
 
 #include "libubbd.h"
-#include "ocf/ocf_def.h"
 #include "ubbd_daemon_mgmt.h"
 #include "ubbd_dev.h"
 #include "utils.h"
@@ -20,6 +19,9 @@
 #define DEFAULT_RBD_NS		""
 #define DEFAULT_RBD_POOL	"rbd"
 #define DEFAULT_RBD_QUIESCE_HOOK	"/usr/lib/ubbd/ubbd-rbd_quiesce"
+
+#define UBBD_CACHE_MODE_WT	0
+#define UBBD_CACHE_MODE_WB	1
 
 char *cmd_to_str(enum ubbdd_mgmt_cmd cmd)
 {
@@ -70,9 +72,9 @@ int str_to_cache_mode(const char *str)
 	int cache_mode;
 
 	if (!strcmp("writeback", str)){
-		cache_mode = ocf_cache_mode_wb;
+		cache_mode = UBBD_CACHE_MODE_WB;
 	} else if (!strcmp("writethrough", str)) {
-		cache_mode = ocf_cache_mode_wt;
+		cache_mode = UBBD_CACHE_MODE_WT;
 	} else {
 		cache_mode = -1;
 	}
@@ -82,9 +84,9 @@ int str_to_cache_mode(const char *str)
 
 const char* ubbd_cache_mode_to_str(int cache_mode)
 {
-	if (cache_mode == ocf_cache_mode_wb)
+	if (cache_mode == UBBD_CACHE_MODE_WB)
 		return "writeback";
-	else if (cache_mode == ocf_cache_mode_wt)
+	else if (cache_mode == UBBD_CACHE_MODE_WT)
 		return "writethrough";
 	else
 		return NULL;

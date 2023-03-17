@@ -17,7 +17,7 @@ git clone https://github.com/DataTravelGuide/ubbd-kernel
 
 git clone https://github.com/kdave/xfstests
 
-apt install -y xfslibs-dev uuid-dev libtool-bin  e2fsprogs automake gcc libuuid1 quota attr make  libacl1-dev libaio-dev xfsprogs libgdbm-dev gawk fio dbench uuid-runtime
+env DEBIAN_FRONTEND=noninteractive apt install -y xfslibs-dev uuid-dev libtool-bin  e2fsprogs automake gcc libuuid1 quota attr make  libacl1-dev libaio-dev xfsprogs libgdbm-dev gawk fio dbench uuid-runtime
 
 UBBD_DIR=`pwd`
 UBBD_TESTS_DIR="${UBBD_DIR}/ubbd-tests"
