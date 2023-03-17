@@ -13,7 +13,7 @@ source /etc/os-release
 install_kernel_dev() {
 	case "$ID" in
 	debian|ubuntu|devuan|elementary|softiron)
-		apt install -qy linux-headers-$(uname -r)
+		env DEBIAN_FRONTEND=noninteractive apt install -y linux-headers-$(uname -r)
 		;;
 	rocky|centos|fedora|rhel|ol|virtuozzo)
 		yum install -y kernel-devel
@@ -62,8 +62,8 @@ install_ubbd_pkg() {
 	case "$ID" in
 	debian|ubuntu|devuan|elementary|softiron)
 		echo "deb [trusted=yes] http://${UBBD_DOWNLOAD_URL}/ubbd/${UBBD_VERSION}/debian/${VERSION_CODENAME}/ ./" > /etc/apt/sources.list.d/ubbd.list
-		apt update || true
-		apt install -qy ${pkg_name} ${pkg_name}-dev || need_install_from_source=1
+		env DEBIAN_FRONTEND=noninteractive apt update || true
+		env DEBIAN_FRONTEND=noninteractive apt install -qy ${pkg_name} ${pkg_name}-dev || need_install_from_source=1
 		rm -rf /etc/apt/sources.list.d/ubbd.list
 		;;
 	rocky|centos|fedora|rhel|ol|virtuozzo)
