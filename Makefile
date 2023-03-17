@@ -12,7 +12,7 @@ OCFDIR = ocf/
 LIBVER := 1
 DIST_FILES = ubbdadm ubbdd backend lib include Makefile ocf libs3 etc man install_dep.sh
 
-UBBD_FLAGS = "-I /usr/include/libnl3/ -I$(UBBD_SRC)/libs3/inc -I $(UBBD_SRC)/include/ubbd-headers/ -I $(UBBD_SRC)/include/ -I$(UBBD_SRC)/src/ocf/env/ -I$(UBBD_SRC)/src/ocf/ -L$(UBBD_SRC)/libs3/build/lib/ -ls3-ubbd"
+UBBD_FLAGS = "-I /usr/include/libnl3/ -I$(UBBD_SRC)/libs3/inc -I $(UBBD_SRC)/include/ubbd-headers/ -I $(UBBD_SRC)/include/ -I$(UBBD_SRC)/src/ocf/env/ -I$(UBBD_SRC)/src/ocf/ -L$(UBBD_SRC)/libs3/build/lib/"
 
 .DEFAULT_GOAL := all
 
@@ -30,6 +30,17 @@ ubbdadm: $(UBBDCONF_HEADER)
 
 lib: $(UBBDCONF_HEADER)
 	LIBVER=$(LIBVER) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C lib/
+
+libubbd: $(UBBDCONF_HEADER)
+	LIBVER=$(LIBVER) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C lib/ libubbd
+
+libubbd_install:
+	mkdir -p $(DESTDIR)/usr/lib/ubbd/
+	mkdir -p $(DESTDIR)/usr/include/ubbd/
+	install lib/libubbd.so.$(LIBVER) $(DESTDIR)/usr/lib/ubbd/libubbd.so.$(LIBVER)
+	install lib/libubbd.so $(DESTDIR)/usr/lib/ubbd/libubbd.so
+	install include/libubbd.h $(DESTDIR)/usr/include/ubbd/libubbd.h
+	install include/ubbd-headers/ubbd.h $(DESTDIR)/usr/include/ubbd/ubbd.h
 
 backend: $(UBBDCONF_HEADER)
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS=$(UBBD_FLAGS) $(MAKE) -C backend
