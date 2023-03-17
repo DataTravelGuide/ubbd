@@ -132,7 +132,7 @@ static int rbd_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 #endif
 	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_SNAP) {
 		ubbd_dev->dev_features.read_only = true;
-		ubbd_dev->dev_info.read_only = true;
+		ubbd_dev->dev_info.flags |= UBBD_DEV_INFO_FLAGS_READONLY;
 	}
 
 	return 0;
