@@ -132,4 +132,6 @@ int ubbd_backend_start_queue(struct ubbd_backend *ubbd_b, int queue_id);
 int ubbd_backend_lock(int dev_id, int backend_id, int *fd);
 void ubbd_backend_unlock(int fd);
 int ubbd_backend_testlock(int dev_id, int backend_id);
+
+uint64_t ubbd_backend_size(struct ubbd_backend *ubbd_b);
 #endif /* UBBD_BACKEND_H */
