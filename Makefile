@@ -20,7 +20,6 @@ VERSION ?= $(shell cat VERSION)
 UBBD_VERSION ?= ubbd-$(VERSION)
 $(shell rm -rf include/ubbd_compat.h)
 UBBDCONF_HEADER := include/ubbd_compat.h
-OCFDIR = ocf/
 LIBVER := 1
 DIST_FILES = ubbdadm ubbdd backend lib include Makefile etc man install_dep.sh VERSION mk configure build_deb.sh build_rpm.sh debian rpm unittests CONFIG libs3 ocf
 
@@ -37,7 +36,6 @@ ifeq ("$(CONFIG_CACHE_BACKEND)", "y")
 	UBBD_FLAGS += -I$(UBBD_SRC)/src/ocf/env/
 	UBBD_FLAGS += -I$(UBBD_SRC)/src/ocf/
 endif
-
 
 .DEFAULT_GOAL := all
 
@@ -81,7 +79,6 @@ ubbd_ut: $(UBBDCONF_HEADER)
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS="$(UBBD_FLAGS)" $(MAKE) -C unittests
 
 all: $(UBBDCONF_HEADER)
-	@if [ "${CONFIG_CACHE_BACKEND}" = "y" ]; then $(MAKE) -C ${OCFDIR} inc O=$(UBBD_SRC); $(MAKE) -C ${OCFDIR} src O=$(UBBD_SRC); $(MAKE) -C ${OCFDIR} env O=$(UBBD_SRC) OCF_ENV=posix; fi
 	@if [ "${CONFIG_S3_BACKEND}" = "y" ]; then $(MAKE) -C libs3/ clean; $(MAKE) -C libs3/; fi
 	LIBVER=$(LIBVER) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS="$(UBBD_FLAGS)" $(MAKE) -C lib/
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" UBBD_FLAGS="$(UBBD_FLAGS)" $(MAKE) -C ubbdadm

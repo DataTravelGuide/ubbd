@@ -40,30 +40,16 @@
         (type *)((char *)__mptr - offsetof(type, member));      \
 })
 
-struct ubbd_bitmap {
-	uint64_t size;
-	uint8_t data[];
-};
-#define UBBD_BITMAP_BITSHIFT	3
-#define UBBD_BITMAP_BITMASK	0x7
+#undef offsetof
+#ifdef __compiler_offsetof
+#define offsetof(TYPE,MEMBER) __compiler_offsetof(TYPE,MEMBER)
+#else
+#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+#endif
 
-static inline bool ubbd_bit_test(struct ubbd_bitmap *bitmap, uint64_t bit)
-{
-	return bitmap->data[bit >> UBBD_BITMAP_BITSHIFT] & (1 << (bit & UBBD_BITMAP_BITMASK));
-}
-
-static inline void ubbd_bit_set(struct ubbd_bitmap *bitmap, uint64_t bit)
-{
-	bitmap->data[bit >> UBBD_BITMAP_BITSHIFT] |= (1 << (bit & UBBD_BITMAP_BITMASK));
-}
-
-static inline void ubbd_bit_clear(struct ubbd_bitmap *bitmap, uint64_t bit)
-{
-	bitmap->data[bit >> UBBD_BITMAP_BITSHIFT] &= ~(1 << (bit & UBBD_BITMAP_BITMASK));
-}
-
-int ubbd_bit_find_next(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found_bit);
-int ubbd_bit_find_next_zero(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found_bit);
+#define ubbd_container_of(ptr, type, member) ({		\
+        const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
+        (type *)( (char *)__mptr - offsetof(type,member) );})
 
 int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size);
 int ubbd_util_get_bd_size(const char *devname, uint64_t *file_size);
@@ -264,6 +250,7 @@ int ubbd_mkdirs(const char *pathname);
 int ubbd_mkdir(const char *path);
 int ubbd_rmdirs(const char *pathname, const char *remain);
 
+
 struct context {
 	struct context *parent;
 	int (*finish)(struct context *ctx, int ret);
@@ -272,6 +259,8 @@ struct context {
 	int ret;
 	char data[];
 };
+
+typedef int(*ubbd_ctx_finish_t)(struct context *ctx, int ret);
 
 static inline struct context *context_alloc(size_t data_size)
 {
@@ -337,5 +326,17 @@ static inline void context_get(struct context *ctx)
         __x - (__x % (y));                              \
 }                                                       \
 )
+
+uint64_t crc64(const void *_data, size_t len);
+
+
+static inline void bugon(int condition, const char* message) {
+  if (condition) {
+    fprintf(stderr, "BUG: %s\n", message);
+    exit(EXIT_FAILURE);
+  }
+}
+
+#define BUG_ON(condition, message) bugon((condition), (message))
 
 #endif /* UTILS_H */

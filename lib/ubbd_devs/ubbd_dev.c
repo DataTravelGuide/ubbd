@@ -523,7 +523,7 @@ out:
 
 int wait_disk_running(struct ubbd_device *ubbd_dev)
 {
-	return wait_condition(1000, 10000, disk_running, ubbd_dev);
+	return wait_condition(1000, 1000000, disk_running, ubbd_dev);
 }
 
 static int post_disk_added(struct ubbd_device *ubbd_dev) {

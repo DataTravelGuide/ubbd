@@ -1,9 +1,6 @@
 [submodule "unittests/googletest"]
 	path = unittests/googletest
 	url = https://github.com/DataTravelGuide/googletest.git
-[submodule "ocf"]
-	path = ocf
-	url = https://github.com/DataTravelGuide/ocf.git
 [submodule "libs3"]
 	path = libs3
 	url = https://github.com/DataTravelGuide/libs3.git

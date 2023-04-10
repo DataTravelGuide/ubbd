@@ -195,6 +195,8 @@ void ubbd_backend_close(struct ubbd_backend *ubbd_b)
 
 void ubbd_backend_release(struct ubbd_backend *ubbd_b)
 {
+	if (ubbd_b->queues)
+		free(ubbd_b->queues);
 	ubbd_b->backend_ops->release(ubbd_b);
 }
 
@@ -314,10 +316,8 @@ int _backend_lock(int dev_id, int backend_id, int *fd, bool test) {
 
 		if (ret) {
 			ubbd_err("failed to flock %s\n", lock_path);
-			goto close;
-		}
-
-		return 0;
+		};
+		goto close;
 	}
 
 	ret = lockf(*fd, F_TEST, 0);

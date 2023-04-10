@@ -22,10 +22,7 @@ endif
 
 ifneq ("$(CONFIG_CACHE_BACKEND)", "y")
 	SOURCES := $(filter-out ../lib/ubbd_devs/ubbd_cache_dev.c ../lib/ubbd_backends/ubbd_cache_backend.c, $(SOURCES))
-else
-	SOURCES += $(shell find ../src/ocf/ -name '*.c')
 endif
-
 
 .DEFAULT_GOAL := all
 
