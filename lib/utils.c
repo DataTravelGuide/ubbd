@@ -164,3 +164,38 @@ int ubbd_rmdirs(const char *pathname, const char *remain)
 
 	return ret;
 }
+
+
+static int find_next(struct ubbd_bitmap *bitmap, uint64_t off,
+		uint64_t *found, bool zero)
+{
+	uint64_t index = off;
+
+	while (true) {
+		if (++index >= bitmap->size)
+			index = index % bitmap->size;
+
+		if (index == off) {
+			/* not found */
+			break;
+		}
+
+		if ((zero && !ubbd_bit_test(bitmap, index)) ||
+			(!zero && ubbd_bit_test(bitmap, index))) {
+			*found = index;
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
+int ubbd_bit_find_next(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found_bit)
+{
+	return find_next(bitmap, off, found_bit, false);
+}
+
+int ubbd_bit_find_next_zero(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found_bit)
+{
+	return find_next(bitmap, off, found_bit, true);
+}

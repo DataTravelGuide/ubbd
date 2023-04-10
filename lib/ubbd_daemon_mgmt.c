@@ -317,7 +317,7 @@ out:
 
 pthread_t ubbdd_mgmt_thread;
 
-int thread_ret = 0;
+static int thread_ret = 0;
 
 int ubbdd_mgmt_start_thread(void)
 {

@@ -328,3 +328,8 @@ int ubbd_backend_testlock(int dev_id, int backend_id)
 
 	return _backend_lock(dev_id, backend_id, &fd, true);
 }
+
+uint64_t ubbd_backend_size(struct ubbd_backend *ubbd_b)
+{
+	return ubbd_b->dev_size;
+}

@@ -40,6 +40,31 @@
         (type *)((char *)__mptr - offsetof(type, member));      \
 })
 
+struct ubbd_bitmap {
+	uint64_t size;
+	uint8_t data[];
+};
+#define UBBD_BITMAP_BITSHIFT	3
+#define UBBD_BITMAP_BITMASK	0x7
+
+static inline bool ubbd_bit_test(struct ubbd_bitmap *bitmap, uint64_t bit)
+{
+	return bitmap->data[bit >> UBBD_BITMAP_BITSHIFT] & (1 << (bit & UBBD_BITMAP_BITMASK));
+}
+
+static inline void ubbd_bit_set(struct ubbd_bitmap *bitmap, uint64_t bit)
+{
+	bitmap->data[bit >> UBBD_BITMAP_BITSHIFT] |= (1 << (bit & UBBD_BITMAP_BITMASK));
+}
+
+static inline void ubbd_bit_clear(struct ubbd_bitmap *bitmap, uint64_t bit)
+{
+	bitmap->data[bit >> UBBD_BITMAP_BITSHIFT] &= ~(1 << (bit & UBBD_BITMAP_BITMASK));
+}
+
+int ubbd_bit_find_next(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found_bit);
+int ubbd_bit_find_next_zero(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found_bit);
+
 int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size);
 int ubbd_load_module(char *mod_name);
 
@@ -53,43 +78,6 @@ static inline uint64_t get_ns()
 
 	clock_gettime(CLOCK_MONOTONIC, &t);
 	return ((uint64_t)t.tv_sec * 1.0e9 + t.tv_nsec);
-}
-
-struct context {
-	struct context *parent;
-	int (*finish)(struct context *ctx, int ret);
-	char data[];
-};
-
-static inline struct context *context_alloc(size_t data_size)
-{
-	struct context *ctx;
-
-	ctx = calloc(1, sizeof(struct context) + data_size);
-	if (!ctx)
-		return NULL;
-
-	return ctx;
-}
-
-static inline void context_free(struct context *ctx)
-{
-	if (!ctx)
-		return;
-
-	free(ctx);
-}
-
-static inline int context_finish(struct context *ctx, int ret)
-{
-	if (ctx->finish)
-		ret = ctx->finish(ctx, ret);
-
-	if (ctx->parent)
-		context_finish(ctx->parent, ret);
-
-	context_free(ctx);
-	return ret;
 }
 
 static inline int wait_condition(int wait_count, uint64_t wait_interval_us, bool (*condition)(void *), void *data)
@@ -274,4 +262,76 @@ static inline long ubbd_atomic64_cmpxchg(ubbd_atomic64 *a, long old, long new)
 int ubbd_mkdirs(const char *pathname);
 int ubbd_mkdir(const char *path);
 int ubbd_rmdirs(const char *pathname, const char *remain);
+
+struct context {
+	struct context *parent;
+	int (*finish)(struct context *ctx, int ret);
+	void *extra_data;
+	ubbd_atomic ref;
+	int ret;
+	char data[];
+};
+
+static inline struct context *context_alloc(size_t data_size)
+{
+	struct context *ctx;
+
+	ctx = calloc(1, sizeof(struct context) + data_size);
+	if (!ctx)
+		return NULL;
+
+	ubbd_atomic_set(&ctx->ref, 1);
+
+	return ctx;
+}
+
+static inline void context_free(struct context *ctx)
+{
+	if (!ctx)
+		return;
+
+	free(ctx);
+}
+
+static inline int context_finish(struct context *ctx, int ret)
+{
+	if (ret && !ctx->ret) {
+		ctx->ret = ret;
+	}
+
+	if (!ubbd_atomic_dec_and_test(&ctx->ref)) {
+		return 0;
+	}
+
+	if (ctx->finish)
+		ctx->finish(ctx, ctx->ret);
+
+	if (ctx->parent)
+		context_finish(ctx->parent, ctx->ret);
+
+	context_free(ctx);
+	return ret;
+}
+
+static inline void context_get(struct context *ctx)
+{
+	if (!ctx)
+		return;
+
+	ubbd_atomic_inc(&ctx->ref);
+}
+
+#define ubbd_roundup(x, y) (                                 \
+{                                                       \
+        const typeof(y) __y = y;                        \
+        (((x) + (__y - 1)) / __y) * __y;                \
+}                                                       \
+)
+#define ubbd_rounddown(x, y) (                               \
+{                                                       \
+        typeof(x) __x = (x);                            \
+        __x - (__x % (y));                              \
+}                                                       \
+)
+
 #endif /* UTILS_H */

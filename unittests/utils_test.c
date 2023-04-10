@@ -10,6 +10,7 @@
 
 #include "utils.h"
 
+static struct context mock_ctx = { 0 };
 
 extern void *__real_calloc(size_t nmemb, size_t size);
 void *__wrap_calloc(size_t nmemb, size_t size)
@@ -23,14 +24,14 @@ void *__wrap_calloc(size_t nmemb, size_t size)
 	check_expected(size);
 
 	data = mock_ptr_type(void *);
-	
+
 	return data;
 }
 
 extern void __real_free(void *ptr);
 void __wrap_free(void *ptr)
 {
-	if (ptr != (void *)1)
+	if (ptr != &mock_ctx)
 		return __real_free(ptr);
 
 	check_expected_ptr(ptr);
@@ -53,12 +54,12 @@ void test_context_alloc(void **state)
 	// alloc a context
 	expect_value(__wrap_calloc, nmemb, 1);
 	expect_value(__wrap_calloc, size, context_size + mem_off + 10);
-	will_return(__wrap_calloc, 1);
+	will_return(__wrap_calloc, &mock_ctx);
 
 	ctx = context_alloc(mem_off + 10);
-	assert_ptr_equal(ctx, 1);
+	assert_ptr_equal(ctx, &mock_ctx);
 
-	expect_value(__wrap_free, ptr, 1);
+	expect_value(__wrap_free, ptr, &mock_ctx);
 	context_free(ctx);
 }
 

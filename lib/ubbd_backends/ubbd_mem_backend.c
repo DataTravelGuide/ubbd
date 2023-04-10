@@ -110,9 +110,15 @@ again:
 
 		base = io->iov[i].iov_base + off_in_iov;
 		len = MIN(io->iov[i].iov_len - off_in_iov, UBBD_MEM_BLK_SIZE - off_in_blk);
+		/* avoid overflow */
+		len = MIN(len, io->len - count);
 		memcpy(block->addr + off_in_blk, base, len);
 
 		count += len;
+		if (count >= io->len) {
+			break;
+		}
+
 		off_in_iov += len;
 		if (off_in_iov < io->iov[i].iov_len) {
 			/* iov not finished, goto next block */
@@ -150,13 +156,18 @@ again:
 		base = io->iov[i].iov_base + off_in_iov;
 		if (block) {
 			len = MIN(io->iov[i].iov_len - off_in_iov, UBBD_MEM_BLK_SIZE - off_in_blk);
+			/* avoid overflow */
+			len = MIN(len, io->len - count);
 			memcpy(base, block->addr + off_in_blk, len);
 		} else {
-			len = io->iov[i].iov_len;
+			len = MIN(io->iov[i].iov_len, io->len - count);
 			memset(base, 0, len);
 		}
 
 		count += len;
+		if (count >= io->len) {
+			break;
+		}
 		off_in_iov += len;
 		if (off_in_iov < io->iov[i].iov_len) {
 			/* iov not finished, goto next block */
