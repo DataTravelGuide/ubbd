@@ -134,4 +134,8 @@ void ubbd_backend_unlock(int fd);
 int ubbd_backend_testlock(int dev_id, int backend_id);
 
 uint64_t ubbd_backend_size(struct ubbd_backend *ubbd_b);
+
+int ubbd_backend_read(struct ubbd_backend *ubbd_b, uint64_t off, uint64_t size, char *buf);
+int ubbd_backend_write(struct ubbd_backend *ubbd_b, uint64_t off, uint64_t size, char *buf);
+struct ubbd_backend_io *ubbd_backend_io_clone(struct ubbd_backend_io *io, uint32_t off, uint32_t size);
 #endif /* UBBD_BACKEND_H */
