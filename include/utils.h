@@ -321,4 +321,17 @@ static inline void context_get(struct context *ctx)
 	ubbd_atomic_inc(&ctx->ref);
 }
 
+#define ubbd_roundup(x, y) (                                 \
+{                                                       \
+        const typeof(y) __y = y;                        \
+        (((x) + (__y - 1)) / __y) * __y;                \
+}                                                       \
+)
+#define ubbd_rounddown(x, y) (                               \
+{                                                       \
+        typeof(x) __x = (x);                            \
+        __x - (__x % (y));                              \
+}                                                       \
+)
+
 #endif /* UTILS_H */
