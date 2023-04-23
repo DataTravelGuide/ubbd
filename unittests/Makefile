@@ -5,7 +5,7 @@ LDLIBS_CMOCKA = -lcmocka -lcurl -lcrypto -lxml2 -lnl-3 -lnl-genl-3 -lrbd -lrados
 CMOCKA_CFLAGS := --coverage
 CMOCKA_CALLOC_CFLAGS := -Wl,--wrap=calloc -Wl,--wrap=free
 CMOCKA_OPEN_CFLAGS := -Wl,--wrap,open -Wl,--wrap,close -Wl,--wrap,mmap -Wl,--wrap,munmap -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,asprintf
-SOURCES := $(shell find ../lib/ -name '*.c')
+SOURCES := $(shell find ../lib/ -name '*.c' ! -name "ubbd_log_cmdline.c")
 SOURCES += $(shell find ../src/ -name '*.c')
 
 all:

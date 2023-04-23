@@ -18,6 +18,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <fcntl.h>
+#include <sys/uio.h>
 
 /* include the ubbd kernel module header */
 #include <ubbd.h>
@@ -45,6 +46,9 @@ enum ubbd_dev_type {
 #define UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE	1 << 1	/* exclusive mapping */
 #define UBBD_DEV_INFO_RBD_FLAGS_QUIESCE		1 << 2	/* enable quiesce for rbd mapping */
 
+#define UBBD_DEV_INFO_MAGIC		0x67685c0f7c73
+#define UBBD_DEV_INFO_VERSION		1
+
 struct ubbd_dev_info_header {
 	__u64 magic;
 	__u32 version;
@@ -71,8 +75,6 @@ struct __ubbd_dev_info {
 			char quiesce_hook[UBBD_PATH_MAX];
 		} rbd;
 		struct {
-		} null;
-		struct {
 			char hostname[UBBD_NAME_MAX];
 			char path[UBBD_PATH_MAX];
 		} ssh;
@@ -85,8 +87,6 @@ struct __ubbd_dev_info {
 			char volume_name[UBBD_NAME_MAX];
 			char bucket_name[UBBD_NAME_MAX];
 		} s3;
-		struct {
-		} mem;
 	};
 };
 
@@ -159,8 +159,6 @@ struct __ubbd_map_opts {
 			const char *quiesce_hook;
 		} rbd;
 		struct {
-		} null;
-		struct {
 			const char *hostname;
 			const char *path;
 		} ssh;
@@ -173,8 +171,6 @@ struct __ubbd_map_opts {
 			const char *volume_name;
 			const char *bucket_name;
 		} s3;
-		struct {
-		} mem;
 
 	};
 };
@@ -207,6 +203,10 @@ struct ubbd_config_options {
 	int ubbdid;
 	int data_pages_reserve_percnt;
 };
+
+#define UBBD_DEV_RESTART_MODE_DEFAULT	0
+#define UBBD_DEV_RESTART_MODE_DEV	1
+#define UBBD_DEV_RESTART_MODE_QUEUE	2
 
 struct ubbd_dev_restart_options {
 	int ubbdid;

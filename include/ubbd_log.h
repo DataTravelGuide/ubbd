@@ -19,7 +19,6 @@
 
 /* generate localtime string into buf */
 int time_string_now(char* buf);
-struct ubbd_device;
 
 void ubbd_set_log_level(int level);
 unsigned int ubbd_get_log_level(void);
@@ -28,11 +27,11 @@ void ubbd_destroy_log(void);
 int ubbd_make_absolute_logfile(char *path, const char *filename);
 
 __attribute__ ((format (printf, 4, 5)))
-void ubbd_err_message(struct ubbd_device *dev, const char *funcname, int linenr, const char *fmt, ...);
+void ubbd_err_message(void *dev, const char *funcname, int linenr, const char *fmt, ...);
 __attribute__ ((format (printf, 4, 5)))
-void ubbd_info_message(struct ubbd_device *dev, const char *funcname, int linenr, const char *fmt, ...);
+void ubbd_info_message(void *dev, const char *funcname, int linenr, const char *fmt, ...);
 __attribute__ ((format (printf, 4, 5)))
-void ubbd_dbg_message(struct ubbd_device *dev, const char *funcname, int linenr, const char *fmt, ...);
+void ubbd_dbg_message(void *dev, const char *funcname, int linenr, const char *fmt, ...);
 
 #define ubbd_dev_err(dev, ...)  do { ubbd_err_message(dev, __func__, __LINE__, __VA_ARGS__);} while (0)
 #define ubbd_dev_info(dev, ...) do { ubbd_info_message(dev, __func__, __LINE__, __VA_ARGS__);} while (0)
