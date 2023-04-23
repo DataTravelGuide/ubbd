@@ -1,20 +1,16 @@
 #ifndef UBBD_DEV_H
 #define UBBD_DEV_H
 
-#include <rbd/librbd.h>
 #include <pthread.h>
+#include <sys/uio.h>
 
+#include "utils.h"
 #include "ubbd.h"
 #include "ubbd_log.h"
 #include "ubbd_queue.h"
-#include "utils.h"
 #include "list.h"
 #include "libubbd.h"
 #include "ubbd_rbd.h"
-
-#define UBBD_DEV_RESTART_MODE_DEFAULT	0
-#define UBBD_DEV_RESTART_MODE_DEV	1
-#define UBBD_DEV_RESTART_MODE_QUEUE	2
 
 #define	UBBD_MEM_BLK_SIZE	(1024 * 1024)
 #define	UBBD_MEM_BLK_SHIFT	20
@@ -23,8 +19,6 @@
 
 #define UBBD_DEV_LINK_DIR	"/dev/ubbd/"
 
-#define UBBD_DEV_INFO_VERSION		1
-#define UBBD_DEV_INFO_MAGIC		0x67685c0f7c73
 
 enum ubbd_dev_ustatus {
 	UBBD_DEV_USTATUS_INIT,

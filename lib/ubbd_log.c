@@ -179,9 +179,10 @@ log_internal(int pri, struct ubbd_device *dev, const char *funcname,
 	pthread_cleanup_pop(0);
 }
 
-void ubbd_err_message(struct ubbd_device *dev, const char *funcname,
+void ubbd_err_message(void *arg, const char *funcname,
 		      int linenr, const char *fmt, ...)
 {
+	struct ubbd_device *dev = (struct ubbd_device *)arg;
 	va_list args;
 
 	va_start(args, fmt);
@@ -189,9 +190,10 @@ void ubbd_err_message(struct ubbd_device *dev, const char *funcname,
 	va_end(args);
 }
 
-void ubbd_info_message(struct ubbd_device *dev, const char *funcname,
+void ubbd_info_message(void *arg, const char *funcname,
 		       int linenr, const char *fmt, ...)
 {
+	struct ubbd_device *dev = (struct ubbd_device *)arg;
 	va_list args;
 
 	va_start(args, fmt);
@@ -199,9 +201,10 @@ void ubbd_info_message(struct ubbd_device *dev, const char *funcname,
 	va_end(args);
 }
 
-void ubbd_dbg_message(struct ubbd_device *dev, const char *funcname,
+void ubbd_dbg_message(void *arg, const char *funcname,
 		      int linenr, const char *fmt, ...)
 {
+	struct ubbd_device *dev = (struct ubbd_device *)arg;
 	va_list args;
 
 	va_start(args, fmt);
