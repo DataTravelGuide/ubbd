@@ -2,8 +2,6 @@
 #define UBBDD_MGMT_H
 
 #include "utils.h"
-#include "ubbd_dev.h"
-#include "ubbd_queue.h"
 #include "ubbd_base_mgmt.h"
 #include "libubbd.h"
 

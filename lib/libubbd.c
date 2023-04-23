@@ -2,12 +2,10 @@
 #include <getopt.h>
 #include <sys/types.h>
 
-#include "libubbd.h"
-#include "ubbd_daemon_mgmt.h"
-#include "ubbd_dev.h"
-#include "utils.h"
-#include "ubbd_netlink.h"
 #include "ubbd_compat.h"
+#include "ubbd_log.h"
+#include "ubbd_daemon_mgmt.h"
+#include "utils.h"
 
 /* 32M */
 #define DEFAULT_SHMEM_SIZE	(32 * 1024 *1024)
@@ -119,13 +117,13 @@ int request_and_wait(struct ubbdd_mgmt_request *req, struct ubbdd_mgmt_rsp *rsp)
 
 	ret = ubbdd_request(&fd, req);
 	if (ret) {
-		ubbd_err("failed to send %s request to ubbdd: %d.\n", cmd_to_str(req->cmd), ret);
+		fprintf(stderr, "failed to send %s request to ubbdd: %d.\n", cmd_to_str(req->cmd), ret);
 		return ret;
 	}
 	
 	ret = ubbdd_response(fd, rsp, -1);
 	if (ret) {
-		ubbd_err("error in waiting response for %s request: %d.\n", cmd_to_str(req->cmd), ret);
+		fprintf(stderr, "error in waiting response for %s request: %d.\n", cmd_to_str(req->cmd), ret);
 		return ret;
 	}
 
@@ -238,7 +236,7 @@ int generic_dev_info_setup(enum ubbd_dev_type dev_type,
 	} else if (dev_type == UBBD_DEV_TYPE_MEM) {
 		mem_dev_info_setup(info, opts);
 	} else {
-		ubbd_err("error dev_type: %d\n", dev_type);
+		fprintf(stderr, "error dev_type: %d\n", dev_type);
 		return -EINVAL;
 	}
 
@@ -257,7 +255,7 @@ int dev_info_setup(struct ubbd_dev_info *dev_info,
 	int ret = 0;
 
 	if (dev_type >= UBBD_DEV_TYPE_MAX) {
-		ubbd_err("error dev_type: %d\n", dev_type);
+		fprintf(stderr, "error dev_type: %d\n", dev_type);
 		return -EINVAL;
 	} else if (dev_type == UBBD_DEV_TYPE_CACHE) {
 		dev_info->cache_dev.cache_mode = str_to_cache_mode(opts->cache_dev.cache_mode);
