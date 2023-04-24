@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <sys/types.h>
 
+#include "ubbd_compat.h"
 #include "ubbd_log.h"
 #include "ubbd_daemon_mgmt.h"
 #include "utils.h"
@@ -305,8 +306,7 @@ static int validate_generic_map_opts(struct __ubbd_map_opts *opts)
 
 #ifndef HAVE_RBD_QUIESCE
 		if (opts->rbd.quiesce) {
-			fprintf(stderr, "rbd quiesce is not supported by librbd,\
-					please make sure rbd_quiesce_complete is in your librbd.so\n");
+			fprintf(stderr, "rbd quiesce is not supported by librbd, please make sure rbd_quiesce_complete is in your librbd.so\n");
 			return -EINVAL;
 		}
 #endif
