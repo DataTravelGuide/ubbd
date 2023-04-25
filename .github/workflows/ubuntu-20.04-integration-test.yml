@@ -1,0 +1,16 @@
+name: Run integration tests on ubuntu-20.04
+
+on:
+  pull_request:
+    types: [labeled]
+    labels:
+      - name: integration-tests
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: install dependency
+      run: sudo add-apt-repository "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse"; sudo apt update; sudo apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev libssh-dev
+        #    - name: run_check
+        #run: sudo ./run_ubbd_tests.sh
