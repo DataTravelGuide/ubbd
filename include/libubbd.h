@@ -14,6 +14,11 @@
 
 #ifndef LIBUBBD_H
 #define LIBUBBD_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -239,4 +244,9 @@ int ubbd_req_stats(struct ubbd_req_stats_options *opts, struct ubbdd_mgmt_rsp *r
 int ubbd_req_stats_reset(struct ubbd_req_stats_reset_options *opts, struct ubbdd_mgmt_rsp *rsp);
 int ubbd_device_restart(struct ubbd_dev_restart_options *opts, struct ubbdd_mgmt_rsp *rsp);
 int ubbd_device_info(struct ubbd_info_options *opts, struct ubbdd_mgmt_rsp *rsp);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /*LIBUBBD_H*/
