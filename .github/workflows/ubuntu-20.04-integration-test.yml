@@ -18,5 +18,7 @@ jobs:
       run: ssh-keyscan datatravelguide.yds.life >> ~/.ssh/known_hosts
       
     - name: SSH into server
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       run: |
-        ssh -i ${{ secrets.SSH_PRIVATE_KEY }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@datatravelguide.yds.life "echo 'Hello, world!'"
+        ssh -i $SSH_PRIVATE_KEY -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@datatravelguide.yds.life "echo 'Hello, world!'"
