@@ -11,6 +11,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Create SSH directory
+      run: mkdir -p ~/.ssh
+
     - name: Add SSH key to known_hosts
       run: ssh-keyscan datatravelguide.yds.life >> ~/.ssh/known_hosts
       
