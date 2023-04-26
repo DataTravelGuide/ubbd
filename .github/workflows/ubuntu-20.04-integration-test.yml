@@ -20,5 +20,7 @@ jobs:
     - name: SSH into server
       env:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        SSH_PORT: ${{ secrets.SSH_PORT }}
+        SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
       run: |
-        ssh -i $SSH_PRIVATE_KEY -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@datatravelguide.yds.life "echo 'Hello, world!'"
+        ssh -i $SSH_PRIVATE_KEY -p $SSH_PORT $SSH_USERNAME@datatravelguide.yds.life "echo 'Hello, world!'"
