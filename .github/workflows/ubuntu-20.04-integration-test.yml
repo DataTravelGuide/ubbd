@@ -10,7 +10,10 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
-    - name: install dependency
-      run: sudo add-apt-repository "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse"; sudo apt update; sudo apt install -y librbd-dev libc-dev libnl-3-dev libnl-genl-3-dev libssh-dev
-        #    - name: run_check
-        #run: sudo ./run_ubbd_tests.sh
+
+    - name: Add SSH key to known_hosts
+      run: ssh-keyscan datatravelguide.yds.life >> ~/.ssh/known_hosts
+      
+    - name: SSH into server
+      run: |
+        ssh -i ${{ secrets.SSH_PRIVATE_KEY }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@datatravelguide.yds.life "echo 'Hello, world!'"
