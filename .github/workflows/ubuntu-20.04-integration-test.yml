@@ -1,10 +1,8 @@
 name: Run integration tests on ubuntu-20.04
 
 on:
-  pull_request:
-    types: [labeled]
-    labels:
-      - name: integration-tests
+  push:
+    branches: [ master ]
 jobs:
   build:
     runs-on: ubuntu-20.04
