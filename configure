@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+trap 'echo -e "\n\nConfiguration failed\n\n" >&2' ERR
+
+rootdir=$(readlink -f $(dirname $0))
+
+function usage() {
+	echo "'configure' configures UBBD to compile on supported platforms."
+	echo ""
+	echo "Usage: ./configure [OPTION]..."
+	echo ""
+	echo "Defaults for the options are specified in brackets."
+	echo ""
+	echo "General:"
+	echo " -h, --help                Display this help and exit"
+	echo ""
+	echo " --prefix=path             Configure installation prefix (default: /usr/local)"
+	echo " --enable-debug            Configure for debug builds"
+	echo ""
+	echo "Backend:"
+	echo " --enable-rbd-backend                Support RBD backend."
+	echo " --disable-rbd-backend             Dont support RBD backend."
+	echo " --enable-s3-backend                Support S3 backend."
+	echo " --disable-s3-backend             Dont support S3 backend."
+	echo " --enable-ssh-backend                Support SSH backend."
+	echo " --disablee-ssh-backend           Dont support SSH backend."
+	echo " --enable-rbd-backend                Support RBD backend."
+	echo " --disable-rbd-backend             Dont support RBD backend."
+	echo ""
+}
+
+# Load default values
+# Convert config to sourceable configuration file
+sed -r 's/CONFIG_([[:alnum:]_]+)=(.*)/CONFIG[\1]=\2/g' $rootdir/CONFIG > $rootdir/CONFIG.sh
+declare -A CONFIG
+source $rootdir/CONFIG.sh
+rm $rootdir/CONFIG.sh
+
+CONFIG_RBD_BACKEND=y
+
+CONFIG_S3_BACKEND=n
+
+CONFIG_CACHE_BACKEND=n
+
+CONFIG_SSH_BACKEND=n
+
+for i in "$@"; do
+	case "$i" in
+		-h | --help)
+			usage
+			exit 0
+			;;
+		--prefix=*)
+			CONFIG[PREFIX]="${i#*=}"
+			;;
+		--enable-debug)
+			CONFIG[DEBUG]=y
+			;;
+		--disable-debug)
+			CONFIG[DEBUG]=n
+			;;
+		--enable-rbd-backend)
+			CONFIG[RBD_BACKEND]=y
+			;;
+		--disable-rbd-backend)
+			CONFIG[RBD_BACKEND]=n
+			;;
+		--enable-s3-backend)
+			CONFIG[S3_BACKEND]=y
+			;;
+		--disable-s3-backend)
+			CONFIG[S3_BACKEND]=n
+			;;
+		--enable-cache-backend)
+			CONFIG[CACHE_BACKEND]=y
+			;;
+		--disable-cache-backend)
+			CONFIG[CACHE_BACKEND]=n
+			;;
+		--enable-ssh-backend)
+			CONFIG[SSH_BACKEND]=y
+			;;
+		--disable-ssh-backend)
+			CONFIG[CACHE_BACKEND]=n
+			;;
+		*)
+			echo "Unrecognized option $i"
+			usage
+			exit 1
+			;;
+	esac
+done
+
+if [[ "${CONFIG[RBD]}" = "y" ]]; then
+	if ! echo -e '#include <rbd/librbd.h>\n#include <rados/librados.h>\n' \
+		'int main(void) { return 0; }\n' \
+		| "${BUILD_CMD[@]}" -lrados -lrbd - 2> /dev/null; then
+		echo "--enable-rbd-backend requires librados and librbd."
+		echo "Please install then re-run this script."
+		exit 1
+	fi
+fi
+
+# We are now ready to generate final configuration. But first do sanity
+# check to see if all keys in CONFIG array have its reflection in CONFIG file.
+if (($(grep -cE "^\s*CONFIG_[[:alnum:]_]+=" "$rootdir/CONFIG") != ${#CONFIG[@]})); then
+	echo ""
+	echo "BUG: Some configuration options are not present in CONFIG file. Please update this file."
+	echo "Missing options in CONFIG (+) file and in current config (-): "
+	diff -u --label "CONFIG file" --label "CONFIG[@]" \
+		<(sed -r -e '/^[[:space:]]*$/d; /^[[:space:]]*#.*/d; s/(CONFIG_[[:alnum:]_]+)=.*/\1/g' CONFIG | sort) \
+		<(printf "CONFIG_%s\n" "${!CONFIG[@]}" | sort)
+	exit 1
+fi
+
+echo -n "Creating mk/config.mk..."
+mkdir -p $rootdir/mk/
+cp -f $rootdir/CONFIG $rootdir/mk/config.mk
+for key in "${!CONFIG[@]}"; do
+	sed -i.bak -r "s#[[:space:]]*CONFIG_${key}=.*#CONFIG_${key}\?=${CONFIG[$key]}#g" $rootdir/mk/config.mk
+done
+
+echo "Type 'make' to build."
+
+exit 0

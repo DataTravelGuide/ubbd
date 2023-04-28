@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <sys/un.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 
 #include "utils.h"

@@ -26,6 +26,7 @@ UBBD development package
 %setup -q
 
 %build
+./configure ${UBBD_CONFIG_ARGS}
 make
 
 %install

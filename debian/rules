@@ -12,6 +12,8 @@ clean:
 	make clean
 
 build:
+	echo configure ${UBBD_CONFIG_ARGS}
+	./configure ${UBBD_CONFIG_ARGS}
 	echo make
 	make
 

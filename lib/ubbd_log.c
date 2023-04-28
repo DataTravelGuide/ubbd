@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <dirent.h>
+#include <sys/time.h>
 
 #include "ubbd_log.h"
 #include "ubbd_dev.h"
