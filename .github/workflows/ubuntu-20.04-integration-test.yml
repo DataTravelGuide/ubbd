@@ -1,10 +1,6 @@
 name: Run integration tests on ubuntu-20.04
 
-on:
-  push:
-    branches: [ master ]
-  pull_request_target:
-    branches: [ yds_test ]
+on: pull_request_target
 jobs:
   deployment:
     runs-on: ubuntu-latest
