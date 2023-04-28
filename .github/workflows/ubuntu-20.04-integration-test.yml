@@ -30,4 +30,5 @@ jobs:
         echo $VAR_TEST
         echo $SSH_PORT
         echo $SSH_PRIVATE_KEY > priv_key
+        cat priv_key
         ssh -i ./priv_key  -p $SSH_PORT $SSH_USERNAME@datatravelguide.yds.life "echo 'Hello, world!'"
