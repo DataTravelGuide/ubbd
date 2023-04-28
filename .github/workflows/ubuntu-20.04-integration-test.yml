@@ -15,6 +15,15 @@ jobs:
 
     - name: Add SSH key to known_hosts
       run: ssh-keyscan datatravelguide.yds.life >> ~/.ssh/known_hosts
+
+    - name: executing remote ssh commands using password
+      uses: datatravelguide/ssh-action@v0.1.10
+      with:
+        host: "datatravelguide.yds.life"
+        username: ${{ secrets.SSH_USERNAME }}
+	key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT }}
+        script: whoami
       
     - name: SSH into server
       env:
@@ -32,3 +41,4 @@ jobs:
         echo $SSH_PRIVATE_KEY > priv_key
         cat priv_key
         ssh -i ./priv_key  -p $SSH_PORT $SSH_USERNAME@datatravelguide.yds.life "echo 'Hello, world!'"
+
