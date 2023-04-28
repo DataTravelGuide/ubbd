@@ -18,10 +18,10 @@ extern struct ubbd_backend_ops null_backend_ops;
 #ifdef CONFIG_SSH_BACKEND
 extern struct ubbd_backend_ops ssh_backend_ops;
 #endif
-#ifdef CONFIG_CACHE_BACKEDN
+#ifdef CONFIG_CACHE_BACKEND
 extern struct ubbd_backend_ops cache_backend_ops;
 #endif
-#ifdef CONFIG_S3_BACKEDN
+#ifdef CONFIG_S3_BACKEND
 extern struct ubbd_backend_ops s3_backend_ops;
 #endif
 extern struct ubbd_backend_ops mem_backend_ops;
