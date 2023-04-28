@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
   pull_request_target:
-    branches: [ master ]
+    branches: [ yds_test ]
 jobs:
   deployment:
     runs-on: ubuntu-latest
