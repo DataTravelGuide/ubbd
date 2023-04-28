@@ -4,7 +4,7 @@ on: pull_request_target
 jobs:
   deployment:
     runs-on: ubuntu-latest
-    environment: integration-tests
+      #environment: integration-tests
     steps:
     - uses: actions/checkout@v2
 
