@@ -1,0 +1,21 @@
+name: Run integration tests on ubuntu-latest
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+jobs:
+  deployment:
+    runs-on: ubuntu-latest
+    environment: integration-tests
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Create SSH directory
+      run: mkdir -p ~/.ssh
+
+    - name: Add SSH key to known_hosts
+      run: ssh-keyscan datatravelguide.yds.life >> ~/.ssh/known_hosts
+
+    - name: SSH into server
+      run: |
+        sshpass -p ${{ secrets.SSH_PASSWORD }} ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOSTNAME }} "./run-ubbd-integration-tests.sh ${{github.event.pull_request.head.ref}} ${{github.event.pull_request.head.repo.full_name}}"
