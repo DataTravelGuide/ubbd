@@ -12,7 +12,7 @@
 #include "libubbd.h"
 #include "ubbd_compat.h"
 
-#ifdef WITH_RBD_BACKEND
+#ifdef CONFIG_RBD_BACKEND
 #include "ubbd_rbd.h"
 #endif
 
@@ -92,7 +92,7 @@ struct ubbd_file_device {
 	int fd;
 };
 
-#ifdef WITH_RBD_BACKEND
+#ifdef CONFIG_RBD_BACKEND
 struct ubbd_rbd_device {
 	struct ubbd_device ubbd_dev;
 	struct ubbd_rbd_conn rbd_conn;
@@ -108,7 +108,7 @@ struct ubbd_mem_device {
 	struct ubbd_device ubbd_dev;
 };
 
-#ifdef WITH_SSH_BACKEND
+#ifdef CONFIG_SSH_BACKEND
 struct ubbd_ssh_device {
 	struct ubbd_device ubbd_dev;
 };

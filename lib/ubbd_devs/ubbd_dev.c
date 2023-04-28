@@ -15,18 +15,18 @@
 #include "ubbd_netlink.h"
 #include "ubbd_backend.h"
 
-#ifdef WITH_RBD_BACKEND
+#ifdef CONFIG_RBD_BACKEND
 extern struct ubbd_dev_ops rbd_dev_ops;
 #endif
 extern struct ubbd_dev_ops file_dev_ops;
 extern struct ubbd_dev_ops null_dev_ops;
-#ifdef WITH_SSH_BACKEND
+#ifdef CONFIG_SSH_BACKEND
 extern struct ubbd_dev_ops ssh_dev_ops;
 #endif
-#ifdef WITH_CACHE_BACKEND
+#ifdef CONFIG_CACHE_BACKEND
 extern struct ubbd_dev_ops cache_dev_ops;
 #endif
-#ifdef WITH_S3_BACKEND
+#ifdef CONFIG_S3_BACKEND
 extern struct ubbd_dev_ops s3_dev_ops;
 #endif
 extern struct ubbd_dev_ops mem_dev_ops;
@@ -67,17 +67,17 @@ struct ubbd_device *__dev_create(struct __ubbd_dev_info *info, bool force)
 
 	if (info->type == UBBD_DEV_TYPE_FILE) {
 		dev_ops = &file_dev_ops;
-#ifdef WITH_RBD_BACKEND
+#ifdef CONFIG_RBD_BACKEND
 	} else if (info->type == UBBD_DEV_TYPE_RBD) {
 		dev_ops = &rbd_dev_ops;
 #endif
 	} else if (info->type == UBBD_DEV_TYPE_NULL) {
 		dev_ops = &null_dev_ops;
-#ifdef WITH_SSH_BACKEND
+#ifdef CONFIG_SSH_BACKEND
 	} else if (info->type == UBBD_DEV_TYPE_SSH) {
 		dev_ops = &ssh_dev_ops;
 #endif
-#ifdef WITH_S3_BACKEND
+#ifdef CONFIG_S3_BACKEND
 	} else if (info->type == UBBD_DEV_TYPE_S3) {
 		dev_ops = &s3_dev_ops;
 #endif
@@ -109,7 +109,7 @@ struct ubbd_device *__dev_create(struct __ubbd_dev_info *info, bool force)
 	return ubbd_dev;
 }
 
-#ifdef WITH_CACHE_BACKEND
+#ifdef CONFIG_CACHE_BACKEND
 struct ubbd_device *create_cache_dev(struct ubbd_dev_info *dev_info, bool force)
 {
 	struct ubbd_cache_device *cache_dev;
@@ -161,7 +161,7 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force)
 	if (dev_type >= UBBD_DEV_TYPE_MAX) {
 		ubbd_err("error dev_type: %d\n", dev_type);
 		return NULL;
-#ifdef WITH_CACHE_BACKEND
+#ifdef CONFIG_CACHE_BACKEND
 	} else if (dev_type == UBBD_DEV_TYPE_CACHE) {
 		ubbd_dev = create_cache_dev(info, force);
 #endif
@@ -232,7 +232,7 @@ extern pthread_t ubbdd_nl_thread;
 extern void ubbdd_mgmt_stop_thread(void);
 extern void ubbdd_mgmt_wait_thread(void);
 
-#ifdef WITH_CACHE_BACKEND
+#ifdef CONFIG_CACHE_BACKEND
 #define CACHE_DEV(ubbd_dev) ((struct ubbd_cache_device *)container_of(ubbd_dev, struct ubbd_cache_device, ubbd_dev))
 
 static int backend_set_opts(struct ubbd_device *ubbd_dev, struct ubbd_backend_opts *opts)
@@ -268,7 +268,7 @@ static int backend_conf_setup(struct ubbd_device *ubbd_dev)
 	backend_conf.dev_id = ubbd_dev->dev_id;
 	backend_conf.dev_type = ubbd_dev->dev_type;
 	backend_conf.dev_size = ubbd_dev->dev_size;
-#ifdef WITH_CACHE_BACKEND
+#ifdef CONFIG_CACHE_BACKEND
 	if (ubbd_dev->dev_type == UBBD_DEV_TYPE_CACHE) {
 		backend_conf.cache_mode = ubbd_dev->cache_mode;
 	}
@@ -775,7 +775,7 @@ static int dev_remove_disk(struct ubbd_device *ubbd_dev, bool force,
 {
 	struct context *remove_disk_ctx;
 	int ret;
-#ifdef WITH_CACHE_BACKEND
+#ifdef CONFIG_CACHE_BACKEND
 	struct ubbd_backend_opts backend_opts;
 
 	if (detach) {
