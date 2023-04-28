@@ -1,6 +1,8 @@
 #ifndef UBBD_DEV_H
 #define UBBD_DEV_H
 
+#include "ubbd_compat.h"
+
 #include <pthread.h>
 #include <sys/uio.h>
 
@@ -10,7 +12,6 @@
 #include "ubbd_queue.h"
 #include "list.h"
 #include "libubbd.h"
-#include "ubbd_compat.h"
 
 #ifdef CONFIG_RBD_BACKEND
 #include "ubbd_rbd.h"

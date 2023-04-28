@@ -1,3 +1,4 @@
+include ../mk/config.mk
 KERNEL_SOURCE_VERSION ?= $(shell uname -r)
 KERNEL_TREE ?= /lib/modules/$(KERNEL_SOURCE_VERSION)/build
 EXTRA_CFLAGS += $(call cc-option,-Wno-tautological-compare) -Wall -Wmaybe-uninitialized -Werror
@@ -30,8 +31,8 @@ endif
 SOURCES += $(shell find ../src/ -name '*.c')
 
 all:
-	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_CALLOC_CFLAGS) -g  utils_test.c $(UBBD_FLAGS) $(LDLIBS_CMOCKA) -o utils_test
-	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_OPEN_CFLAGS) -g ubbd_uio_test.c $(SOURCES) $(UBBD_FLAGS) $(LDLIBS_CMOCKA) -o ubbd_uio_test
+	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_CALLOC_CFLAGS) -g  utils_test.c $(UBBD_FLAGS) $(LDLIBS_CMOCKA) $(LINKLIBS) -o utils_test
+	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_OPEN_CFLAGS) -g ubbd_uio_test.c $(SOURCES) $(UBBD_FLAGS) $(LDLIBS_CMOCKA) $(LINKLIBS) -o ubbd_uio_test
 
 clean:
 	rm -rf utils_test

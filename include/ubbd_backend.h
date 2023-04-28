@@ -1,6 +1,8 @@
 #ifndef UBBD_BACKEND_H
 #define UBBD_BACKEND_H
 
+#include <ubbd_compat.h>
+
 #ifdef CONFIG_SSH_BACKEND
 #include <libssh/sftp.h>
 #endif
