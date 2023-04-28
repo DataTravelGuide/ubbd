@@ -3,7 +3,7 @@ name: Run integration tests on ubuntu-20.04
 on:
   push:
     branches: [ master ]
-  pull_request:
+  pull_request_target:
     branches: [ master ]
 jobs:
   deployment:
