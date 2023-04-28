@@ -19,7 +19,7 @@ jobs:
     - name: SSH into server
       env:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        SSH_PORT_ENV: ${{ secrets.SSH_PORT }}
+        SSH_PORT: ${{ secrets.SSH_PORT }}
         SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
         SECRET_TEST: ${{ secrets.SECRET_TEST }}
         VAR_TEST: ${{ env.VAR_TEST }}
@@ -29,4 +29,4 @@ jobs:
         echo $SSH_PRIVATE_KEY
         echo $VAR_TEST
         echo ${{ secrets.SSH_PORT }}
-        ssh -i "$SSH_PRIVATE_KEY" -p $SSH_PORT $SSH_USERNAME@datatravelguide.yds.life "echo 'Hello, world!'"
+        echo "$SSH_PRIVATE_KEY" | ssh -i /dev/stdin  -p $SSH_PORT $SSH_USERNAME@datatravelguide.yds.life "echo 'Hello, world!'"
