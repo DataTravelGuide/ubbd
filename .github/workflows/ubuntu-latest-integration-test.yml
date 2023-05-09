@@ -8,6 +8,7 @@ on:
 jobs:
   deployment:
     runs-on: ubuntu-latest
+    timeout-minutes: 4320
     environment: integration-tests
     steps:
     - uses: actions/checkout@v2
@@ -20,4 +21,4 @@ jobs:
 
     - name: SSH into server
       run: |
-        sshpass -p ${{ secrets.SSH_PASSWORD }} ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOSTNAME }} "./run-ubbd-integration-tests.sh ${{github.event.pull_request.head.ref}} ${{github.event.pull_request.head.repo.full_name}}"
+        sshpass -p ${{ secrets.SSH_PASSWORD }} ssh -o TCPKeepAlive=yes -o ServerAliveInterval=60 -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOSTNAME }} "./run-ubbd-integration-tests.sh ${{github.event.pull_request.head.ref}} ${{github.event.pull_request.head.repo.full_name}}"
