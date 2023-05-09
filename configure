@@ -27,8 +27,8 @@ function usage() {
 	echo " --disable-s3-backend             Dont support S3 backend."
 	echo " --enable-ssh-backend                Support SSH backend."
 	echo " --disablee-ssh-backend           Dont support SSH backend."
-	echo " --enable-rbd-backend                Support RBD backend."
-	echo " --disable-rbd-backend             Dont support RBD backend."
+	echo " --enable-cache-backend                Support CACHE backend."
+	echo " --disable-cache-backend             Dont support CACHE backend."
 	echo ""
 }
 
