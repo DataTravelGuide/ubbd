@@ -2,7 +2,7 @@ name: Run integration tests on ubuntu-latest
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    types: [opened, synchronize, labeled]
     labels:
       - name: integration-tests
 jobs:
