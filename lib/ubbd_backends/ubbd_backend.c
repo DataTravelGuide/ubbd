@@ -10,12 +10,20 @@
 #include "ubbd_netlink.h"
 #include "ubbd_queue.h"
 
+#ifdef CONFIG_RBD_BACKEND
 extern struct ubbd_backend_ops rbd_backend_ops;
+#endif
 extern struct ubbd_backend_ops file_backend_ops;
 extern struct ubbd_backend_ops null_backend_ops;
+#ifdef CONFIG_SSH_BACKEND
 extern struct ubbd_backend_ops ssh_backend_ops;
+#endif
+#ifdef CONFIG_CACHE_BACKEND
 extern struct ubbd_backend_ops cache_backend_ops;
+#endif
+#ifdef CONFIG_S3_BACKEND
 extern struct ubbd_backend_ops s3_backend_ops;
+#endif
 extern struct ubbd_backend_ops mem_backend_ops;
 
 static int ubbd_backend_init(struct ubbd_backend *ubbd_b, struct ubbd_backend_conf *conf)
@@ -64,14 +72,20 @@ struct ubbd_backend *backend_create(struct __ubbd_dev_info *info)
 
 	if (info->type == UBBD_DEV_TYPE_FILE) {
 		backend_ops = &file_backend_ops;
+#ifdef CONFIG_RBD_BACKEND
 	} else if (info->type == UBBD_DEV_TYPE_RBD) {
 		backend_ops = &rbd_backend_ops;
+#endif
 	} else if (info->type == UBBD_DEV_TYPE_NULL) {
 		backend_ops = &null_backend_ops;
+#ifdef CONFIG_SSH_BACKEND
 	} else if (info->type == UBBD_DEV_TYPE_SSH) {
 		backend_ops = &ssh_backend_ops;
+#endif
+#ifdef CONFIG_S3_BACKEND
 	} else if (info->type == UBBD_DEV_TYPE_S3) {
 		backend_ops = &s3_backend_ops;
+#endif
 	} else if (info->type == UBBD_DEV_TYPE_MEM) {
 		backend_ops = &mem_backend_ops;
 	}
@@ -98,6 +112,7 @@ struct ubbd_backend *backend_create(struct __ubbd_dev_info *info)
 
 struct ubbd_backend *cache_backend_create(struct ubbd_backend_conf *conf)
 {
+#ifdef CONFIG_CACHE_BACKEND
 	struct ubbd_cache_backend *cache_b;
 	struct ubbd_backend *ubbd_b;
 	struct ubbd_dev_info *dev_info = &conf->dev_info;
@@ -131,6 +146,7 @@ free_cache_backend:
 free_cache_b:
 	free(cache_b);
 
+#endif
 	return NULL;
 }
 
@@ -145,6 +161,9 @@ struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *conf)
 	} else {
 		ubbd_b = backend_create(&dev_info->generic_dev.info);
 	}
+
+	if (!ubbd_b)
+		return NULL;
 
 	ubbd_b->dev_id = conf->dev_id;
 	ubbd_b->dev_size = conf->dev_size;

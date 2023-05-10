@@ -1,6 +1,8 @@
 #ifndef UBBD_DEV_H
 #define UBBD_DEV_H
 
+#include "ubbd_compat.h"
+
 #include <pthread.h>
 #include <sys/uio.h>
 
@@ -10,7 +12,10 @@
 #include "ubbd_queue.h"
 #include "list.h"
 #include "libubbd.h"
+
+#ifdef CONFIG_RBD_BACKEND
 #include "ubbd_rbd.h"
+#endif
 
 #define	UBBD_MEM_BLK_SIZE	(1024 * 1024)
 #define	UBBD_MEM_BLK_SHIFT	20
@@ -88,11 +93,13 @@ struct ubbd_file_device {
 	int fd;
 };
 
+#ifdef CONFIG_RBD_BACKEND
 struct ubbd_rbd_device {
 	struct ubbd_device ubbd_dev;
 	struct ubbd_rbd_conn rbd_conn;
 	char dev_link_dir[PATH_MAX];
 };
+#endif
 
 struct ubbd_null_device {
 	struct ubbd_device ubbd_dev;
@@ -102,9 +109,11 @@ struct ubbd_mem_device {
 	struct ubbd_device ubbd_dev;
 };
 
+#ifdef CONFIG_SSH_BACKEND
 struct ubbd_ssh_device {
 	struct ubbd_device ubbd_dev;
 };
+#endif
 
 struct ubbd_cache_device {
 	struct ubbd_device ubbd_dev;

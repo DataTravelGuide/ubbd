@@ -15,12 +15,20 @@
 #include "ubbd_netlink.h"
 #include "ubbd_backend.h"
 
+#ifdef CONFIG_RBD_BACKEND
 extern struct ubbd_dev_ops rbd_dev_ops;
+#endif
 extern struct ubbd_dev_ops file_dev_ops;
 extern struct ubbd_dev_ops null_dev_ops;
+#ifdef CONFIG_SSH_BACKEND
 extern struct ubbd_dev_ops ssh_dev_ops;
+#endif
+#ifdef CONFIG_CACHE_BACKEND
 extern struct ubbd_dev_ops cache_dev_ops;
+#endif
+#ifdef CONFIG_S3_BACKEND
 extern struct ubbd_dev_ops s3_dev_ops;
+#endif
 extern struct ubbd_dev_ops mem_dev_ops;
 
 LIST_HEAD(ubbd_dev_list);
@@ -59,14 +67,20 @@ struct ubbd_device *__dev_create(struct __ubbd_dev_info *info, bool force)
 
 	if (info->type == UBBD_DEV_TYPE_FILE) {
 		dev_ops = &file_dev_ops;
+#ifdef CONFIG_RBD_BACKEND
 	} else if (info->type == UBBD_DEV_TYPE_RBD) {
 		dev_ops = &rbd_dev_ops;
+#endif
 	} else if (info->type == UBBD_DEV_TYPE_NULL) {
 		dev_ops = &null_dev_ops;
+#ifdef CONFIG_SSH_BACKEND
 	} else if (info->type == UBBD_DEV_TYPE_SSH) {
 		dev_ops = &ssh_dev_ops;
+#endif
+#ifdef CONFIG_S3_BACKEND
 	} else if (info->type == UBBD_DEV_TYPE_S3) {
 		dev_ops = &s3_dev_ops;
+#endif
 	} else if (info->type == UBBD_DEV_TYPE_MEM) {
 		dev_ops = &mem_dev_ops;
 	}
@@ -95,6 +109,7 @@ struct ubbd_device *__dev_create(struct __ubbd_dev_info *info, bool force)
 	return ubbd_dev;
 }
 
+#ifdef CONFIG_CACHE_BACKEND
 struct ubbd_device *create_cache_dev(struct ubbd_dev_info *dev_info, bool force)
 {
 	struct ubbd_cache_device *cache_dev;
@@ -136,6 +151,7 @@ free_cache_dev:
 
 	return NULL;
 }
+#endif
 
 struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force)
 {
@@ -145,8 +161,10 @@ struct ubbd_device *ubbd_dev_create(struct ubbd_dev_info *info, bool force)
 	if (dev_type >= UBBD_DEV_TYPE_MAX) {
 		ubbd_err("error dev_type: %d\n", dev_type);
 		return NULL;
+#ifdef CONFIG_CACHE_BACKEND
 	} else if (dev_type == UBBD_DEV_TYPE_CACHE) {
 		ubbd_dev = create_cache_dev(info, force);
+#endif
 	} else {
 		ubbd_dev = __dev_create(&info->generic_dev.info, force);
 	}
@@ -214,7 +232,31 @@ extern pthread_t ubbdd_nl_thread;
 extern void ubbdd_mgmt_stop_thread(void);
 extern void ubbdd_mgmt_wait_thread(void);
 
+#ifdef CONFIG_CACHE_BACKEND
 #define CACHE_DEV(ubbd_dev) ((struct ubbd_cache_device *)container_of(ubbd_dev, struct ubbd_cache_device, ubbd_dev))
+
+static int backend_set_opts(struct ubbd_device *ubbd_dev, struct ubbd_backend_opts *opts)
+{
+	struct ubbd_backend_mgmt_rsp backend_rsp;
+	struct ubbd_backend_mgmt_request backend_request = { 0 };
+	int fd;
+	int ret;
+
+	backend_request.dev_id = ubbd_dev->dev_id;
+	backend_request.backend_id = ubbd_dev->current_backend_id;
+	backend_request.cmd = UBBD_BACKEND_MGMT_CMD_SET_OPTS;
+	memcpy(&backend_request.u.set_opts, opts, sizeof(struct ubbd_backend_opts));
+
+	ret = ubbd_backend_request(&fd, &backend_request);
+	if (ret)
+		return ret;
+
+	ret = ubbd_backend_response(fd, &backend_rsp, 5);
+
+	return ret;
+}
+
+#endif
 
 static int backend_conf_setup(struct ubbd_device *ubbd_dev)
 {
@@ -226,9 +268,11 @@ static int backend_conf_setup(struct ubbd_device *ubbd_dev)
 	backend_conf.dev_id = ubbd_dev->dev_id;
 	backend_conf.dev_type = ubbd_dev->dev_type;
 	backend_conf.dev_size = ubbd_dev->dev_size;
+#ifdef CONFIG_CACHE_BACKEND
 	if (ubbd_dev->dev_type == UBBD_DEV_TYPE_CACHE) {
 		backend_conf.cache_mode = ubbd_dev->cache_mode;
 	}
+#endif
 
 	memcpy(&backend_conf.dev_info, &ubbd_dev->dev_info, sizeof(struct ubbd_dev_info));
 
@@ -325,27 +369,6 @@ static int stop_backend_queue(struct ubbd_device *ubbd_dev, int backend_id, int 
 	backend_request.backend_id = backend_id;
 	backend_request.u.stop_queue.queue_id = queue_id;
 	backend_request.cmd = UBBD_BACKEND_MGMT_CMD_STOP_QUEUE;
-
-	ret = ubbd_backend_request(&fd, &backend_request);
-	if (ret)
-		return ret;
-
-	ret = ubbd_backend_response(fd, &backend_rsp, 5);
-
-	return ret;
-}
-
-static int backend_set_opts(struct ubbd_device *ubbd_dev, struct ubbd_backend_opts *opts)
-{
-	struct ubbd_backend_mgmt_rsp backend_rsp;
-	struct ubbd_backend_mgmt_request backend_request = { 0 };
-	int fd;
-	int ret;
-
-	backend_request.dev_id = ubbd_dev->dev_id;
-	backend_request.backend_id = ubbd_dev->current_backend_id;
-	backend_request.cmd = UBBD_BACKEND_MGMT_CMD_SET_OPTS;
-	memcpy(&backend_request.u.set_opts, opts, sizeof(struct ubbd_backend_opts));
 
 	ret = ubbd_backend_request(&fd, &backend_request);
 	if (ret)
@@ -751,8 +774,9 @@ static int dev_remove_disk(struct ubbd_device *ubbd_dev, bool force,
 		bool detach, struct context *ctx)
 {
 	struct context *remove_disk_ctx;
-	struct ubbd_backend_opts backend_opts;
 	int ret;
+#ifdef CONFIG_CACHE_BACKEND
+	struct ubbd_backend_opts backend_opts;
 
 	if (detach) {
 		backend_opts.cache.detach_on_close = detach;
@@ -760,6 +784,7 @@ static int dev_remove_disk(struct ubbd_device *ubbd_dev, bool force,
 		if (ret)
 			return ret;
 	}
+#endif
 
 	remove_disk_ctx = dev_ctx_alloc(ubbd_dev, ctx, dev_remove_disk_finish);
 	if (!remove_disk_ctx)

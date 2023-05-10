@@ -1,6 +1,31 @@
+include ../mk/config.mk
+LINKLIBS := -lcurl -lcrypto -lxml2 -lnl-3 -lnl-genl-3 -lpthread -lm -lz
+
 SOURCES := $(shell find ../lib/ -name '*.c' ! -name "ubbd_log_cmdline.c")
-SOURCES += $(shell find ../src/ -name '*.c')
-LINKLIBS := -lcurl -lcrypto -lxml2 -lnl-3 -lnl-genl-3 -lrbd -lrados -lpthread -lm -lz -lssh -ls3-ubbd
+ifneq ("$(CONFIG_RBD_BACKEND)", "y")
+	SOURCES := $(filter-out ../lib/ubbd_devs/ubbd_rbd_dev.c ../lib/ubbd_backends/ubbd_rbd_backend.c ../lib/ubbd_rbd.c, $(SOURCES))
+else
+	LINKLIBS += -lrbd -lrados
+endif
+
+ifneq ("$(CONFIG_SSH_BACKEND)", "y")
+	SOURCES := $(filter-out ../lib/ubbd_devs/ubbd_ssh_dev.c ../lib/ubbd_backends/ubbd_ssh_backend.c, $(SOURCES))
+else
+	LINKLIBS += -lssh
+endif
+
+ifneq ("$(CONFIG_S3_BACKEND)", "y")
+	SOURCES := $(filter-out ../lib/ubbd_devs/ubbd_s3_dev.c ../lib/ubbd_backends/ubbd_s3_backend.c, $(SOURCES))
+else
+	LINKLIBS += -ls3-ubbd
+endif
+
+ifneq ("$(CONFIG_CACHE_BACKEND)", "y")
+	SOURCES := $(filter-out ../lib/ubbd_devs/ubbd_cache_dev.c ../lib/ubbd_backends/ubbd_cache_backend.c, $(SOURCES))
+else
+	SOURCES += $(shell find ../src/ocf/ -name '*.c')
+endif
+
 
 .DEFAULT_GOAL := all
 

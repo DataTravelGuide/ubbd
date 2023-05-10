@@ -1,13 +1,22 @@
 #ifndef UBBD_BACKEND_H
 #define UBBD_BACKEND_H
+
+#include <ubbd_compat.h>
+
+#ifdef CONFIG_SSH_BACKEND
 #include <libssh/sftp.h>
+#endif
 
 #include "ubbd_dev.h"
 #include "ubbd_queue.h"
 #include "ubbd_config.h"
+
+#ifdef CONFIG_RBD_BACKEND
 #include "ubbd_rbd.h"
+#endif
 
 #include "libubbd.h"
+#include "ubbd_compat.h"
 
 enum ubbd_backend_io_type {
 	UBBD_BACKEND_IO_WRITE = 0,
@@ -87,11 +96,14 @@ struct ubbd_file_backend {
 	int fd;
 };
 
+#ifdef CONFIG_RBD_BACKEND
 struct ubbd_rbd_backend {
 	struct ubbd_backend ubbd_b;
 	struct ubbd_rbd_conn rbd_conn;
 };
+#endif
 
+#ifdef CONFIG_SSH_BACKEND
 struct ubbd_ssh_backend {
 	struct ubbd_backend ubbd_b;
 	char hostname[UBBD_NAME_MAX];
@@ -99,6 +111,7 @@ struct ubbd_ssh_backend {
 	struct sftp_file_struct *sftp_file;
 	pthread_mutex_t			lock;
 };
+#endif
 
 struct ubbd_cache_backend {
 	struct ubbd_backend ubbd_b;
