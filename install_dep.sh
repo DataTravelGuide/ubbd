@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ $UBBD_SKIP_INSTALL_DEP == "yes" ]; then
+	exit 0
+fi
+
 source /etc/os-release
 case "$ID" in
 debian|ubuntu|devuan|elementary|softiron)
