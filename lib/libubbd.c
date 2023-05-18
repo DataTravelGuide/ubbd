@@ -121,6 +121,8 @@ int request_and_wait(struct ubbdd_mgmt_request *req, struct ubbdd_mgmt_rsp *rsp)
 		return ret;
 	}
 	
+	memset(rsp, 0, sizeof(*rsp));
+
 	ret = ubbdd_response(fd, rsp, -1);
 	if (ret) {
 		fprintf(stderr, "error in waiting response for %s request: %d.\n", cmd_to_str(req->cmd), ret);
