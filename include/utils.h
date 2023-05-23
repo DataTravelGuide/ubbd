@@ -304,8 +304,11 @@ static inline int context_finish(struct context *ctx, int ret)
 		return 0;
 	}
 
-	if (ctx->finish)
-		ctx->finish(ctx, ctx->ret);
+	if (ctx->finish) {
+		ret = ctx->finish(ctx, ctx->ret);
+		if (ret && !ctx->ret)
+			ctx->ret = ret;
+	}
 
 	if (ctx->parent)
 		context_finish(ctx->parent, ctx->ret);
