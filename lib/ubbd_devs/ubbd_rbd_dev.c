@@ -73,7 +73,7 @@ static int rbd_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 {
 	struct ubbd_rbd_device *rbd_dev = RBD_DEV(ubbd_dev);
 	struct ubbd_rbd_conn *rbd_conn = &rbd_dev->rbd_conn;
-	char *dev_path;
+	char *dev_name;
 	uint64_t dev_size;
         int ret;
 
@@ -93,14 +93,13 @@ static int rbd_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 
 	/* check the dev_size for real device */
 	if (reopen) {
-		if (asprintf(&dev_path, "/dev/ubbd%d", ubbd_dev->dev_id) == -1) {
+		if (asprintf(&dev_name, "ubbd%d", ubbd_dev->dev_id) == -1) {
 			ubbd_err("cant init dev path\n");
 			goto close_rbd;
 		}
 
-
-		ret = ubbd_util_get_file_size(dev_path, &dev_size);
-		free(dev_path);
+		ret = ubbd_util_get_bd_size(dev_name, &dev_size);
+		free(dev_name);
 		if (ret) {
 			ubbd_err("failed to get dev size\n");
 			goto close_rbd;

@@ -61,6 +61,30 @@ int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size)
 	return 0;
 }
 
+int ubbd_util_get_bd_size(const char *devname, uint64_t *file_size)
+{
+	char *filename;
+	FILE *file;
+
+	if (asprintf(&filename, "/sys/block/%s/size", devname) == -1) {
+		ubbd_err("failed to setup filename for block device: %s.\n", devname);
+		return -1;
+	}
+
+	file = fopen(filename, "rb");
+	if (file == NULL) {
+		ubbd_err("failed to open file: %s\n", filename);
+		free(filename);
+		return -1;
+	}
+
+	fread(file_size, sizeof(uint64_t), 1, file);
+	*file_size *= 512;
+	fclose(file);
+
+	return 0;
+}
+
 int ubbd_load_module(char *mod_name)
 {
 	char *arg_list[] = {

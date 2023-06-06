@@ -66,6 +66,7 @@ int ubbd_bit_find_next(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found
 int ubbd_bit_find_next_zero(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found_bit);
 
 int ubbd_util_get_file_size(const char *filepath, uint64_t *file_size);
+int ubbd_util_get_bd_size(const char *devname, uint64_t *file_size);
 int ubbd_load_module(char *mod_name);
 
 int execute(char* program, char** arg_list);
