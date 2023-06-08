@@ -6,7 +6,7 @@ on:
     labels:
       - name: integration-tests
 jobs:
-  deployment:
+  integration-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 4320
     environment: integration-tests
@@ -20,5 +20,27 @@ jobs:
       run: ssh-keyscan datatravelguide.yds.life >> ~/.ssh/known_hosts
 
     - name: SSH into server
+      timeout-minutes: 720
+      env:
+        PASSWORD: ${{ secrets.SSH_PASSWORD }}
+        PORT: ${{ secrets.SSH_PORT }}
+        USERNAME: ${{ secrets.SSH_USERNAME }}
+        HOSTNAME: ${{ secrets.SSH_HOSTNAME }}
       run: |
-        sshpass -p ${{ secrets.SSH_PASSWORD }} ssh -o TCPKeepAlive=yes -o ServerAliveInterval=60 -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOSTNAME }} "./run-ubbd-integration-tests.sh ${{github.event.pull_request.head.ref}} ${{github.event.pull_request.head.repo.full_name}}"
+        sshpass -p ${PASSWORD} ssh -o TCPKeepAlive=yes -o ServerAliveInterval=120 -o ServerAliveCountMax=9999 -o StrictHostKeyChecking=no -p ${PORT} ${USERNAME}@${HOSTNAME} "./run-ubbd-integration-tests.sh ${{github.event.pull_request.head.ref}} ${{github.event.pull_request.head.repo.full_name}} > output"
+        touch output
+        tail -f output &
+        while true; do
+          sshpass -p ${PASSWORD} scp -P ${PORT} ${USERNAME}@${HOSTNAME}://root/output output || true
+          result=`sshpass -p ${PASSWORD} ssh -o TCPKeepAlive=yes -o ServerAliveInterval=120 -o ServerAliveCountMax=9999 -o StrictHostKeyChecking=no -p ${PORT} ${USERNAME}@${HOSTNAME} "cat ./ubbd_test_result" || true`
+          if [ "${result}" = "FAIL" ];then
+            echo "FAIL"
+            exit 1
+          fi
+
+          if [ "${result}" = "OK" ];then
+            echo "OK"
+            exit 0
+          fi
+          sleep 10
+        done
