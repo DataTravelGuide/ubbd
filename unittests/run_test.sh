@@ -8,12 +8,12 @@ make ubbd_ut
 
 cd ${unittest_dir}
 
-valgrind --leak-check=full ./utils_test
+LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:../lib/:../libs3/build/lib/" ./utils_test
 if [ $? -ne 0 ]; then
 	exit -1
 fi
 
-LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:../lib/:../libs3/build/lib/" valgrind --leak-check=full ./ubbd_uio_test
+LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:../lib/:../libs3/build/lib/" ./ubbd_uio_test
 if [ $? -ne 0 ]; then
 	exit -1
 fi

@@ -7,7 +7,15 @@ endif
 include mk/config.mk
 KTF_SRC := $(shell pwd)/unittests/ktf
 EXTRA_CFLAGS += $(call cc-option,-Wno-tautological-compare) -Wall -Wmaybe-uninitialized -Werror
-EXTRA_CFLAGS += -g
+
+ifeq ("$(CONFIG_DEBUG)", "y")
+    EXTRA_CFLAGS += -g
+endif
+
+ifeq ("$(CONFIG_ASAN)", "y")
+    EXTRA_CFLAGS += -fsanitize=address -fno-omit-frame-pointer
+endif
+
 VERSION ?= $(shell cat VERSION)
 UBBD_VERSION ?= ubbd-$(VERSION)
 $(shell rm -rf include/ubbd_compat.h)

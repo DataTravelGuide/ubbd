@@ -1,5 +1,5 @@
 1. install cmocka module:
-apt install libcmocka-dev valgrind lcov cmake pkg-config
+apt install libcmocka-dev lcov cmake pkg-config
 
 2. bash run_test.sh
 
