@@ -22,7 +22,7 @@ $(shell rm -rf include/ubbd_compat.h)
 UBBDCONF_HEADER := include/ubbd_compat.h
 OCFDIR = ocf/
 LIBVER := 1
-DIST_FILES = ubbdadm ubbdd backend lib include Makefile etc man install_dep.sh VERSION mk
+DIST_FILES = ubbdadm ubbdd backend lib include Makefile etc man install_dep.sh VERSION mk configure build_deb.sh build_rpm.sh debian rpm unittests CONFIG libs3 ocf
 
 UBBD_FLAGS := -I /usr/include/libnl3/ -I $(UBBD_SRC)/include/ubbd-headers/ -I $(UBBD_SRC)/include/
 

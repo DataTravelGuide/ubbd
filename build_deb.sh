@@ -12,4 +12,6 @@ git submodule update --init --recursive
 sed "s/@ARCH@/${ARCH}/g" debian/control.in > debian/control
 sed "s/@CODENAME@/${VERSION_CODENAME}/g" debian/changelog.in > debian/changelog
 sed -i "s/@VERSION@/${VER}/g"  debian/changelog
+perl -i -pe "s/stable/$(lsb_release -cs)/" debian/changelog
 dpkg-buildpackage -uc -us
+dpkg-buildpackage -S -sa --no-sign

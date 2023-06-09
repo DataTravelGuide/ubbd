@@ -2,6 +2,14 @@ Source: ubbd
 Section: admin
 Priority: optional
 Maintainer: Dongsheng Yang <dongsheng.yang.linux@gmail.com>
+Build-Depends: librbd-dev,
+	libc-dev,
+	libnl-3-dev,
+	libnl-genl-3-dev,
+	libcurl4-openssl-dev,
+	libxml2-dev,
+	libssl-dev,
+	libssh-dev,
 
 Package: ubbd
 Section: admin
