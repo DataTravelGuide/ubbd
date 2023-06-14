@@ -11,6 +11,10 @@ clean:
 	echo clean
 	make clean
 
+override_dh_auto_configure:
+	echo configure --enable-rbd-backend --enable-s3-backend --enable-cache-backend --enable-ssh-backend
+	./configure --enable-rbd-backend --enable-s3-backend --enable-cache-backend --enable-ssh-backend
+
 build:
 	echo configure --enable-rbd-backend --enable-s3-backend --enable-cache-backend --enable-ssh-backend
 	./configure --enable-rbd-backend --enable-s3-backend --enable-cache-backend --enable-ssh-backend
