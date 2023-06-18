@@ -16,10 +16,8 @@ struct backend_io_ctx_data {
 	int ret;
 };
 
-static void backend_wait_io_done(struct ubbd_backend_io *io)
+static void backend_wait_io_done(struct backend_io_ctx_data *data)
 {
-	struct backend_io_ctx_data *data = (struct backend_io_ctx_data *)io->ctx->extra_data;
-
 	/* FIXME use condition to wait and wakeup */
 	while (true) {
 		if (data->done) {
@@ -109,7 +107,7 @@ int backend_rw(struct ubbd_backend *ubbd_b, uint64_t off, uint64_t size, char *b
 		goto free_io;
 	}
 
-	backend_wait_io_done(io);
+	backend_wait_io_done(data);
 	ret = data->ret;
 free_io:
 	free(io);
