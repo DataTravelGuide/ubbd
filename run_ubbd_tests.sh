@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+export UBBD_TESTS_SETUP_WITHOUT_PKG="yes"
+
 replace_option()
 {
 	file=$1
