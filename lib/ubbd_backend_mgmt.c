@@ -96,7 +96,7 @@ static void *mgmt_thread_fn(void* args)
 		pollfds[0].events = POLLIN;
 		pollfds[0].revents = 0;
 
-		ret = poll(pollfds, 1, 60);
+		ret = poll(pollfds, 1, 1000);
 		if (ret == -1) {
 			ubbd_err("ppoll() returned %d, exiting\n", ret);
 			goto out;

@@ -21,12 +21,15 @@ int ubbd_ipc_listen(char *sock_name)
 {
 	int fd, err, addr_len;
 	struct sockaddr_un addr;
+	int retry_count = 0;
 
+retry:
 	/* manually establish a socket */
 	fd = socket(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (fd < 0) {
 		ubbd_err("Can not create IPC socket\n");
-		return fd;
+		err = fd;
+		goto err;
 	}
 
 	addr_len = setup_abstract_addr(&addr, sock_name);
@@ -34,16 +37,23 @@ int ubbd_ipc_listen(char *sock_name)
 	if ((err = bind(fd, (struct sockaddr *) &addr, addr_len)) < 0 ) {
 		ubbd_err("Can not bind IPC socket\n");
 		close(fd);
-		return err;
+		goto err;
 	}
 
 	if ((err = listen(fd, 32)) < 0) {
 		ubbd_err("Can not listen IPC socket\n");
 		close(fd);
-		return err;
+		goto err;
 	}
 
 	return fd;
+err:
+	if (++retry_count < 10) {
+		sleep(1);
+		goto retry;
+	}
+
+	return err;
 }
 
 static int ubbd_ipc_connect(int *fd, char *unix_sock_name)

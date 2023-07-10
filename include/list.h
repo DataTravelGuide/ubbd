@@ -2,20 +2,10 @@
 #define __UBBD_LIST_H__
 
 #include <stddef.h>
+#include "utils.h"
 
 #define LIST_POISON1  ((void *)0x101)
 #define LIST_POISON2  ((void *)0x202)
-
-#undef offsetof
-#ifdef __compiler_offsetof
-#define offsetof(TYPE,MEMBER) __compiler_offsetof(TYPE,MEMBER)
-#else
-#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
-#endif
-
-#define list_container_of(ptr, type, member) ({		\
-        const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
-        (type *)( (char *)__mptr - offsetof(type,member) );})
 
 struct list_head {
 	struct list_head *next, *prev;
@@ -38,7 +28,7 @@ static inline int list_empty(const struct list_head *head)
 }
 
 #define list_entry(ptr, type, member) \
-	list_container_of(ptr, type, member)
+	ubbd_container_of(ptr, type, member)
 
 #define list_first_entry(ptr, type, member) \
 	list_entry((ptr)->next, type, member)
@@ -81,6 +71,12 @@ static inline int list_empty(const struct list_head *head)
 	for (pos = list_entry((head)->next, typeof(*pos), member),	\
 		n = list_entry(pos->member.next, typeof(*pos), member);	\
 	     &pos->member != (head); 					\
+	     pos = n, n = list_entry(n->member.next, typeof(*n), member))
+
+#define list_for_each_entry_range_safe(pos, n, head, tail, member)			\
+	for (pos = list_entry((head)->next, typeof(*pos), member),	\
+		n = list_entry(pos->member.next, typeof(*pos), member);	\
+	     &pos->member != (tail) && &pos->member != (head); 					\
 	     pos = n, n = list_entry(n->member.next, typeof(*n), member))
 
 static inline void __list_add(struct list_head *new,
