@@ -75,10 +75,14 @@ void *cmd_process(void *arg)
 	struct pollfd pollfds[128];
 	int ret;
 
-	ret = ubbd_open_uio(&ubbd_q->uio_info);
-	if (ret) {
-		ubbd_err("failed to open shm: %d\n", ret);
-		return NULL;
+	if (ubbd_uio_opened(&ubbd_q->uio_info)) {
+		ubbd_q->no_close_uio = true;
+	} else {
+		ret = ubbd_open_uio(&ubbd_q->uio_info);
+		if (ret) {
+			ubbd_err("failed to open shm: %d\n", ret);
+			return NULL;
+		}
 	}
 
 	sb = ubbd_q->uio_info.map;
@@ -144,7 +148,8 @@ poll:
 	}
 
 out:
-	ubbd_close_uio(&ubbd_q->uio_info);
+	if (!ubbd_q->no_close_uio)
+		ubbd_close_uio(&ubbd_q->uio_info);
 	return NULL;
 }
 
@@ -178,7 +183,7 @@ static int q_backend_io_finish(struct context *ctx, int ret)
 
 	ubbd_queue_add_ce(ubbd_q, se->priv_data, ret);
 
-	free(io);
+	ubbd_backend_free_backend_io(ubbd_q->ubbd_b, io);
 
 	return 0;
 }
@@ -191,7 +196,7 @@ static struct ubbd_backend_io *q_prepare_backend_io(struct ubbd_queue *ubbd_q,
 	struct q_backend_io_ctx_data *data;
 	int i;
 
-	io = calloc(1, sizeof(struct ubbd_backend_io) + sizeof(struct iovec) * se->iov_cnt);
+	io = ubbd_backend_create_backend_io(ubbd_q->ubbd_b, se->iov_cnt);
 	if (!io) {
 		ubbd_err("failed to calloc for backend io\n");
 		return NULL;
@@ -200,7 +205,7 @@ static struct ubbd_backend_io *q_prepare_backend_io(struct ubbd_queue *ubbd_q,
 	ctx = context_alloc(sizeof(struct q_backend_io_ctx_data));
 	if (!ctx) {
 		ubbd_err("failed to calloc for backend_io_ctx\n");
-		free(io);
+		ubbd_backend_free_backend_io(ubbd_q->ubbd_b, io);
 		return NULL;
 	}
 
@@ -216,6 +221,7 @@ static struct ubbd_backend_io *q_prepare_backend_io(struct ubbd_queue *ubbd_q,
 	io->io_type = type;
 	io->offset = se->offset;
 	io->len = se->len;
+	io->queue_id = ubbd_q->index;
 	io->iov_cnt = se->iov_cnt;
 	for (i = 0; i < se->iov_cnt; i++) {
 		ubbd_dbg("iov_base: %lu\n", (size_t)se->iov[i].iov_base);
@@ -236,7 +242,7 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 	int ret;
 	struct ubbd_backend_io *io;
 
-	ubbd_dbg("handle_cmd: se: %p\n", se);
+	//ubbd_err("handle_cmd: se: %p\n", se);
 
 	if (ubbd_b->status == UBBD_BACKEND_STATUS_ERROR) {
 		ubbd_queue_add_ce(ubbd_q, se->priv_data, -EIO);
@@ -348,7 +354,7 @@ int ubbd_queue_setup(struct ubbd_queue *ubbd_q)
 		ubbd_err("failed to create cmdproc_thread: %d\n", ret);
 		goto out;
 	}
-	pthread_setaffinity_np(ubbd_q->cmdproc_thread, CPU_SETSIZE, &ubbd_q->cpuset);
+	//pthread_setaffinity_np(ubbd_q->cmdproc_thread, CPU_SETSIZE, &ubbd_q->cpuset);
 
 out:
 	return ret;
@@ -380,7 +386,7 @@ void ubbd_queue_add_ce(struct ubbd_queue *ubbd_q, uint64_t priv_data,
 	ce->flags = 0;
 
 	ce->result = result;
-	ubbd_dbg("append ce: %llu, result: %d\n", ce->priv_data, ce->result);
+	//ubbd_err("append ce: %llu, result: %d\n", ce->priv_data, ce->result);
 	UBBD_UPDATE_COMPR_HEAD(ubbd_q, sb, ce);
 	pthread_mutex_unlock(&ubbd_q->req_lock);
 	ubbd_processing_complete(&ubbd_q->uio_info);

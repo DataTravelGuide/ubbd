@@ -1,5 +1,5 @@
 include ../mk/config.mk
-LINKLIBS := -lcurl -lcrypto -lxml2 -lnl-3 -lnl-genl-3 -lpthread -lm -lz
+LINKLIBS := -lcurl -lcrypto -lxml2 -lnl-3 -lnl-genl-3 -lpthread -lm -lz -laio
 
 SOURCES := $(shell find ../lib/ -name '*.c' ! -name "ubbd_log_cmdline.c")
 ifneq ("$(CONFIG_RBD_BACKEND)", "y")

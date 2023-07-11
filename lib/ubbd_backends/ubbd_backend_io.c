@@ -48,7 +48,7 @@ static struct ubbd_backend_io *backend_prepare_io(struct ubbd_backend *ubbd_b,
 	struct ubbd_backend_io *io;
 	struct context *ctx;
 
-	io = calloc(1, sizeof(struct ubbd_backend_io) + sizeof(struct iovec));
+	io = ubbd_backend_create_backend_io(ubbd_b, 1);
 	if (!io) {
 		ubbd_err("failed to calloc for backend io\n");
 		return NULL;
@@ -68,13 +68,15 @@ static struct ubbd_backend_io *backend_prepare_io(struct ubbd_backend *ubbd_b,
 	io->io_type = type;
 	io->offset = off;
 	io->len = len;
+	io->queue_id = 0;
+	io->sync = true;
 	io->iov_cnt = 1;
 	io->iov[0].iov_base = buf;
 	io->iov[0].iov_len = len;
 
 	return io;
 free_io:
-	free(io);
+	ubbd_backend_free_backend_io(ubbd_b, io);
 
 	return NULL;
 }
@@ -110,7 +112,7 @@ int backend_rw(struct ubbd_backend *ubbd_b, uint64_t off, uint64_t size, char *b
 	backend_wait_io_done(data);
 	ret = data->ret;
 free_io:
-	free(io);
+	ubbd_backend_free_backend_io(ubbd_b, io);
 free_data:
 	free(data);
 	return ret;
@@ -153,7 +155,7 @@ static int find_vec(struct ubbd_backend_io *io, uint32_t off, uint32_t *off_in_v
 	return -1;
 }
 
-struct ubbd_backend_io *ubbd_backend_io_clone(struct ubbd_backend_io *io, uint32_t off, uint32_t size)
+struct ubbd_backend_io *ubbd_backend_io_clone(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io, uint32_t off, uint32_t size)
 {
 	struct ubbd_backend_io *clone_io;
 	int start_vec, end_vec, vec_count;
@@ -178,7 +180,7 @@ struct ubbd_backend_io *ubbd_backend_io_clone(struct ubbd_backend_io *io, uint32
 
 	vec_count = end_vec - start_vec + 1;
 
-	clone_io = calloc(1, sizeof(struct ubbd_backend_io) + (sizeof(struct iovec) * vec_count));
+	clone_io = ubbd_backend_create_backend_io(ubbd_b, vec_count);
 	if (!clone_io) {
 		return NULL;
 	}
@@ -187,6 +189,7 @@ struct ubbd_backend_io *ubbd_backend_io_clone(struct ubbd_backend_io *io, uint32
 	clone_io->offset = io->offset + off;
 	clone_io->len = size;
 	clone_io->iov_cnt = vec_count;
+	clone_io->queue_id = io->queue_id;
 	memcpy(clone_io->iov, io->iov + start_vec, sizeof(struct iovec) * vec_count);
 	if (start_vec_off) {
 		clone_io->iov[0].iov_base += start_vec_off;

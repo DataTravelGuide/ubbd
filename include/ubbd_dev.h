@@ -40,6 +40,7 @@ struct ubbd_dev_features {
 	bool	discard;
 	bool	write_zeros;
 	bool	read_only;
+	bool	queue_restart;
 };
 
 

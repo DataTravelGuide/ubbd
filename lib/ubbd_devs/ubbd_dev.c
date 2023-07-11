@@ -1260,7 +1260,8 @@ int ubbd_dev_restart(struct ubbd_device *ubbd_dev, int restart_mode)
 
 again:
 	if (restart_mode == UBBD_DEV_RESTART_MODE_DEV || 
-			(restart_mode == UBBD_DEV_RESTART_MODE_DEFAULT && ubbd_dev->num_queues == 1)) {
+			(restart_mode == UBBD_DEV_RESTART_MODE_DEFAULT && ubbd_dev->num_queues == 1) ||
+			!ubbd_dev->dev_features.queue_restart) {
 		ret = dev_reset(ubbd_dev);
 		if (ret) {
 			ubbd_dev_err(ubbd_dev, "failed to reset ubbd_dev.\n");
