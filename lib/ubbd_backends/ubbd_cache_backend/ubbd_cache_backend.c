@@ -321,7 +321,8 @@ static void cache_seg_invalidate(uint64_t index)
 
 	cache_sb.segments[index].gen++;
 
-	ubbd_err("yds gc seg: %lu\n", index);
+	if (lcache_debug)
+		ubbd_err("gc seg: %lu\n", index);
 
 	if (0)
 		ret = ubbd_backend_write(cache_backend, index << CACHE_SEG_SHIFT, CACHE_SEG_SIZE, seg_buf);
@@ -1586,7 +1587,7 @@ static int cache_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend
 		cache_seg_get(key->p_off >> CACHE_SEG_SHIFT);
 
 		if (lcache_debug)
-			ubbd_err("yds submit write cache io: %lu:%u seg: %lu\n",
+			ubbd_err("submit write cache io: %lu:%u seg: %lu\n",
 					cache_io->offset, cache_io->len,
 					cache_io->offset >> CACHE_SEG_SHIFT);
 
@@ -1606,7 +1607,7 @@ write_backing:
 		struct ubbd_backend_io *backing_io;
 		backing_io = prepare_backend_io(backing_backend, io, 0, io->len, cache_backend_read_io_finish);
 		if (lcache_debug)
-			ubbd_err("yds submit write backing io: %lu:%u crc: %lu, iov_len: %lu, iocnt: %d\n",
+			ubbd_err("submit write backing io: %lu:%u crc: %lu, iov_len: %lu, iocnt: %d\n",
 					backing_io->offset, backing_io->len,
 					crc64(backing_io->iov[0].iov_base, backing_io->iov[0].iov_len),
 					backing_io->iov[0].iov_len, backing_io->iov_cnt);
@@ -1724,7 +1725,7 @@ static int submit_cache_io(struct ubbd_backend_io *io,
 	data = (struct cache_backend_io_ctx_data *)cache_io->ctx->data;
 	data->backing_off = backing_off;
 	if (lcache_debug) {
-		ubbd_err("yds submit cache io: %lu:%u seg: %lu, logic off: %lu:%u\n",
+		ubbd_err("submit cache io: %lu:%u seg: %lu, logic off: %lu:%u\n",
 				cache_io->offset, cache_io->len, cache_io->offset >> CACHE_SEG_SHIFT,
 				backing_off, len);
 	}
