@@ -18,4 +18,9 @@ struct ubbd_se *ubbd_cmd_head(struct ubbd_uio_info *uio_info);
 struct ubbd_se *ubbd_cmd_to_handle(struct ubbd_queue *ubbd_q);
 void *ubbd_uio_get_info(struct ubbd_uio_info *uio_info);
 
+static inline bool ubbd_uio_opened(struct ubbd_uio_info *uio_info)
+{
+	return (uio_info->map != NULL);
+}
+
 #endif	/* UBBD_UIO_H */

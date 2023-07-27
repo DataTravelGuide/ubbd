@@ -2,6 +2,7 @@
 #define UBBD_BACKEND_H
 
 #include <ubbd_compat.h>
+#include <libaio.h>
 
 #ifdef CONFIG_SSH_BACKEND
 #include <libssh/sftp.h>
@@ -31,6 +32,8 @@ struct ubbd_backend_io {
 	enum ubbd_backend_io_type io_type;
 	uint64_t offset;
 	uint32_t len;
+	int queue_id;
+	bool sync;
 	uint32_t iov_cnt;
 	struct iovec iov[0];
 };
@@ -60,6 +63,8 @@ struct ubbd_backend_ops {
 	int (*flush) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 	int (*discard) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 	int (*write_zeros) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
+	struct ubbd_backend_io* (*create_backend_io)(struct ubbd_backend *ubbd_b, uint32_t iov_cnt);
+	void (*free_backend_io)(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 };
 
 enum ubbd_backend_status {
@@ -150,5 +155,8 @@ uint64_t ubbd_backend_size(struct ubbd_backend *ubbd_b);
 
 int ubbd_backend_read(struct ubbd_backend *ubbd_b, uint64_t off, uint64_t size, char *buf);
 int ubbd_backend_write(struct ubbd_backend *ubbd_b, uint64_t off, uint64_t size, char *buf);
-struct ubbd_backend_io *ubbd_backend_io_clone(struct ubbd_backend_io *io, uint32_t off, uint32_t size);
+struct ubbd_backend_io *ubbd_backend_io_clone(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io, uint32_t off, uint32_t size);
+
+struct ubbd_backend_io *ubbd_backend_create_backend_io(struct ubbd_backend *ubbd_b, uint32_t iov_cnt);
+void ubbd_backend_free_backend_io(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 #endif /* UBBD_BACKEND_H */

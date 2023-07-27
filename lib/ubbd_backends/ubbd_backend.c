@@ -352,3 +352,21 @@ uint64_t ubbd_backend_size(struct ubbd_backend *ubbd_b)
 {
 	return ubbd_b->dev_size;
 }
+
+struct ubbd_backend_io *ubbd_backend_create_backend_io(struct ubbd_backend *ubbd_b, uint32_t iov_cnt)
+{
+	if (ubbd_b->backend_ops->create_backend_io) {
+		return ubbd_b->backend_ops->create_backend_io(ubbd_b, iov_cnt);
+	}
+
+	return calloc(1, sizeof(struct ubbd_backend_io) + sizeof(struct iovec) * iov_cnt);
+}
+
+void ubbd_backend_free_backend_io(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
+{
+	if (ubbd_b->backend_ops->free_backend_io) {
+		return ubbd_b->backend_ops->free_backend_io(ubbd_b, io);
+	}
+
+	free(io);
+}

@@ -7,6 +7,7 @@
 #include "ubbd_uio.h"
 #include "ubbd_queue.h"
 
+
 void *ubbd_uio_get_info(struct ubbd_uio_info *uio_info)
 {
 	struct ubbd_sb *sb = uio_info->map;
@@ -40,6 +41,8 @@ int ubbd_close_uio(struct ubbd_uio_info *uio_info)
 		}
 	}
 
+	uio_info->map = NULL;
+
 	return retval;
 }
 
@@ -65,7 +68,7 @@ int ubbd_open_uio(struct ubbd_uio_info *uio_info)
 
 	uio_info->map = mmap(NULL, uio_info->uio_map_size, mmap_prot, MAP_SHARED, uio_info->fd, 0);
 	if (uio_info->map == MAP_FAILED) {
-		ubbd_err("could not mmap %s\n", mmap_name);
+		ubbd_err("could not mmap %s, %d\n", mmap_name, errno);
 		goto err_fd_close;
 	}
 

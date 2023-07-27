@@ -193,6 +193,7 @@ void test_close_shm(void **state)
 	assert_int_equal(ret, -1);
 
 	// close failed
+	uio_info.map = (void *)1;
 	expect_value(__wrap_munmap, addr, 1);
 	expect_value(__wrap_munmap, length, 10);
 	will_return(__wrap_munmap, 0);
@@ -204,6 +205,7 @@ void test_close_shm(void **state)
 	assert_int_equal(ret, -2);
 
 	// both munmap and close failed
+	uio_info.map = (void *)1;
 	expect_value(__wrap_munmap, addr, 1);
 	expect_value(__wrap_munmap, length, 10);
 	will_return(__wrap_munmap, -1);
@@ -216,6 +218,7 @@ void test_close_shm(void **state)
 	assert_int_equal(ret, -1);
 
 	// close ok
+	uio_info.map = (void *)1;
 	expect_value(__wrap_munmap, addr, 1);
 	expect_value(__wrap_munmap, length, 10);
 	will_return(__wrap_munmap, 0);

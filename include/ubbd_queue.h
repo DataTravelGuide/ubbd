@@ -25,6 +25,7 @@ struct ubbd_backend;
 struct ubbd_queue {
 	struct ubbd_backend		*ubbd_b;
 	struct ubbd_uio_info		uio_info;
+	bool				no_close_uio;
 	cpu_set_t			cpuset;
 	int				status;
 	uint32_t			se_to_handle;

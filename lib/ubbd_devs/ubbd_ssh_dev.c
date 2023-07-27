@@ -29,6 +29,8 @@ static int ssh_dev_init(struct ubbd_device *ubbd_dev, bool reopen)
 	ubbd_dev->dev_features.discard = false;
 	ubbd_dev->dev_features.write_zeros = false;
 
+	ubbd_dev->dev_features.queue_restart = true;
+
 	return 0;
 }
 
