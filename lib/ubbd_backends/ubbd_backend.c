@@ -123,8 +123,14 @@ struct ubbd_backend *cache_backend_create(struct ubbd_backend_conf *conf)
 		return NULL;
 	}
 
-	cache_b->cache_backend = backend_create(&dev_info->cache_dev.cache_info);
-	if (!cache_b->cache_backend) {
+	cache_b->cache_backends[0] = backend_create(&dev_info->cache_dev.cache_info);
+	if (!cache_b->cache_backends[0]) {
+		goto free_cache_b;
+	}
+
+	strcpy(dev_info->cache_dev.cache_info.file.path, "/dev/ram0p3");
+	cache_b->cache_backends[1] = backend_create(&dev_info->cache_dev.cache_info);
+	if (!cache_b->cache_backends[1]) {
 		goto free_cache_b;
 	}
 

@@ -31,6 +31,8 @@ pthread_mutex_t cache_disk_append_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct ubbd_backend *cache_backend;
 struct ubbd_backend *backing_backend;
 
+struct ubbd_backend *cache_backends[2];
+
 static bool verify = false;
 static int verify_fd;
 #define CACHE_VERIFY_PATH	""
@@ -140,6 +142,7 @@ struct data_head {
 
 struct cache_super {
 	uint64_t	n_segs;
+	uint64_t	segs_per_device;
 	struct segment *segments;
 
 	pthread_mutex_t		bitmap_lock;
@@ -358,12 +361,15 @@ static void cache_seg_put(uint64_t index)
 
 static uint64_t seg_pos_to_addr(struct seg_pos *pos);
 static int cache_sb_write(void);
+static int get_cache_backend(uint64_t off);
 static int cache_key_ondisk_write(void)
 {
 	static char kset_buf[CACHE_KSET_SIZE] __attribute__ ((__aligned__ (4096))) = { 0 };
 	struct cache_kset_ondisk *kset = (struct cache_kset_ondisk *)kset_buf;
 	uint64_t addr, space_required;
 	uint64_t next_seg;
+	int backend_index = 0;
+	struct ubbd_backend *backend;
 	int ret;
 
 	if (!cache_sb.key_ondisk_w->key_used)
@@ -404,7 +410,9 @@ again:
 		pthread_mutex_unlock(&cache_sb.bitmap_lock);
 
 		dump_bitmap(cache_sb.seg_bitmap);
-		ret = ubbd_backend_write(cache_backend, addr, 4096, kset_buf);
+		backend_index = get_cache_backend(addr);
+		backend = cache_backends[backend_index];
+		ret = ubbd_backend_write(backend, addr - (backend_index * (cache_sb.segs_per_device << CACHE_SEG_SHIFT)), 4096, kset_buf);
 		if (ret) {
 			ubbd_err("failed to write last kset\n");
 			return ret;
@@ -429,7 +437,9 @@ again:
 	if (lcache_debug)
 		ubbd_err("write normal kset: %lu\n", addr);
 
-	ret = ubbd_backend_write(cache_backend, addr, CACHE_KSET_SIZE, kset_buf);
+	backend_index = get_cache_backend(addr);
+	backend = cache_backends[backend_index];
+	ret = ubbd_backend_write(backend, addr - (backend_index * (cache_sb.segs_per_device << CACHE_SEG_SHIFT)), CACHE_KSET_SIZE, kset_buf);
 	if (ret) {
 		ubbd_err("failed to write normal kset\n");
 		return ret;
@@ -1157,15 +1167,19 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 		return ret;
 	}
 
-	cache_b->cache_backend->num_queues = ubbd_b->num_queues;
-	ret = ubbd_backend_open(cache_b->cache_backend);
-	if (ret) {
-		goto close_backing;
+	int i = 0;
+	for (i = 0; i < 2; i++) {
+		cache_b->cache_backends[i]->num_queues = ubbd_b->num_queues;
+
+		ret = ubbd_backend_open(cache_b->cache_backends[i]);
+		if (ret) {
+			goto close_backing;
+		}
+		cache_backends[i] = cache_b->cache_backends[i];
 	}
 
-	cache_backend = cache_b->cache_backend;
+	cache_backend = cache_b->cache_backends[0];
 	backing_backend = cache_b->backing_backend;
-
 
 	if (verify) {
 		if (asprintf(&verify_name, CACHE_VERIFY_PATH"%d", ubbd_b->dev_id) == -1)
@@ -1193,7 +1207,7 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 		sb->dirty_tail_seg = 1;
 		sb->dirty_tail_off_in_seg = 0;
 		sb->last_key_epoch = 0;
-		sb->n_segs = ubbd_backend_size(cache_b->cache_backend) / CACHE_SEG_SIZE;
+		sb->n_segs = ubbd_backend_size(cache_b->cache_backends[0]) / CACHE_SEG_SIZE * 2;
 
 		ret = ubbd_backend_write(cache_backend, CACHE_SB_OFF, CACHE_SB_SIZE, sb_buf);
 		if (ret) {
@@ -1209,7 +1223,7 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 	cache_sb.dirty_tail_pos.off_in_seg = sb->dirty_tail_off_in_seg;
 	cache_sb.n_segs = sb->n_segs;
 	cache_sb.last_key_epoch = sb->last_key_epoch;
-
+	cache_sb.segs_per_device = cache_sb.n_segs / 2;
 
 	ret = ubbd_open_uio(&ubbd_b->queues[0].uio_info);
 	if (ret) {
@@ -1226,7 +1240,6 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 		goto close_cache;
 	}
 
-	int i;
 	for (i = 0; i < cache_sb.n_segs; i++) {
 		pthread_mutex_init(&cache_sb.segments[i].lock, NULL);
 		atomic_set(&cache_sb.segments[i].inflight, 0);
@@ -1526,10 +1539,17 @@ out:
 	return ret;
 }
 
+static int get_cache_backend(uint64_t off)
+{
+	return (off >> CACHE_SEG_SHIFT) / cache_sb.segs_per_device;
+}
+
 static int cache_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
 	struct ubbd_cache_backend *cache_b = CACHE_BACKEND(ubbd_b);
 	struct ubbd_backend_io *cache_io;
+	struct ubbd_backend *backend;
+	int backend_index = 0;
 	struct cache_key *key;
 	uint32_t io_done = 0;
 	int ret = 0;
@@ -1571,13 +1591,16 @@ static int cache_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend
 			continue;
 		}
 
-		cache_io = prepare_backend_io(cache_backend, io, io_done, key->len, cache_backend_write_io_finish);
+		backend_index = get_cache_backend(key->p_off);
+		backend = cache_b->cache_backends[backend_index];
+
+		cache_io = prepare_backend_io(backend, io, io_done, key->len, cache_backend_write_io_finish);
 		if (!cache_io) {
 			free(key);
 			ret = -ENOMEM;
 			goto finish;
 		}
-		cache_io->offset = key->p_off;
+		cache_io->offset = key->p_off - (backend_index * (cache_sb.segs_per_device << CACHE_SEG_SHIFT));
 
 		struct cache_backend_io_ctx_data *data;
 
@@ -1591,7 +1614,8 @@ static int cache_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend
 					cache_io->offset, cache_io->len,
 					cache_io->offset >> CACHE_SEG_SHIFT);
 
-		ret = cache_b->cache_backend->backend_ops->writev(cache_b->cache_backend, cache_io);
+		ret = backend->backend_ops->writev(backend, cache_io);
+
 		if (ret) {
 			ubbd_err("cache io failed.\n");
 			cache_seg_put(key->p_off >> CACHE_SEG_SHIFT);

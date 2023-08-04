@@ -122,6 +122,7 @@ struct ubbd_cache_backend {
 	struct ubbd_backend ubbd_b;
 	struct ubbd_backend *cache_backend;
 	struct ubbd_backend *backing_backend;
+	struct ubbd_backend *cache_backends[2];
 	int cache_mode;
 	bool detach_on_close;
 };
