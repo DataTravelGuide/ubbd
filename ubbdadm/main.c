@@ -332,7 +332,7 @@ int main(int argc, char **argv)
 {
 	int ch, longindex;
 	char *command;
-	int ubbdid;
+	int ubbdid = -1;
 	int data_pages_reserve_percnt = -1;
 	bool force = false;
 	int ret = 0;

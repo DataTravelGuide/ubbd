@@ -121,9 +121,9 @@ void test_open_shm(void **state)
 	ret = ubbd_open_uio(&uio_info);
 	assert_int_equal(ret, -1);
 
-	// faild to open uio0
+	// faild to open ubbd_kring0
 	uio_info.uio_id = 0;
-	expect_string(__wrap_open, path, "/dev/uio0");
+	expect_string(__wrap_open, path, "/dev/ubbd_kring0");
 	will_return(__wrap_open, -1);
 
 	ret = ubbd_open_uio(&uio_info);
@@ -131,7 +131,7 @@ void test_open_shm(void **state)
 
 	// open uio1 failed to mmap
 	uio_info.uio_id = 1;
-	expect_string(__wrap_open, path, "/dev/uio1");
+	expect_string(__wrap_open, path, "/dev/ubbd_kring1");
 	will_return(__wrap_open, 1);
 
 	uio_info.uio_map_size = 0;
@@ -147,7 +147,7 @@ void test_open_shm(void **state)
 
 	// open_shm ok
 	uio_info.uio_id = 1;
-	expect_string(__wrap_open, path, "/dev/uio1");
+	expect_string(__wrap_open, path, "/dev/ubbd_kring1");
 	will_return(__wrap_open, 1);
 
 	sb.version = 1;

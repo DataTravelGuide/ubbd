@@ -25,8 +25,8 @@ static struct nla_policy ubbd_status_policy[UBBD_STATUS_ATTR_MAX + 1] = {
 };
 
 static struct nla_policy ubbd_queue_info_policy[UBBD_QUEUE_INFO_ATTR_MAX + 1] = {
-	[UBBD_QUEUE_INFO_UIO_ID] = { .type = NLA_S32 },
-	[UBBD_QUEUE_INFO_UIO_MAP_SIZE] = { .type = NLA_U64 },
+	[UBBD_QUEUE_INFO_KRING_ID] = { .type = NLA_S32 },
+	[UBBD_QUEUE_INFO_KRING_MAP_SIZE] = { .type = NLA_U64 },
 };
 
 static struct ubbd_nl_req *nl_req_alloc()
@@ -464,8 +464,8 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status *dev_stat
 			ret = -EINVAL;
 			goto out;
 		}
-		dev_status->queue_infos[num_queues].uio_id = nla_get_s32(queue_info[UBBD_QUEUE_INFO_UIO_ID]);
-		dev_status->queue_infos[num_queues].uio_map_size = nla_get_s32(queue_info[UBBD_QUEUE_INFO_UIO_MAP_SIZE]);
+		dev_status->queue_infos[num_queues].uio_id = nla_get_s32(queue_info[UBBD_QUEUE_INFO_KRING_ID]);
+		dev_status->queue_infos[num_queues].uio_map_size = nla_get_s32(queue_info[UBBD_QUEUE_INFO_KRING_MAP_SIZE]);
 		dev_status->queue_infos[num_queues].backend_pid = nla_get_s32(queue_info[UBBD_QUEUE_INFO_B_PID]);
 		dev_status->queue_infos[num_queues].status = nla_get_s32(queue_info[UBBD_QUEUE_INFO_STATUS]);
 

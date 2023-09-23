@@ -48,7 +48,7 @@ static struct ubbd_backend_io *backend_prepare_io(struct ubbd_backend *ubbd_b,
 	struct ubbd_backend_io *io;
 	struct context *ctx;
 
-	io = ubbd_backend_create_backend_io(ubbd_b, 1);
+	io = ubbd_backend_create_backend_io(ubbd_b, 1, 0);
 	if (!io) {
 		ubbd_err("failed to calloc for backend io\n");
 		return NULL;
@@ -180,7 +180,7 @@ struct ubbd_backend_io *ubbd_backend_io_clone(struct ubbd_backend *ubbd_b, struc
 
 	vec_count = end_vec - start_vec + 1;
 
-	clone_io = ubbd_backend_create_backend_io(ubbd_b, vec_count);
+	clone_io = ubbd_backend_create_backend_io(ubbd_b, vec_count, io->queue_id);
 	if (!clone_io) {
 		return NULL;
 	}

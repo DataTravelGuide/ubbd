@@ -121,6 +121,7 @@ int main(int argc, char **argv)
 
 	if (asprintf(&log_filename, "backend%d.log", devid) == -1) {
 		ubbd_err("cont init backend log filename\n");
+		ret = -EINVAL;
 		goto out;
 	}
 

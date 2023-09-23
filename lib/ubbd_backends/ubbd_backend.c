@@ -128,10 +128,27 @@ struct ubbd_backend *cache_backend_create(struct ubbd_backend_conf *conf)
 		goto free_cache_b;
 	}
 
-	strcpy(dev_info->cache_dev.cache_info.file.path, "/dev/ram0p3");
+	if (0) {
+	strcpy(dev_info->cache_dev.cache_info.file.path, "/dev/nvme0n1p1");
+	//strcpy(dev_info->cache_dev.cache_info.file.path, "/root/ceph/ubbd_devs/cache1");
 	cache_b->cache_backends[1] = backend_create(&dev_info->cache_dev.cache_info);
 	if (!cache_b->cache_backends[1]) {
 		goto free_cache_b;
+	}
+
+	strcpy(dev_info->cache_dev.cache_info.file.path, "/dev/nvme2n1p5");
+	//strcpy(dev_info->cache_dev.cache_info.file.path, "/root/ceph/ubbd_devs/cache2");
+	cache_b->cache_backends[2] = backend_create(&dev_info->cache_dev.cache_info);
+	if (!cache_b->cache_backends[2]) {
+		goto free_cache_b;
+	}
+
+	strcpy(dev_info->cache_dev.cache_info.file.path, "/dev/ram0");
+	//strcpy(dev_info->cache_dev.cache_info.file.path, "/root/ceph/ubbd_devs/cache3");
+	cache_b->cache_backends[3] = backend_create(&dev_info->cache_dev.cache_info);
+	if (!cache_b->cache_backends[3]) {
+		goto free_cache_b;
+	}
 	}
 
 	cache_b->backing_backend = backend_create(&dev_info->cache_dev.backing_info);
@@ -310,7 +327,7 @@ int _backend_lock(int dev_id, int backend_id, int *fd, bool test) {
 	if (!lock_path)
 		goto out;
 
-	*fd = open(lock_path, O_RDWR|O_CREAT);
+	*fd = open(lock_path, O_RDWR|O_CREAT, 0666);
 	if (*fd < 0) {
 		ubbd_err("failed to open lock_path %s\n", lock_path);
 		ret = -errno;
@@ -343,7 +360,12 @@ int ubbd_backend_lock(int dev_id, int backend_id, int *fd)
 
 void ubbd_backend_unlock(int fd)
 {
-	lockf(fd, F_ULOCK, 0);
+	int ret;
+
+	ret = lockf(fd, F_ULOCK, 0);
+	if (ret < 0) {
+		ubbd_err("failed to unlock: %d\n", ret);
+	}
 	close(fd);
 }
 
@@ -359,10 +381,10 @@ uint64_t ubbd_backend_size(struct ubbd_backend *ubbd_b)
 	return ubbd_b->dev_size;
 }
 
-struct ubbd_backend_io *ubbd_backend_create_backend_io(struct ubbd_backend *ubbd_b, uint32_t iov_cnt)
+struct ubbd_backend_io *ubbd_backend_create_backend_io(struct ubbd_backend *ubbd_b, uint32_t iov_cnt, int queue_id)
 {
 	if (ubbd_b->backend_ops->create_backend_io) {
-		return ubbd_b->backend_ops->create_backend_io(ubbd_b, iov_cnt);
+		return ubbd_b->backend_ops->create_backend_io(ubbd_b, iov_cnt, queue_id);
 	}
 
 	return calloc(1, sizeof(struct ubbd_backend_io) + sizeof(struct iovec) * iov_cnt);

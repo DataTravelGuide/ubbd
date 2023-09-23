@@ -35,7 +35,8 @@ struct ubbd_backend_io {
 	int queue_id;
 	bool sync;
 	uint32_t iov_cnt;
-	struct iovec iov[0];
+	struct iovec iov[4];
+	struct iovec iov_extra[0];
 };
 
 static inline void ubbd_backend_io_finish(struct ubbd_backend_io *io, int ret)
@@ -63,7 +64,7 @@ struct ubbd_backend_ops {
 	int (*flush) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 	int (*discard) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 	int (*write_zeros) (struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
-	struct ubbd_backend_io* (*create_backend_io)(struct ubbd_backend *ubbd_b, uint32_t iov_cnt);
+	struct ubbd_backend_io* (*create_backend_io)(struct ubbd_backend *ubbd_b, uint32_t iov_cnt, int queue_id);
 	void (*free_backend_io)(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 };
 
@@ -95,11 +96,7 @@ struct ubbd_mem_backend {
 	struct ubbd_backend ubbd_b;
 };
 
-struct ubbd_file_backend {
-	struct ubbd_backend ubbd_b;
-	char filepath[UBBD_PATH_MAX];
-	int fd;
-};
+struct ubbd_file_backend;
 
 #ifdef CONFIG_RBD_BACKEND
 struct ubbd_rbd_backend {
@@ -122,7 +119,7 @@ struct ubbd_cache_backend {
 	struct ubbd_backend ubbd_b;
 	struct ubbd_backend *cache_backend;
 	struct ubbd_backend *backing_backend;
-	struct ubbd_backend *cache_backends[2];
+	struct ubbd_backend *cache_backends[4];
 	int cache_mode;
 	bool detach_on_close;
 };
@@ -158,6 +155,6 @@ int ubbd_backend_read(struct ubbd_backend *ubbd_b, uint64_t off, uint64_t size, 
 int ubbd_backend_write(struct ubbd_backend *ubbd_b, uint64_t off, uint64_t size, char *buf);
 struct ubbd_backend_io *ubbd_backend_io_clone(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io, uint32_t off, uint32_t size);
 
-struct ubbd_backend_io *ubbd_backend_create_backend_io(struct ubbd_backend *ubbd_b, uint32_t iov_cnt);
+struct ubbd_backend_io *ubbd_backend_create_backend_io(struct ubbd_backend *ubbd_b, uint32_t iov_cnt, int queue_id);
 void ubbd_backend_free_backend_io(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io);
 #endif /* UBBD_BACKEND_H */

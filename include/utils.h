@@ -21,6 +21,9 @@
 #define MIN(a,b)            (((a) < (b)) ? (a) : (b))
 #endif
 
+#define cpu_relax() do { asm volatile("pause\n":::"memory"); } while (0)
+#define ubbd_cas         __sync_val_compare_and_swap
+
 # define do_div(n,base) ({                                      \
         uint32_t __base = (base);                               \
         uint32_t __rem;                                         \
@@ -257,10 +260,22 @@ struct context {
 	void *extra_data;
 	ubbd_atomic ref;
 	int ret;
+
+	/* for mempool */
+	int from_pool:1;
+
+	int free_on_finish:1;
 	char data[];
 };
 
 typedef int(*ubbd_ctx_finish_t)(struct context *ctx, int ret);
+
+static inline void context_init(struct context *ctx)
+{
+	ubbd_atomic_set(&ctx->ref, 1);
+	ctx->free_on_finish = 1;
+
+}
 
 static inline struct context *context_alloc(size_t data_size)
 {
@@ -270,7 +285,7 @@ static inline struct context *context_alloc(size_t data_size)
 	if (!ctx)
 		return NULL;
 
-	ubbd_atomic_set(&ctx->ref, 1);
+	context_init(ctx);
 
 	return ctx;
 }
@@ -302,7 +317,8 @@ static inline int context_finish(struct context *ctx, int ret)
 	if (ctx->parent)
 		context_finish(ctx->parent, ctx->ret);
 
-	context_free(ctx);
+	if (ctx->free_on_finish)
+		context_free(ctx);
 	return ret;
 }
 

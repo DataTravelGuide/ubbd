@@ -105,11 +105,6 @@ void *cmd_process(void *arg)
 
 	while (1) {
 		while (1) {
-			if (ubbd_processing_start(&ubbd_q->uio_info)) {
-				ubbd_err("failed to start processing\n");
-				goto out;
-			}
-
 			se = ubbd_cmd_to_handle(ubbd_q);
 			if (se == ubbd_cmd_head(&ubbd_q->uio_info)) {
 				break;
@@ -196,7 +191,7 @@ static struct ubbd_backend_io *q_prepare_backend_io(struct ubbd_queue *ubbd_q,
 	struct q_backend_io_ctx_data *data;
 	int i;
 
-	io = ubbd_backend_create_backend_io(ubbd_q->ubbd_b, se->iov_cnt);
+	io = ubbd_backend_create_backend_io(ubbd_q->ubbd_b, se->iov_cnt, ubbd_q->index);
 	if (!io) {
 		ubbd_err("failed to calloc for backend io\n");
 		return NULL;
@@ -239,7 +234,7 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 #ifdef	UBBD_REQUEST_STATS
 	uint64_t start_ns = get_ns();
 #endif
-	int ret;
+	int ret = 0;
 	struct ubbd_backend_io *io;
 
 	//ubbd_err("handle_cmd: se: %p\n", se);
@@ -328,6 +323,7 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 		break;
 	default:
 		ubbd_err("error handle_cmd\n");
+		ret = -EINVAL;
 	}
 
 out:

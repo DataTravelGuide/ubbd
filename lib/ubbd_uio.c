@@ -52,7 +52,7 @@ int ubbd_open_uio(struct ubbd_uio_info *uio_info)
 	char *mmap_name;
 	int mmap_prot;
 
-	if (asprintf(&mmap_name, "/dev/uio%d", uio_info->uio_id) == -1) {
+	if (asprintf(&mmap_name, "/dev/ubbd_kring%d", uio_info->uio_id) == -1) {
 		ubbd_err("cont init mmap name\n");
 		goto err_fail;
 	}
@@ -97,7 +97,7 @@ int ubbd_processing_start(struct ubbd_uio_info *uio_info)
 	} while (r == -1 && errno == EINTR);
 
 	if (r == -1 && errno != EAGAIN) {
-		ubbd_err("failed to read device /dev/uio%d: %d\n",
+		ubbd_err("failed to read device /dev/ubbd_kring%d: %d\n",
 			 uio_info->uio_id, errno);
 		return -errno;
 	}
@@ -116,7 +116,7 @@ int ubbd_processing_complete(struct ubbd_uio_info *uio_info)
 	} while (r == -1 && errno == EINTR);
 
 	if (r == -1 && errno != EAGAIN) {
-		ubbd_err("failed to write uio device /dev/uio%d: %d\n",
+		ubbd_err("failed to write uio device /dev/ubbd_kring%d: %d\n",
 			 uio_info->uio_id, errno);
 		return -errno;
 	}

@@ -29,11 +29,14 @@ static int mgmt_map_finish(struct context *ctx, int ret)
 		sprintf(mgmt_rsp.add.path, "/dev/ubbd%d", 
 				rsp_data->ubbd_dev->dev_id);
 	}
-	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
+
+	if (write(fd, &mgmt_rsp, sizeof(mgmt_rsp)) < 0) {
+		ubbd_err("failed to write rsp\n");
+	}
 	close(fd);
 	ubbd_dev_put(rsp_data->ubbd_dev);
 
-	return 0;
+	return ret;
 }
 
 static int mgmt_generic_finish(struct context *ctx, int ret)
@@ -44,11 +47,14 @@ static int mgmt_generic_finish(struct context *ctx, int ret)
 
 	ubbd_dev_info(rsp_data->ubbd_dev, "write rsp to fd: %d, ret: %d\n", fd, ret);
 	mgmt_rsp.ret = ret;
-	write(fd, &mgmt_rsp, sizeof(mgmt_rsp));
+
+	if (write(fd, &mgmt_rsp, sizeof(mgmt_rsp)) < 0) {
+		ubbd_err("failed to write rsp.\n");
+	}
 	close(fd);
 	ubbd_dev_put(rsp_data->ubbd_dev);
 
-	return 0;
+	return ret;
 }
 
 static struct context *mgmt_ctx_alloc(struct ubbd_device *ubbd_dev,
@@ -304,7 +310,10 @@ static void *mgmt_thread_fn(void* args)
 response:
 			ubbd_err("write ret: %d to fd: %d\n", ret, read_fd);
 			mgmt_rsp.ret = ret;
-			write(read_fd, &mgmt_rsp, sizeof(mgmt_rsp));
+
+			if (write(read_fd, &mgmt_rsp, sizeof(mgmt_rsp)) < 0) {
+				ubbd_err("failed to write rsp\n");
+			}
 			close(read_fd);
 			continue;
 		}
