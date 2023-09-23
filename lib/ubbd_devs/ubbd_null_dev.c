@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_dev.h"
 
 #define NULL_DEV(ubbd_dev) ((struct ubbd_null_device *)container_of(ubbd_dev, struct ubbd_null_device, ubbd_dev))

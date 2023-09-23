@@ -6,13 +6,13 @@
 #include "utils.h"
 #include "list.h"
 #include "ubbd_queue.h"
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_netlink.h"
 #include "ubbd_backend.h"
 
 static bool compr_space_enough(struct ubbd_queue *ubbd_q, uint32_t required)
 {
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->kring_info.map;
 	uint32_t space_available;
 	uint32_t space_max, space_used;
 
@@ -35,12 +35,12 @@ static bool compr_space_enough(struct ubbd_queue *ubbd_q, uint32_t required)
 
 struct ubbd_ce *get_available_ce(struct ubbd_queue *ubbd_q)
 {
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->kring_info.map;
 
 	while (!compr_space_enough(ubbd_q, sizeof(struct ubbd_ce))) {
 		pthread_mutex_unlock(&ubbd_q->req_lock);
 		ubbd_err(" compr not enough head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
-		ubbd_processing_complete(&ubbd_q->uio_info);
+		ubbd_processing_complete(&ubbd_q->kring_info);
                 usleep(50000);
 		pthread_mutex_lock(&ubbd_q->req_lock);
 	}
@@ -51,13 +51,13 @@ struct ubbd_ce *get_available_ce(struct ubbd_queue *ubbd_q)
 
 static void wait_for_compr_empty(struct ubbd_queue *ubbd_q)
 {
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->kring_info.map;
  
          ubbd_info("waiting for ring to clear\n");
          while (sb->compr_head != sb->compr_tail) {
 		 ubbd_info("head: %u, tail: %u\n", sb->compr_head, sb->compr_tail);
                  usleep(50000);
-		 ubbd_processing_complete(&ubbd_q->uio_info);
+		 ubbd_processing_complete(&ubbd_q->kring_info);
 		 if (ubbd_q->status == UBBD_QUEUE_USTATUS_STOPPING) {
 			 ubbd_err("ubbd device is stopping\n");
 			 break;
@@ -75,19 +75,19 @@ void *cmd_process(void *arg)
 	struct pollfd pollfds[128];
 	int ret;
 
-	if (ubbd_uio_opened(&ubbd_q->uio_info)) {
-		ubbd_q->no_close_uio = true;
+	if (ubbd_kring_opened(&ubbd_q->kring_info)) {
+		ubbd_q->no_close_kring = true;
 	} else {
-		ret = ubbd_open_uio(&ubbd_q->uio_info);
+		ret = ubbd_open_kring(&ubbd_q->kring_info);
 		if (ret) {
 			ubbd_err("failed to open shm: %d\n", ret);
 			return NULL;
 		}
 	}
 
-	sb = ubbd_q->uio_info.map;
+	sb = ubbd_q->kring_info.map;
 
-	if (ubbd_processing_complete(&ubbd_q->uio_info))
+	if (ubbd_processing_complete(&ubbd_q->kring_info))
 		goto out;
 
 	wait_for_compr_empty(ubbd_q);
@@ -106,7 +106,7 @@ void *cmd_process(void *arg)
 	while (1) {
 		while (1) {
 			se = ubbd_cmd_to_handle(ubbd_q);
-			if (se == ubbd_cmd_head(&ubbd_q->uio_info)) {
+			if (se == ubbd_cmd_head(&ubbd_q->kring_info)) {
 				break;
 			}
 			op_len = ubbd_se_hdr_get_len(se->header.len_op);
@@ -120,7 +120,7 @@ void *cmd_process(void *arg)
 		}
 
 poll:
-		pollfds[0].fd = ubbd_q->uio_info.fd;
+		pollfds[0].fd = ubbd_q->kring_info.fd;
 		pollfds[0].events = POLLIN;
 		pollfds[0].revents = 0;
 
@@ -143,8 +143,8 @@ poll:
 	}
 
 out:
-	if (!ubbd_q->no_close_uio)
-		ubbd_close_uio(&ubbd_q->uio_info);
+	if (!ubbd_q->no_close_kring)
+		ubbd_close_kring(&ubbd_q->kring_info);
 	return NULL;
 }
 
@@ -220,7 +220,7 @@ static struct ubbd_backend_io *q_prepare_backend_io(struct ubbd_queue *ubbd_q,
 	io->iov_cnt = se->iov_cnt;
 	for (i = 0; i < se->iov_cnt; i++) {
 		ubbd_dbg("iov_base: %lu\n", (size_t)se->iov[i].iov_base);
-		io->iov[i].iov_base = (void*)ubbd_q->uio_info.map + (size_t)se->iov[i].iov_base;
+		io->iov[i].iov_base = (void*)ubbd_q->kring_info.map + (size_t)se->iov[i].iov_base;
 		io->iov[i].iov_len = se->iov[i].iov_len;
 	}
 
@@ -254,7 +254,7 @@ static void handle_cmd(struct ubbd_queue *ubbd_q, struct ubbd_se *se)
 		ubbd_dbg("set pad op to done\n");
 		ubbd_se_hdr_flags_set(se, UBBD_SE_HDR_DONE);
 		ret = 0;
-		ubbd_processing_complete(&ubbd_q->uio_info);
+		ubbd_processing_complete(&ubbd_q->kring_info);
 		break;
 	case UBBD_OP_WRITE:
 		ubbd_dbg("UBBD_OP_WRITE\n");
@@ -373,7 +373,7 @@ void ubbd_queue_add_ce(struct ubbd_queue *ubbd_q, uint64_t priv_data,
 		int result)
 {
 	struct ubbd_ce *ce;
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->kring_info.map;
 
 	pthread_mutex_lock(&ubbd_q->req_lock);
 	ce = get_available_ce(ubbd_q);
@@ -385,5 +385,5 @@ void ubbd_queue_add_ce(struct ubbd_queue *ubbd_q, uint64_t priv_data,
 	//ubbd_err("append ce: %llu, result: %d\n", ce->priv_data, ce->result);
 	UBBD_UPDATE_COMPR_HEAD(ubbd_q, sb, ce);
 	pthread_mutex_unlock(&ubbd_q->req_lock);
-	ubbd_processing_complete(&ubbd_q->uio_info);
+	ubbd_processing_complete(&ubbd_q->kring_info);
 }

@@ -12,7 +12,7 @@
 #include <sys/mman.h>
 
 #include "ubbd_queue.h"
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd.h"
 
 int __real_open(const char *path, int flags, int mode);
@@ -67,14 +67,14 @@ ssize_t __wrap_write(int fd, const void *buf, size_t count)
 int __wrap_asprintf(char **strp, const char *fmt, ...)
 {
 	va_list ap;
-	int uio_id;
+	int kring_id;
 	int ret;
 
 	va_start(ap, fmt);
-	uio_id = va_arg(ap, int);
+	kring_id = va_arg(ap, int);
 	va_end(ap);
 
-	if (uio_id != -1) {
+	if (kring_id != -1) {
 		va_start(ap, fmt);
 		ret = vasprintf(strp, fmt, ap);
 		va_end(ap);
@@ -87,54 +87,54 @@ int __wrap_asprintf(char **strp, const char *fmt, ...)
 
 void test_get_dev_info(void **state)
 {
-	struct ubbd_uio_info uio_info = { 0 };
+	struct ubbd_kring_info kring_info = { 0 };
 	struct ubbd_sb sb = { 0 };
 	void *info;
 
 	// invalid ubbd magic
-	uio_info.map = &sb;
-	info = ubbd_uio_get_info(&uio_info);
+	kring_info.map = &sb;
+	info = ubbd_kring_get_info(&kring_info);
 	assert_null(info);
 
 	// set magic and info_off is zero
 	sb.magic = UBBD_MAGIC;
 	sb.info_off = 0;
 
-	info = ubbd_uio_get_info(&uio_info);
+	info = ubbd_kring_get_info(&kring_info);
 	assert_ptr_equal(info, &sb);
 
 	// set info_off to 1
 	sb.info_off = 1;
-	info = ubbd_uio_get_info(&uio_info);
+	info = ubbd_kring_get_info(&kring_info);
 	assert_ptr_equal(info, (char *)(&sb) + 1);
 }
 
 void test_open_shm(void **state)
 {
 	int ret;
-	struct ubbd_uio_info uio_info = { 0 };
+	struct ubbd_kring_info kring_info = { 0 };
 	struct ubbd_sb sb = { 0 };
 
 	// asprintf fail
-	uio_info.uio_id = -1;
+	kring_info.kring_id = -1;
 	will_return(__wrap_asprintf, -1);
-	ret = ubbd_open_uio(&uio_info);
+	ret = ubbd_open_kring(&kring_info);
 	assert_int_equal(ret, -1);
 
 	// faild to open ubbd_kring0
-	uio_info.uio_id = 0;
+	kring_info.kring_id = 0;
 	expect_string(__wrap_open, path, "/dev/ubbd_kring0");
 	will_return(__wrap_open, -1);
 
-	ret = ubbd_open_uio(&uio_info);
+	ret = ubbd_open_kring(&kring_info);
 	assert_int_equal(ret, -1);
 
-	// open uio1 failed to mmap
-	uio_info.uio_id = 1;
+	// open kring1 failed to mmap
+	kring_info.kring_id = 1;
 	expect_string(__wrap_open, path, "/dev/ubbd_kring1");
 	will_return(__wrap_open, 1);
 
-	uio_info.uio_map_size = 0;
+	kring_info.kring_map_size = 0;
 	expect_value(__wrap_mmap, fd, 1);
 	expect_value(__wrap_mmap, length, 0);
 	will_return(__wrap_mmap, MAP_FAILED);
@@ -142,21 +142,21 @@ void test_open_shm(void **state)
 	expect_value(__wrap_close, fd, 1);
 	will_return(__wrap_close, 0);
 
-	ret = ubbd_open_uio(&uio_info);
+	ret = ubbd_open_kring(&kring_info);
 	assert_int_equal(ret, -1);
 
 	// open_shm ok
-	uio_info.uio_id = 1;
+	kring_info.kring_id = 1;
 	expect_string(__wrap_open, path, "/dev/ubbd_kring1");
 	will_return(__wrap_open, 1);
 
 	sb.version = 1;
-	uio_info.uio_map_size = 10;
+	kring_info.kring_map_size = 10;
 	expect_value(__wrap_mmap, fd, 1);
 	expect_value(__wrap_mmap, length, 10);
 	will_return(__wrap_mmap, &sb);
 
-	ret = ubbd_open_uio(&uio_info);
+	ret = ubbd_open_kring(&kring_info);
 	assert_int_equal(ret, 0);
 	
 	// close shm
@@ -167,20 +167,20 @@ void test_open_shm(void **state)
 	expect_value(__wrap_munmap, length, 10);
 	will_return(__wrap_munmap, 0);
 
-	ret = ubbd_close_uio(&uio_info);
+	ret = ubbd_close_kring(&kring_info);
 	assert_int_equal(ret, 0);
 }
 
 
 void test_close_shm(void **state)
 {
-	struct ubbd_uio_info uio_info = { 0 };
+	struct ubbd_kring_info kring_info = { 0 };
 	int ret;
 
 	// munmap failed
-	uio_info.map = (void *)1;
-	uio_info.uio_map_size = 10;
-	uio_info.fd = 1;
+	kring_info.map = (void *)1;
+	kring_info.kring_map_size = 10;
+	kring_info.fd = 1;
 
 	expect_value(__wrap_munmap, addr, 1);
 	expect_value(__wrap_munmap, length, 10);
@@ -189,11 +189,11 @@ void test_close_shm(void **state)
 	expect_value(__wrap_close, fd, 1);
 	will_return(__wrap_close, 0);
 
-	ret = ubbd_close_uio(&uio_info);
+	ret = ubbd_close_kring(&kring_info);
 	assert_int_equal(ret, -1);
 
 	// close failed
-	uio_info.map = (void *)1;
+	kring_info.map = (void *)1;
 	expect_value(__wrap_munmap, addr, 1);
 	expect_value(__wrap_munmap, length, 10);
 	will_return(__wrap_munmap, 0);
@@ -201,11 +201,11 @@ void test_close_shm(void **state)
 	expect_value(__wrap_close, fd, 1);
 	will_return(__wrap_close, -2);
 
-	ret = ubbd_close_uio(&uio_info);
+	ret = ubbd_close_kring(&kring_info);
 	assert_int_equal(ret, -2);
 
 	// both munmap and close failed
-	uio_info.map = (void *)1;
+	kring_info.map = (void *)1;
 	expect_value(__wrap_munmap, addr, 1);
 	expect_value(__wrap_munmap, length, 10);
 	will_return(__wrap_munmap, -1);
@@ -214,11 +214,11 @@ void test_close_shm(void **state)
 	will_return(__wrap_close, -2);
 
 	// expect return the first err retval
-	ret = ubbd_close_uio(&uio_info);
+	ret = ubbd_close_kring(&kring_info);
 	assert_int_equal(ret, -1);
 
 	// close ok
-	uio_info.map = (void *)1;
+	kring_info.map = (void *)1;
 	expect_value(__wrap_munmap, addr, 1);
 	expect_value(__wrap_munmap, length, 10);
 	will_return(__wrap_munmap, 0);
@@ -226,16 +226,16 @@ void test_close_shm(void **state)
 	expect_value(__wrap_close, fd, 1);
 	will_return(__wrap_close, 0);
 
-	ret = ubbd_close_uio(&uio_info);
+	ret = ubbd_close_kring(&kring_info);
 	assert_int_equal(ret, 0);
 }
 
 void test_processing_start(void **state)
 {
-	struct ubbd_uio_info uio_info = { 0 };
+	struct ubbd_kring_info kring_info = { 0 };
 	int ret;
 
-	uio_info.fd = 1;
+	kring_info.fd = 1;
 
 	// read eagain
 	expect_value(__wrap_read, fd, 1);
@@ -243,7 +243,7 @@ void test_processing_start(void **state)
 	will_return(__wrap_read, -1);
 	errno = EAGAIN;
 
-	ret = ubbd_processing_start(&uio_info);
+	ret = ubbd_processing_start(&kring_info);
 	assert_int_equal(ret, 0);
 	// read ioerror
 	expect_value(__wrap_read, fd, 1);
@@ -251,23 +251,23 @@ void test_processing_start(void **state)
 	will_return(__wrap_read, -1);
 	errno = EIO;
 
-	ret = ubbd_processing_start(&uio_info);
+	ret = ubbd_processing_start(&kring_info);
 	assert_int_equal(ret, -EIO);
 	// read ok
 	expect_value(__wrap_read, fd, 1);
 	expect_value(__wrap_read, count, 4);
 	will_return(__wrap_read, 0);
 
-	ret = ubbd_processing_start(&uio_info);
+	ret = ubbd_processing_start(&kring_info);
 	assert_int_equal(ret, 0);
 }
 
 void test_processing_complete(void **state)
 {
-	struct ubbd_uio_info uio_info = { 0 };
+	struct ubbd_kring_info kring_info = { 0 };
 	int ret;
 
-	uio_info.fd = 1;
+	kring_info.fd = 1;
 
 	// write eagain
 	expect_value(__wrap_write, fd, 1);
@@ -275,7 +275,7 @@ void test_processing_complete(void **state)
 	will_return(__wrap_write, -1);
 	errno = EAGAIN;
 
-	ret = ubbd_processing_complete(&uio_info);
+	ret = ubbd_processing_complete(&kring_info);
 	assert_int_equal(ret, 0);
 
 	// write ioerror
@@ -284,14 +284,14 @@ void test_processing_complete(void **state)
 	will_return(__wrap_write, -1);
 	errno = EIO;
 
-	ret = ubbd_processing_complete(&uio_info);
+	ret = ubbd_processing_complete(&kring_info);
 	assert_int_equal(ret, -EIO);
 	// write ok
 	expect_value(__wrap_write, fd, 1);
 	expect_value(__wrap_write, count, 4);
 	will_return(__wrap_write, 0);
 
-	ret = ubbd_processing_complete(&uio_info);
+	ret = ubbd_processing_complete(&kring_info);
 	assert_int_equal(ret, 0);
 }
 
@@ -304,16 +304,16 @@ void test_cmd_se(void **state)
 	// get cmd_head
 	sb.cmdr_off = 1;
 	sb.cmd_head = 10;
-	ubbd_q.uio_info.map = &sb;
+	ubbd_q.kring_info.map = &sb;
 
-	cmd_head = ubbd_cmd_head(&ubbd_q.uio_info);
+	cmd_head = ubbd_cmd_head(&ubbd_q.kring_info);
 	assert_ptr_equal(cmd_head, ((char *)&sb) + 11);
 
 	// get to_handle
 	sb.cmdr_off = 1;
 	sb.cmd_head = 10;
 	ubbd_q.se_to_handle = 8;
-	ubbd_q.uio_info.map = &sb;
+	ubbd_q.kring_info.map = &sb;
 
 	to_handle = ubbd_cmd_to_handle(&ubbd_q);
 	assert_ptr_equal(to_handle, ((char *)&sb) + 9);

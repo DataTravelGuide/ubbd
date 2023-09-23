@@ -3,7 +3,7 @@
 #include <pthread.h>
 
 #include "ubbd_dev.h"
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_netlink.h"
 #include "utils.h"
 

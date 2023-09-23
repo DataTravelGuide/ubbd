@@ -1092,9 +1092,9 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 	}
 
 	for (i = 0; i < cache_sb.num_queues; i++) {
-		ret = ubbd_open_uio(&ubbd_b->queues[i].uio_info);
+		ret = ubbd_open_kring(&ubbd_b->queues[i].kring_info);
 		if (ret) {
-			ubbd_err("failed to open uio for queue 0: %d\n", ret);
+			ubbd_err("failed to open kring for queue 0: %d\n", ret);
 			goto close_cache;
 		}
 	}
@@ -1127,7 +1127,7 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 	}
 
 	for (i = 0; i < cache_sb.num_queues; i++) {
-		cache_sb.key_ondisk_w_list[i] = ubbd_uio_get_info(&ubbd_b->queues[i].uio_info);
+		cache_sb.key_ondisk_w_list[i] = ubbd_kring_get_info(&ubbd_b->queues[i].kring_info);
 		pthread_mutex_init(&cache_sb.key_ondisk_w_list[i]->write_lock, NULL);
 	}
 
@@ -1219,7 +1219,7 @@ static void cache_backend_close(struct ubbd_backend *ubbd_b)
 	ubbd_bitmap_free(cache_sb.seg_bitmap);
 	free(cache_sb.segments);
 	for (i = 0; i < cache_sb.num_queues; i++) {
-		ubbd_close_uio(&ubbd_b->queues[i].uio_info);
+		ubbd_close_kring(&ubbd_b->queues[i].kring_info);
 	}
 
 	for (i = 0; i < 1; i++) {

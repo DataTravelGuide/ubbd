@@ -7,7 +7,7 @@
 #include <errno.h>
 #include <string.h>
 
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_backend.h"
 #include "utils.h"
 #include "ubbd_bitmap.h"

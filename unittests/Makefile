@@ -33,10 +33,10 @@ SOURCES += $(shell find ../src/ -name '*.c')
 
 all:
 	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_CALLOC_CFLAGS) -g  utils_test.c $(UBBD_FLAGS) $(LDLIBS_CMOCKA) $(LINKLIBS) -o utils_test
-	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_OPEN_CFLAGS) -g ubbd_uio_test.c $(SOURCES) $(UBBD_FLAGS) $(LDLIBS_CMOCKA) $(LINKLIBS) -o ubbd_uio_test
+	$(CC) $(EXTRA_CFLAGS) $(CMOCKA_CFLAGS) $(CMOCKA_OPEN_CFLAGS) -g ubbd_kring_test.c $(SOURCES) $(UBBD_FLAGS) $(LDLIBS_CMOCKA) $(LINKLIBS) -o ubbd_kring_test
 
 clean:
 	rm -rf utils_test
-	rm -rf ubbd_uio_test
+	rm -rf ubbd_kring_test
 	rm -rf *.gcno *.gcda
 	rm -rf result

@@ -6,7 +6,7 @@
 #include "utils.h"
 #include "list.h"
 #include "ubbd_backend.h"
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_netlink.h"
 #include "ubbd_queue.h"
 
@@ -46,8 +46,8 @@ static int ubbd_backend_init(struct ubbd_backend *ubbd_b, struct ubbd_backend_co
 	for (i = 0; i < ubbd_b->num_queues; i++) {
 		ubbd_q = &ubbd_b->queues[i];
 		ubbd_q->ubbd_b = ubbd_b;
-		ubbd_q->uio_info.uio_id = conf->queue_infos[i].uio_id;
-		ubbd_q->uio_info.uio_map_size = conf->queue_infos[i].uio_map_size;
+		ubbd_q->kring_info.kring_id = conf->queue_infos[i].kring_id;
+		ubbd_q->kring_info.kring_map_size = conf->queue_infos[i].kring_map_size;
 		ubbd_q->backend_pid = conf->queue_infos[i].backend_pid;
 		ubbd_q->status = conf->queue_infos[i].status;
 		memcpy(&ubbd_q->cpuset, &conf->queue_infos[i].cpuset, sizeof(cpu_set_t));

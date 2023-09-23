@@ -8,7 +8,7 @@
 #include "utils.h"
 #include "ubbd_netlink.h"
 #include "ubbd_dev.h"
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd.h"
 
 #define UBBD_NL_VERSION 1
@@ -464,8 +464,8 @@ static int parse_status(struct nlattr *attr, struct ubbd_nl_dev_status *dev_stat
 			ret = -EINVAL;
 			goto out;
 		}
-		dev_status->queue_infos[num_queues].uio_id = nla_get_s32(queue_info[UBBD_QUEUE_INFO_KRING_ID]);
-		dev_status->queue_infos[num_queues].uio_map_size = nla_get_s32(queue_info[UBBD_QUEUE_INFO_KRING_MAP_SIZE]);
+		dev_status->queue_infos[num_queues].kring_id = nla_get_s32(queue_info[UBBD_QUEUE_INFO_KRING_ID]);
+		dev_status->queue_infos[num_queues].kring_map_size = nla_get_s32(queue_info[UBBD_QUEUE_INFO_KRING_MAP_SIZE]);
 		dev_status->queue_infos[num_queues].backend_pid = nla_get_s32(queue_info[UBBD_QUEUE_INFO_B_PID]);
 		dev_status->queue_infos[num_queues].status = nla_get_s32(queue_info[UBBD_QUEUE_INFO_STATUS]);
 
