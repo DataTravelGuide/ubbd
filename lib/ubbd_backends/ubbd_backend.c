@@ -128,29 +128,6 @@ struct ubbd_backend *cache_backend_create(struct ubbd_backend_conf *conf)
 		goto free_cache_b;
 	}
 
-	if (0) {
-	strcpy(dev_info->cache_dev.cache_info.file.path, "/dev/nvme0n1p1");
-	//strcpy(dev_info->cache_dev.cache_info.file.path, "/root/ceph/ubbd_devs/cache1");
-	cache_b->cache_backends[1] = backend_create(&dev_info->cache_dev.cache_info);
-	if (!cache_b->cache_backends[1]) {
-		goto free_cache_b;
-	}
-
-	strcpy(dev_info->cache_dev.cache_info.file.path, "/dev/nvme2n1p5");
-	//strcpy(dev_info->cache_dev.cache_info.file.path, "/root/ceph/ubbd_devs/cache2");
-	cache_b->cache_backends[2] = backend_create(&dev_info->cache_dev.cache_info);
-	if (!cache_b->cache_backends[2]) {
-		goto free_cache_b;
-	}
-
-	strcpy(dev_info->cache_dev.cache_info.file.path, "/dev/ram0");
-	//strcpy(dev_info->cache_dev.cache_info.file.path, "/root/ceph/ubbd_devs/cache3");
-	cache_b->cache_backends[3] = backend_create(&dev_info->cache_dev.cache_info);
-	if (!cache_b->cache_backends[3]) {
-		goto free_cache_b;
-	}
-	}
-
 	cache_b->backing_backend = backend_create(&dev_info->cache_dev.backing_info);
 	if (!cache_b->backing_backend) {
 		goto free_cache_backend;
