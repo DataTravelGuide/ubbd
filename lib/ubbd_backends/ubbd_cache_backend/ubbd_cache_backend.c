@@ -176,7 +176,7 @@ out:
 
 static int cache_key_ondisk_append(struct cache_key *key)
 {
-	int ret;
+	int ret = 0;
 	struct cache_key_ondisk key_disk;
 	struct cache_key_ondisk_write_data *key_ondisk_w;
 
@@ -579,10 +579,7 @@ static int cache_replay_keys(struct ubbd_cache_backend *cache_b)
 	struct cache_kset_ondisk *kset_disk;
 	struct cache_key_ondisk *key_disk;
 	struct cache_key *key = NULL;
-	struct data_head *data_head;
-	int data_head_index = 0;
-	bool data_head_updated = false;
-	int i, h;
+	int i;
 	int ret = 0;
 	uint32_t key_epoch;
 	bool key_epoch_found = false;
@@ -640,28 +637,9 @@ again:
 				goto err;
 			}
 
-			/* update the data_head_key */
-			data_head_updated = false;
-			for (h = 0; h < CACHE_DATA_HEAD_MAX; h++) {
-				data_head = &cache_sb.data_heads[h];
-				if (data_head->data_head_pos.seg == 0)
-					continue;
-
-				if (data_head->data_head_pos.seg == (key->p_off >> CACHE_SEG_SHIFT)) {
-					data_head->data_head_pos.off_in_seg = (key->p_off & CACHE_SEG_MASK) + key->len;
-					data_head_updated = true;
-				}
-			}
-
-			if (!data_head_updated) {
-				data_head = &cache_sb.data_heads[data_head_index];
-				data_head->data_head_pos.seg = key->p_off >> CACHE_SEG_SHIFT;
-				data_head->data_head_pos.off_in_seg = (key->p_off & CACHE_SEG_MASK) + key->len;
-				data_head_index = (data_head_index + 1) % CACHE_DATA_HEAD_MAX;
-			}
-
 			if (cache_key_seg(key)->gen < key->seg_gen)
 				cache_key_seg(key)->gen = key->seg_gen;
+
 			ret = cache_key_insert(key);
 			if (ret) {
 				cache_key_put(key);
@@ -682,17 +660,6 @@ again:
 	}
 
 	//dump_bitmap(cache_sb.seg_bitmap);
-
-	/* init data head which is empty */
-	for (i = 0; i < CACHE_DATA_HEAD_MAX; i++) {
-		data_head = &cache_sb.data_heads[i];
-		pthread_mutex_init(&data_head->data_head_lock, NULL);
-		if (data_head->data_head_pos.seg == 0) {
-			cache_data_head_init(data_head);
-		}
-	}
-
-	ubbd_atomic_set(&cache_sb.data_head_index, 0);
 err:
 	return ret;
 }
@@ -1171,6 +1138,17 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 
 	cache_start_writeback(cache_b);
 	cache_start_gc(cache_b);
+
+	/* init data head which is empty */
+	for (i = 0; i < CACHE_DATA_HEAD_MAX; i++) {
+		struct data_head *data_head;
+
+		data_head = &cache_sb.data_heads[i];
+		pthread_mutex_init(&data_head->data_head_lock, NULL);
+		cache_data_head_init(data_head);
+	}
+
+	ubbd_atomic_set(&cache_sb.data_head_index, 0);
 
 	return 0;
 
