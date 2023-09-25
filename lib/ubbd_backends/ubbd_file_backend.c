@@ -311,6 +311,8 @@ static struct ubbd_backend_io *file_backend_create_backend_io(struct ubbd_backen
 	struct file_backend_io *file_io;
 	int bit;
 
+	queue_id = queue_id % ubbd_b->num_queues;
+
 	if (iov_cnt <= 4) {
 		bit = ubbd_mempool_get(file_b->io_threads[queue_id].io_pool, (void **)&file_io);
 		if (bit == -1) {
