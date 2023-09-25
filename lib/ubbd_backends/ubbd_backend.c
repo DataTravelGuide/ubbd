@@ -6,7 +6,7 @@
 #include "utils.h"
 #include "list.h"
 #include "ubbd_backend.h"
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_netlink.h"
 #include "ubbd_queue.h"
 
@@ -46,8 +46,8 @@ static int ubbd_backend_init(struct ubbd_backend *ubbd_b, struct ubbd_backend_co
 	for (i = 0; i < ubbd_b->num_queues; i++) {
 		ubbd_q = &ubbd_b->queues[i];
 		ubbd_q->ubbd_b = ubbd_b;
-		ubbd_q->uio_info.uio_id = conf->queue_infos[i].uio_id;
-		ubbd_q->uio_info.uio_map_size = conf->queue_infos[i].uio_map_size;
+		ubbd_q->kring_info.kring_id = conf->queue_infos[i].kring_id;
+		ubbd_q->kring_info.kring_map_size = conf->queue_infos[i].kring_map_size;
 		ubbd_q->backend_pid = conf->queue_infos[i].backend_pid;
 		ubbd_q->status = conf->queue_infos[i].status;
 		memcpy(&ubbd_q->cpuset, &conf->queue_infos[i].cpuset, sizeof(cpu_set_t));
@@ -123,8 +123,8 @@ struct ubbd_backend *cache_backend_create(struct ubbd_backend_conf *conf)
 		return NULL;
 	}
 
-	cache_b->cache_backend = backend_create(&dev_info->cache_dev.cache_info);
-	if (!cache_b->cache_backend) {
+	cache_b->cache_backends[0] = backend_create(&dev_info->cache_dev.cache_info);
+	if (!cache_b->cache_backends[0]) {
 		goto free_cache_b;
 	}
 
@@ -304,7 +304,7 @@ int _backend_lock(int dev_id, int backend_id, int *fd, bool test) {
 	if (!lock_path)
 		goto out;
 
-	*fd = open(lock_path, O_RDWR|O_CREAT);
+	*fd = open(lock_path, O_RDWR|O_CREAT, 0666);
 	if (*fd < 0) {
 		ubbd_err("failed to open lock_path %s\n", lock_path);
 		ret = -errno;
@@ -337,7 +337,12 @@ int ubbd_backend_lock(int dev_id, int backend_id, int *fd)
 
 void ubbd_backend_unlock(int fd)
 {
-	lockf(fd, F_ULOCK, 0);
+	int ret;
+
+	ret = lockf(fd, F_ULOCK, 0);
+	if (ret < 0) {
+		ubbd_err("failed to unlock: %d\n", ret);
+	}
 	close(fd);
 }
 
@@ -353,10 +358,10 @@ uint64_t ubbd_backend_size(struct ubbd_backend *ubbd_b)
 	return ubbd_b->dev_size;
 }
 
-struct ubbd_backend_io *ubbd_backend_create_backend_io(struct ubbd_backend *ubbd_b, uint32_t iov_cnt)
+struct ubbd_backend_io *ubbd_backend_create_backend_io(struct ubbd_backend *ubbd_b, uint32_t iov_cnt, int queue_id)
 {
 	if (ubbd_b->backend_ops->create_backend_io) {
-		return ubbd_b->backend_ops->create_backend_io(ubbd_b, iov_cnt);
+		return ubbd_b->backend_ops->create_backend_io(ubbd_b, iov_cnt, queue_id);
 	}
 
 	return calloc(1, sizeof(struct ubbd_backend_io) + sizeof(struct iovec) * iov_cnt);

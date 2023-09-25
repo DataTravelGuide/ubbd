@@ -208,6 +208,9 @@ void ubbd_dbg_message(void *arg, const char *funcname,
 	struct ubbd_device *dev = (struct ubbd_device *)arg;
 	va_list args;
 
+	if (UBBD_LOG_DEBUG > ubbd_log_level)
+		return;
+
 	va_start(args, fmt);
 	log_internal(UBBD_LOG_DEBUG, dev, funcname, linenr, fmt, args);
 	va_end(args);

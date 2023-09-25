@@ -2,7 +2,7 @@
 #ifndef UBBD_QUEUE_H
 #define UBBD_QUEUE_H
 #include <sched.h>
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_log.h"
 #include "ubbd.h"
 #include "libubbd.h"
@@ -14,8 +14,8 @@ enum ubbd_queue_ustatus {
 };
 
 struct ubbd_queue_info {
-	int32_t	uio_id;
-	uint64_t uio_map_size;
+	int32_t	kring_id;
+	uint64_t kring_map_size;
 	cpu_set_t cpuset;
 	pid_t backend_pid;
 	int status;
@@ -24,8 +24,8 @@ struct ubbd_queue_info {
 struct ubbd_backend;
 struct ubbd_queue {
 	struct ubbd_backend		*ubbd_b;
-	struct ubbd_uio_info		uio_info;
-	bool				no_close_uio;
+	struct ubbd_kring_info		kring_info;
+	bool				no_close_kring;
 	cpu_set_t			cpuset;
 	int				status;
 	uint32_t			se_to_handle;
@@ -42,7 +42,7 @@ struct ubbd_queue {
 static inline struct ubbd_ce *
 compr_head(struct ubbd_queue *ubbd_q)
 {
-	struct ubbd_sb *sb = ubbd_q->uio_info.map;
+	struct ubbd_sb *sb = ubbd_q->kring_info.map;
 
 	ubbd_dbg("comp: head: %u\n", sb->compr_head);
 

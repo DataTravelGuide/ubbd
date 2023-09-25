@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_backend.h"
 #include "ubbd_queue.h"
 
@@ -494,7 +494,10 @@ static int submit_io(struct ubbd_backend_io *io, obj_func_t obj_func)
 	ctx.iovec.iov_cnt = io->iov_cnt;
 
 	for (i = start_obj; i < end_obj; i++) {
-		asprintf(&oid, "%s_%d", s3_volume_name, i);
+		ret = asprintf(&oid, "%s_%d", s3_volume_name, i);
+		if (ret < 0) {
+			ubbd_err("failed to setup s3_volume_name.\n");
+		}
 		ctx.off = done;
 		ctx.len = MIN(s3_block_size - offset, remain);
 		ctx.done = 0;

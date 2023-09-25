@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_dev.h"
 
 #define SSH_DEV(ubbd_dev) ((struct ubbd_ssh_device *)container_of(ubbd_dev, struct ubbd_ssh_device, ubbd_dev))

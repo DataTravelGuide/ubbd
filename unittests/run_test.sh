@@ -13,7 +13,7 @@ if [ $? -ne 0 ]; then
 	exit -1
 fi
 
-LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:../lib/:../libs3/build/lib/" ./ubbd_uio_test
+LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:../lib/:../libs3/build/lib/" ./ubbd_kring_test
 if [ $? -ne 0 ]; then
 	exit -1
 fi

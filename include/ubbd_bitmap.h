@@ -49,6 +49,19 @@ static inline void ubbd_bit_clear(struct ubbd_bitmap *bitmap, uint64_t bit)
 	bitmap->data[bit >> UBBD_BITMAP_SHIFT] &= ~(1 << (bit & UBBD_BITMAP_MASK));
 }
 
+static inline void dump_bitmap(struct ubbd_bitmap *bitmap)
+{
+	int i = 0;
+
+	ubbd_err("bitmap weight: %lu\n", ubbd_bitmap_weight(bitmap));
+	for (i = 0; i < bitmap->size; i++) {
+		if (ubbd_bit_test(bitmap, i)) {
+			ubbd_err(" %d\n", i);
+		}
+	}
+	ubbd_err("\n");
+}
+
 int ubbd_bit_find_next(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found_bit);
 int ubbd_bit_find_next_zero(struct ubbd_bitmap *bitmap, uint64_t off, uint64_t *found_bit);
 

@@ -1,36 +1,19 @@
 #define _GNU_SOURCE
-#include <execinfo.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
 
-#include "ubbd_uio.h"
-#include "ubbd_backend.h"
-#include "utils.h"
-#include "ubbd_bitmap.h"
+#include "cache_backend_internal.h"
 
-#define CACHE_BACKEND(ubbd_b) ((struct ubbd_cache_backend *)container_of(ubbd_b, struct ubbd_cache_backend, ubbd_b))
-#define USKIPLIST_MAXLEVEL		10
-
-struct ubbd_skiplist_head {
-	struct list_head nodes[USKIPLIST_MAXLEVEL];
-	int level;
-};
-
-struct ubbd_skiplist {
-	struct ubbd_skiplist_head cache_key_list;
-	pthread_mutex_t cache_key_list_mutex;
-};
-
-static struct ubbd_skiplist *cache_key_lists;
+static struct cache_key *cache_key_lists;
 static uint64_t cache_key_list_num;
 pthread_mutex_t cache_io_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t cache_disk_append_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t sb_write_lock = PTHREAD_MUTEX_INITIALIZER;
 
 struct ubbd_backend *cache_backend;
 struct ubbd_backend *backing_backend;
 
+struct ubbd_backend *cache_backends[4];
+
+/* used to do data verify, just for debugging. */
 static bool verify = false;
 static int verify_fd;
 #define CACHE_VERIFY_PATH	""
@@ -39,281 +22,8 @@ static bool writearound = false;
 
 static int lcache_debug = 0;
 
-struct cache_key {
-	struct ubbd_skiplist_head key_node;
-	uint64_t	l_off;
-	uint64_t	p_off;
-	uint32_t	len;
-	uint64_t	flags;
-	uint64_t	seg_gen;
-};
-
-static inline uint64_t cache_key_lstart(struct cache_key *key)
-{
-	return key->l_off;
-}
-
-static inline uint64_t cache_key_lend(struct cache_key *key)
-{
-	return key->l_off + key->len;
-}
-
-static inline uint64_t cache_key_pstart(struct cache_key *key)
-{
-	return key->p_off;
-}
-
-static inline uint64_t cache_key_pend(struct cache_key *key)
-{
-	return key->p_off + key->len;
-}
-
-static inline bool cache_key_can_merge(struct cache_key *key_1,
-		struct cache_key *key_2)
-{
-	return (cache_key_lend(key_1) == cache_key_lstart(key_2) &&
-			cache_key_pend(key_1) == cache_key_pstart(key_2));
-}
-
-struct cache_key_ondisk {
-	__u64	l_off;
-	__u64	p_off;
-	__u32	len;
-	__u32	seq;
-	__u64	seg_gen;
-	__u64	flags;
-};
-
-
-#define CACHE_KSET_MAGIC	0x676894a6ULL
-struct cache_kset_ondisk {
-	__u64	csum;
-	__u32	magic;
-	__u16	version;
-	__u16	res_1;
-	__u32	key_epoch;
-	__u64	flags;
-	union {
-		__u16	keys;
-		__u64	next_seg;
-	};
-	__u32	kset_len;
-	struct cache_key_ondisk	data[];
-};
-
-static struct cache_super cache_sb;
-
-#define CACHE_KSET_FLAGS_LASTKSET	1 << 0
-
-struct segment {
-	uint8_t	type;
-	uint64_t index;
-	uint32_t used;
-	uint32_t dirty;
-	uint64_t flags;
-	uint64_t gen;
-	ubbd_atomic inflight;
-	pthread_mutex_t lock;
-};
-
-#define CACHE_SEG_FLAGS_INVALIDATE	1 >> 0
-
-struct seg_pos {
-	uint64_t seg;
-	uint32_t off_in_seg;
-};
-
-#define CACHE_KEY_WRITE_MAX	128
-
-struct cache_key_ondisk_write {
-	struct cache_key_ondisk keys[CACHE_KEY_WRITE_MAX];
-	int key_used;
-};
-
-struct data_head {
-	struct seg_pos data_head_pos;
-	pthread_mutex_t	data_head_lock;
-};
-
-
-#define CACHE_DATA_HEAD_MAX	32
-
-struct cache_super {
-	uint64_t	n_segs;
-	struct segment *segments;
-
-	pthread_mutex_t		bitmap_lock;
-	struct ubbd_bitmap	*seg_bitmap;
-	uint64_t last_bit;
-
-	struct data_head	data_heads[CACHE_DATA_HEAD_MAX];
-	ubbd_atomic	data_head_index;
-	struct seg_pos	key_head_pos;
-	struct seg_pos	key_tail_pos;
-	struct seg_pos	dirty_tail_pos;
-
-	uint32_t last_key_epoch;
-
-	struct cache_key_ondisk_write *key_ondisk_w;
-};
-
-static void dump_bitmap(struct ubbd_bitmap *bitmap)
-{
-	int i = 0;
-
-	return;
-
-	ubbd_err("bitmap weight: %lu\n", ubbd_bitmap_weight(bitmap));
-	for (i = 0; i < bitmap->size; i++) {
-		if (ubbd_bit_test(bitmap, i)) {
-			ubbd_err(" %d\n", i);
-		}
-	}
-	ubbd_err("\n");
-}
-
-struct cache_super_ondisk {
-	__u64	csum;
-	__u64	magic;
-	__u64	n_segs;
-	__u64	key_tail_seg;
-	__u32	tail_off_in_seg;
-	__u64	dirty_tail_seg;
-	__u32	dirty_tail_off_in_seg;
-	__u32	last_key_epoch;
-};
-
 static char sb_buf[4096] __attribute__ ((__aligned__ (4096)));
-
-#define CACHE_SB_OFF	4096
-#define CACHE_SB_SIZE	4096
-
-#define CACHE_SB_MAGIC		0x753358eb4f1aaULL
-
-#define CACHE_SEG_SIZE	(4 * 1024 * 1024)
-#define CACHE_SEG_SHIFT	22
-#define CACHE_SEG_MASK	0x3FFFFF
-
-#define CACHE_KSET_SIZE	8192
-
-#define CACHE_KEY_LIST_SIZE	(8 * 1024 * 1024ULL)
-#define CACHE_KEY_LIST_SHIFT	23
-#define CACHE_KEY_LIST_MASK	0x7FFFFF
-
 static char seg_buf[CACHE_SEG_SIZE] __attribute__ ((__aligned__ (4096)));
-
-static inline struct segment *cache_key_seg(struct cache_key *key)
-{
-	return &cache_sb.segments[key->p_off >> CACHE_SEG_SHIFT];
-}
-
-static void ubbd_skiplist_init(struct ubbd_skiplist_head *skiplist_node)
-{
-	int i;
-
-	for (i = 0; i < USKIPLIST_MAXLEVEL; i++) {
-		INIT_LIST_HEAD(&skiplist_node->nodes[i]);
-	}
-
-	return;
-}
-
-static void ubbd_skiplist_delete(struct ubbd_skiplist_head *skiplist_node)
-{
-	int i;
-
-	for (i = 0; i < USKIPLIST_MAXLEVEL; i++) {
-		list_del_init(&skiplist_node->nodes[i]);
-	}
-
-	return;
-}
-
-static struct cache_key *cache_key_alloc()
-{
-	struct cache_key *key;
-
-	key = calloc(1, sizeof(struct cache_key));
-	if (!key) {
-		ubbd_err("failed to alloc cache_key\n");
-		return NULL;
-	}
-
-	ubbd_skiplist_init(&key->key_node);
-
-	return key;
-}
-
-static struct cache_key *cache_key_decode(struct cache_key_ondisk *key_disk)
-{
-	struct cache_key *key;
-
-	key = cache_key_alloc();
-	if (!key) {
-		return NULL;
-	}
-
-	key->l_off = key_disk->l_off;
-	key->p_off = key_disk->p_off;
-	key->len = key_disk->len;
-	key->flags = key_disk->flags;
-	key->seg_gen = key_disk->seg_gen;
-
-	return key;
-}
-
-static int cache_key_encode(struct cache_key *key, struct cache_key_ondisk *key_disk)
-{
-	key_disk->l_off = key->l_off;
-	key_disk->p_off = key->p_off;
-	key_disk->len = key->len;
-	key_disk->flags = key->flags;
-	key_disk->seg_gen = key->seg_gen;
-
-	return 0;
-}
-
-
-static void cache_key_merge(struct cache_key *key_1,
-		struct cache_key *key_2)
-{
-	BUG_ON(!list_empty(&key_2->key_node.nodes[0]), "key_2 should be not in list\n");
-	key_1->len += key_2->len;
-	free(key_2);
-}
-
-static void cache_key_copy(struct cache_key *key_dst, struct cache_key *key_src)
-{
-	key_dst->l_off = key_src->l_off;
-	key_dst->p_off = key_src->p_off;
-	key_dst->len = key_src->len;
-	key_dst->flags = key_src->flags;
-	key_dst->seg_gen = key_src->seg_gen;
-	key_dst->key_node.level = key_src->key_node.level;
-}
-
-static void cache_key_cutfront(struct cache_key *key, uint32_t cut_len)
-{
-	key->p_off += cut_len;
-	key->l_off += cut_len;
-	key->len -= cut_len;
-}
-
-static void cache_key_cutback(struct cache_key *key, uint32_t cut_len)
-{
-	key->len -= cut_len;
-}
-
-static void cache_key_delete(struct cache_key *key)
-{
-	if (lcache_debug) {
-		ubbd_err("delete cache_key: key->seg_gen: %lu, seg->gen: %lu.\n", key->seg_gen, cache_key_seg(key)->gen);
-		ubbd_err("free key: %p\n", key);
-	}
-
-	ubbd_skiplist_delete(&key->key_node);
-	free(key);
-}
 
 static void cache_seg_invalidate(uint64_t index)
 {
@@ -321,7 +31,8 @@ static void cache_seg_invalidate(uint64_t index)
 
 	cache_sb.segments[index].gen++;
 
-	ubbd_err("yds gc seg: %lu\n", index);
+	if (lcache_debug)
+		ubbd_err("gc seg: %lu\n", index);
 
 	if (0)
 		ret = ubbd_backend_write(cache_backend, index << CACHE_SEG_SHIFT, CACHE_SEG_SIZE, seg_buf);
@@ -334,7 +45,7 @@ static void cache_seg_invalidate(uint64_t index)
 
 	pthread_mutex_lock(&cache_sb.bitmap_lock);
 	ubbd_bit_clear(cache_sb.seg_bitmap, index);
-	dump_bitmap(cache_sb.seg_bitmap);
+	//dump_bitmap(cache_sb.seg_bitmap);
 	pthread_mutex_unlock(&cache_sb.bitmap_lock);
 }
 
@@ -354,31 +65,32 @@ static void cache_seg_put(uint64_t index)
 	ubbd_atomic_dec(&cache_sb.segments[index].inflight);
 }
 
-
-static uint64_t seg_pos_to_addr(struct seg_pos *pos);
 static int cache_sb_write(void);
-static int cache_key_ondisk_write(void)
+static int get_cache_backend(uint64_t off);
+static int cache_key_ondisk_write(struct cache_key_ondisk_write_data *key_ondisk_w)
 {
 	static char kset_buf[CACHE_KSET_SIZE] __attribute__ ((__aligned__ (4096))) = { 0 };
 	struct cache_kset_ondisk *kset = (struct cache_kset_ondisk *)kset_buf;
 	uint64_t addr, space_required;
 	uint64_t next_seg;
+	int backend_index = 0;
+	struct ubbd_backend *backend;
 	int ret;
 
-	if (!cache_sb.key_ondisk_w->key_used)
+	if (!key_ondisk_w->key_used)
 		return 0;
 
 	if (lcache_debug)
-		ubbd_err("key_used: %d\n", cache_sb.key_ondisk_w->key_used);
+		ubbd_err("key_used: %d\n", key_ondisk_w->key_used);
 again:
 	addr = seg_pos_to_addr(&cache_sb.key_head_pos);
 	memset(kset_buf, 0, CACHE_KSET_SIZE);
 
 	space_required = sizeof(struct cache_kset_ondisk) +
-		cache_sb.key_ondisk_w->key_used * sizeof(struct cache_key_ondisk);
+		key_ondisk_w->key_used * sizeof(struct cache_key_ondisk);
 
 	if (lcache_debug)
-		ubbd_err("space_required: %lu, key_used: %u\n", space_required, cache_sb.key_ondisk_w->key_used);
+		ubbd_err("space_required: %lu, key_used: %u\n", space_required, key_ondisk_w->key_used);
 
 	space_required = ubbd_roundup(space_required, 4096);
 
@@ -402,8 +114,10 @@ again:
 		ubbd_bit_set(cache_sb.seg_bitmap, next_seg);
 		pthread_mutex_unlock(&cache_sb.bitmap_lock);
 
-		dump_bitmap(cache_sb.seg_bitmap);
-		ret = ubbd_backend_write(cache_backend, addr, 4096, kset_buf);
+		//dump_bitmap(cache_sb.seg_bitmap);
+		backend_index = get_cache_backend(addr);
+		backend = cache_backends[backend_index];
+		ret = ubbd_backend_write(backend, addr - (backend_index * (cache_sb.segs_per_device << CACHE_SEG_SHIFT)), 4096, kset_buf);
 		if (ret) {
 			ubbd_err("failed to write last kset\n");
 			return ret;
@@ -420,58 +134,74 @@ again:
 
 	kset->magic = CACHE_KSET_MAGIC;
 	kset->version = 0;
-	kset->keys = cache_sb.key_ondisk_w->key_used;
+	kset->keys = key_ondisk_w->key_used;
 	kset->kset_len = space_required;
 	kset->key_epoch = cache_sb.last_key_epoch;
-	memcpy(kset->data, cache_sb.key_ondisk_w->keys, sizeof(struct cache_key_ondisk) * cache_sb.key_ondisk_w->key_used);
+	memcpy(kset->data, key_ondisk_w->keys, sizeof(struct cache_key_ondisk) * key_ondisk_w->key_used);
 
 	if (lcache_debug)
 		ubbd_err("write normal kset: %lu\n", addr);
 
-	ret = ubbd_backend_write(cache_backend, addr, CACHE_KSET_SIZE, kset_buf);
+	backend_index = get_cache_backend(addr);
+	backend = cache_backends[backend_index];
+	ret = ubbd_backend_write(backend, addr - (backend_index * (cache_sb.segs_per_device << CACHE_SEG_SHIFT)), CACHE_KSET_SIZE, kset_buf);
 	if (ret) {
 		ubbd_err("failed to write normal kset\n");
 		return ret;
 	}
 	cache_sb.key_head_pos.off_in_seg += space_required;
-	cache_sb.key_ondisk_w->key_used = 0;
+	key_ondisk_w->key_used = 0;
 
 	return 0;
 }
 
-static int cache_key_ondisk_append(struct cache_key *key)
+static int cache_key_ondisk_write_all(void)
 {
-	int ret;
+	int i;
+	int ret = 0;
 
 	pthread_mutex_lock(&cache_disk_append_mutex);
-	cache_key_encode(key, &cache_sb.key_ondisk_w->keys[cache_sb.key_ondisk_w->key_used++]);
-	if (cache_sb.key_ondisk_w->key_used >= CACHE_KEY_WRITE_MAX) {
-		ret = cache_key_ondisk_write();
+	for (i = 0; i < cache_sb.num_queues; i++) {
+		ret = cache_key_ondisk_write(cache_sb.key_ondisk_w_list[i]);
 		if (ret) {
-			ubbd_err("failed to write ondisk key.\n");
+			ubbd_err("failed to write ondisk.\n");
 			goto out;
 		}
 	}
-	ret = 0;
-
 out:
 	pthread_mutex_unlock(&cache_disk_append_mutex);
 
 	return ret;
 }
 
-static void cache_key_list_release(struct ubbd_skiplist *skiplist)
+static int cache_key_ondisk_append(struct cache_key *key)
 {
-	struct cache_key *key_tmp, *next;
-	int l;
+	int ret;
+	struct cache_key_ondisk key_disk;
+	struct cache_key_ondisk_write_data *key_ondisk_w;
 
-	pthread_mutex_lock(&skiplist->cache_key_list_mutex);
-	for (l = 0; l >= 0; l--) {
-		list_for_each_entry_safe(key_tmp, next, &skiplist->cache_key_list.nodes[l], key_node.nodes[l]) {
-			cache_key_delete(key_tmp);
+	cache_key_encode(key, &key_disk);
+	key_ondisk_w = cache_sb.key_ondisk_w_list[(key->l_off >> CACHE_KEY_LIST_SHIFT) % cache_sb.num_queues];
+
+	pthread_mutex_lock(&key_ondisk_w->write_lock);
+	memcpy(&key_ondisk_w->keys[key_ondisk_w->key_used++], &key_disk, sizeof(struct cache_key_ondisk));
+
+	if (key_ondisk_w->key_used >= CACHE_KEY_WRITE_MAX) {
+		pthread_mutex_lock(&cache_disk_append_mutex);
+		ret = cache_key_ondisk_write(key_ondisk_w);
+		pthread_mutex_unlock(&cache_disk_append_mutex);
+		if (ret) {
+			ubbd_err("failed to write ondisk key.\n");
 		}
 	}
-	pthread_mutex_unlock(&skiplist->cache_key_list_mutex);
+	pthread_mutex_unlock(&key_ondisk_w->write_lock);
+
+	return ret;
+}
+
+static void cache_key_list_release(struct cache_key *skiplist)
+{
+	return;
 }
 
 static void cache_key_lists_release()
@@ -485,20 +215,27 @@ static void cache_key_lists_release()
 	free(cache_key_lists);
 }
 
-static void __cache_key_list_dump(struct ubbd_skiplist_head *cache_key_list, int index)
+static void __cache_key_list_dump(struct cache_key *skiplist, int index)
 {
 	struct cache_key *key_tmp;
-	int l;
-	uint64_t crc = 0;
+	int i = 0;
+	int l = 0;
 
-	for (l = 0; l >= 0; l--) {
-		list_for_each_entry(key_tmp, &cache_key_list->nodes[l], key_node.nodes[l]) {
-			ubbd_err("skiplist: %p index: %d, l_off: %lu, p_off: %lu, len: %u, gen: %lu.\n", cache_key_list, index,  key_tmp->l_off, key_tmp->p_off, key_tmp->len, key_tmp->seg_gen);
-			crc += (key_tmp->l_off + key_tmp->p_off + key_tmp->len);
-		}
-	}
-	if (crc) {
-		ubbd_err("crc: %lx\n", crc);
+	return;
+	//for (l = USKIPLIST_MAXLEVEL - 1; l >= 0; l--) {
+	for (l = 1; l >= 0; l--) {
+		ubbd_err("level: %d\n", l);
+		i = 0;
+		key_tmp = skiplist->node_list[l].next;
+
+		while (key_tmp) {
+			if (true || !key_tmp->deleted) {
+				ubbd_err("index: %d, l_off: %lu, p_off: %lu, len: %u, deleted: %d\n", i, cache_key_lstart(key_tmp), cache_key_pstart(key_tmp), key_tmp->len, key_tmp->deleted);
+				i++;
+			}
+			key_tmp = key_tmp->node_list[l].next;
+		};
+		ubbd_err("index: %d\n", i);
 	}
 }
 
@@ -508,87 +245,151 @@ static void cache_key_list_dump()
 
 	return;
 	for (i = 0; i < cache_key_list_num; i++) {
-		struct ubbd_skiplist *skiplist = &cache_key_lists[i];
+		struct cache_key *skiplist = &cache_key_lists[i];
 
-		pthread_mutex_lock(&skiplist->cache_key_list_mutex);
-		__cache_key_list_dump(&skiplist->cache_key_list, i);
-		pthread_mutex_unlock(&skiplist->cache_key_list_mutex);
+		__cache_key_list_dump(skiplist, i);
 	}
-}
-
-#define USKIPLIST_P	0.25
-
-static int usl_random_level(void) {
-    int level = 1;
-
-    while ((random()&0xFFFF) < (USKIPLIST_P * 0xFFFF))
-        level += 1;
-
-    return (level < USKIPLIST_MAXLEVEL) ? level : USKIPLIST_MAXLEVEL;
 }
 
 static void seg_used_add(struct cache_key *key);
-static int cache_key_insert(struct cache_key *key)
+
+static int skiplist_find(struct cache_key *skiplist, struct cache_key *key,
+		struct cache_key **prev_list, struct cache_key **next_list)
 {
-	struct ubbd_skiplist_head *sl_node_tmp, *sl_node_next;
-	struct cache_key *key_tmp, *next;
-	struct list_head *prev_key_node;
-	struct cache_key *prev_key = NULL;
-	struct cache_key *key_fixup;
-	struct list_head *head;
-	struct list_head *update_nodes[USKIPLIST_MAXLEVEL];
+	struct cache_key *prev_key, *next_key, *key_tmp;
 	int l;
-	int ret = 0;
-	uint64_t start_time = get_ns();
-	struct ubbd_skiplist *skiplist = &cache_key_lists[key->l_off >> CACHE_KEY_LIST_SHIFT];
+	bool retry = false;
 
-	seg_used_add(key);
-	if ((key->l_off & CACHE_KEY_LIST_MASK) + key->len > CACHE_KEY_LIST_SIZE)
-		ubbd_err("insert l_off: %lu, p_off: %lu, len: %u.\n", key->l_off, key->p_off, key->len);
+	while (true) {
+retry:
+		retry = false;
+		prev_key = key_tmp = NULL;
+		prev_key = skiplist;
 
-	pthread_mutex_lock(&skiplist->cache_key_list_mutex);
-	for (l = USKIPLIST_MAXLEVEL - 1; l >= 0; l--) {
-		if (prev_key) {
-			prev_key_node = &prev_key->key_node.nodes[l];
-			head = prev_key_node->prev;
-		} else {
-			head = prev_key_node = &skiplist->cache_key_list.nodes[l];
-		}
+		for (l = USKIPLIST_MAXLEVEL - 1; l >= 0; l--) {
+			key_tmp = prev_key->node_list[l].next;
 
-		list_for_each_entry_range_safe(key_tmp, next, head, &skiplist->cache_key_list.nodes[l], key_node.nodes[l]) {
-			if (key_tmp->seg_gen < cache_key_seg(key_tmp)->gen) {
-				cache_key_delete(key_tmp);
-				continue;
+			while (true) {
+				if (key_tmp == NULL)
+					break;
+
+				if (key_tmp->deleted) {
+					pthread_mutex_lock(&prev_key->node_list[l].node_lock);
+					pthread_mutex_lock(&key_tmp->node_list[l].node_lock);
+					if (prev_key->node_list[l].next == key_tmp) {
+						next_key = key_tmp->node_list[l].next;
+						prev_key->node_list[l].next = next_key;
+						pthread_mutex_unlock(&key_tmp->node_list[l].node_lock);
+						cache_key_put(key_tmp);
+						key_tmp = next_key;
+					} else {
+						retry = true;
+						pthread_mutex_unlock(&key_tmp->node_list[l].node_lock);
+					}
+
+					pthread_mutex_unlock(&prev_key->node_list[l].node_lock);
+					if (retry)
+						goto retry;
+					continue;
+				}
+
+				if (cache_key_lstart(key_tmp) < cache_key_lstart(key)) {
+					prev_key = key_tmp;
+					key_tmp = key_tmp->node_list[l].next;
+					continue;
+				}
+				break;
 			}
-
-			if (cache_key_lstart(key_tmp) < cache_key_lstart(key)) {
-				prev_key_node = &key_tmp->key_node.nodes[l];
-				prev_key = key_tmp;
-				continue;
-			}
-			break;
+			prev_list[l] = prev_key;
+			next_list[l] = key_tmp;
 		}
-		update_nodes[l] = prev_key_node;
+		break;
 	}
 
-	if (prev_key) {
-		head = update_nodes[0]->prev;
-	} else {
-		head = &skiplist->cache_key_list.nodes[0];
+	return 0;
+}
+
+static int skiplist_add(struct cache_key *skiplist, struct cache_key *key)
+{
+	struct cache_key *prev_list[USKIPLIST_MAXLEVEL] = { 0 }, *next_list[USKIPLIST_MAXLEVEL] = { 0 };
+	struct cache_key *prev_key, *next_key, *key_tmp, *key_next, *key_fixup;
+	int locked_level = -1;
+	bool valid;
+	int i, l;
+	int ret;
+
+	//ubbd_err("level: %d\n", key->level);
+
+again:
+	locked_level = -1;
+	memset(prev_list, 0, sizeof(struct cache_key *) * USKIPLIST_MAXLEVEL);
+	memset(next_list, 0, sizeof(struct cache_key *) * USKIPLIST_MAXLEVEL);
+
+	ret = skiplist_find(skiplist, key, prev_list, next_list);
+	if (ret) {
+		ubbd_err("failed to find key\n");
+		goto out;
 	}
 
-	if (lcache_debug)
-		ubbd_err("search time: %lu\n", get_ns() - start_time);
+relock:
+	for (i = 0; i < key->level; i++) {
+		prev_key = prev_list[i];
+		next_key = next_list[i];
+
+		if (pthread_mutex_trylock(&prev_key->node_list[i].node_lock)) {
+			//ubbd_err("lock conflict\n");
+			if (locked_level >= 0 ) {
+				for (i = locked_level; i >= 0; i--) {
+					prev_key = prev_list[i];
+					pthread_mutex_unlock(&prev_key->node_list[i].node_lock);
+				}
+			}
+			locked_level = -1;
+			goto relock;
+		}
+
+		locked_level = i;
+		valid = !prev_key->deleted;
+		if (next_key) {
+			valid &= !next_key->deleted;
+		}
+		valid &= prev_key->node_list[i].next == next_key;
+
+		if (!valid) {
+			//ubbd_err("invalide\n");
+			ret = -EAGAIN;
+			goto unlock;;
+		}
+	}
 
 	/*fix the overlap up*/
-	list_for_each_entry_range_safe(sl_node_tmp, sl_node_next, head, &skiplist->cache_key_list.nodes[0], nodes[0]) {
-		key_tmp = ubbd_container_of(sl_node_tmp, struct cache_key, key_node);
+	prev_key = prev_list[0];
+	next_key = next_list[0];
+
+	key_tmp = prev_key;
+
+	while (true) {
+		if (key_tmp == NULL)
+			break;
+
+		if (key_tmp == skiplist) {
+			goto next;
+		}
+
+		if (key_tmp != prev_key) {
+			pthread_mutex_lock(&key_tmp->node_list[0].node_lock);
+		}
+
+		if (key_tmp->deleted) {
+			goto next;
+		}
+
 		/*
 		 * |----------|
 		 *		|=====|
 		 * */
 		if (cache_key_lend(key_tmp) <= cache_key_lstart(key)) {
-			continue;
+			goto next;
 		}
 
 		/*
@@ -596,6 +397,10 @@ static int cache_key_insert(struct cache_key *key)
 		 * |====|
 		 */
 		if (cache_key_lstart(key_tmp) >= cache_key_lend(key)) {
+			if (key_tmp != prev_key) {
+				pthread_mutex_unlock(&key_tmp->node_list[0].node_lock);
+				cache_key_put(key_tmp);
+			}
 			break;
 		}
 
@@ -610,7 +415,8 @@ static int cache_key_insert(struct cache_key *key)
 				if (key_tmp->len == 0) {
 					cache_key_delete(key_tmp);
 				}
-				continue;
+
+				goto next;
 			}
 
 			/*
@@ -618,7 +424,7 @@ static int cache_key_insert(struct cache_key *key)
 			 * |==========|		key
 			 */
 			cache_key_delete(key_tmp);
-			continue;
+			goto next;
 		}
 
 
@@ -627,18 +433,35 @@ static int cache_key_insert(struct cache_key *key)
 		 *   |====|		key
 		 */
 		if (cache_key_lend(key_tmp) > cache_key_lend(key)) {
-			key_fixup = cache_key_alloc();
+			key_fixup = cache_key_alloc(0);
 			if (!key_fixup) {
 				ret = -ENOMEM;
-				goto out;
+				if (key_tmp != prev_key) {
+					pthread_mutex_unlock(&key_tmp->node_list[0].node_lock);
+					cache_key_put(key_tmp);
+				}
+				goto unlock;
 			}
+			key_fixup->deleted = 0;
+			key_fixup->fullylinked = 0;
+
 			cache_key_copy(key_fixup, key_tmp);
 
 			cache_key_cutback(key_tmp, cache_key_lend(key_tmp) - cache_key_lstart(key));
 			cache_key_cutfront(key_fixup, cache_key_lend(key) - cache_key_lstart(key_tmp));
 
-			for (l = 0; l < key_fixup->key_node.level; l++) {
-				list_add(&key_fixup->key_node.nodes[l], &key_tmp->key_node.nodes[l]);
+			for (l = 0; l < key_fixup->level; l++) {
+				key_fixup->node_list[l].next = key_tmp->node_list[l].next;
+				key_tmp->node_list[l].next = key_fixup;
+				next_list[l] = key_fixup;
+				cache_key_get(key_fixup);
+			}
+
+			key_fixup->fullylinked = 1;
+
+			if (key_tmp != prev_key) {
+				pthread_mutex_unlock(&key_tmp->node_list[0].node_lock);
+				cache_key_put(key_tmp);
 			}
 			break;
 		}
@@ -649,28 +472,56 @@ static int cache_key_insert(struct cache_key *key)
 		 *   |==========|	key
 		 */
 		cache_key_cutback(key_tmp, cache_key_lend(key_tmp) - cache_key_lstart(key));
-		continue;
-	}
 
-	if (lcache_debug)
-		ubbd_err("insert time: %lu\n", get_ns() - start_time);
+next:
+		key_next = key_tmp->node_list[0].next;
+		cache_key_get(key_next);
 
-	if (false && prev_key && cache_key_can_merge(prev_key, key)) {
-		cache_key_merge(prev_key, key);
-	} else{
-		key->key_node.level = usl_random_level();
-		for (l = 0; l < key->key_node.level; l++) {
-			list_add(&key->key_node.nodes[l], update_nodes[l]);
+		if (key_tmp != prev_key) {
+			pthread_mutex_unlock(&key_tmp->node_list[0].node_lock);
+			cache_key_put(key_tmp);
 		}
-	}
-	ret = 0;
-out:
-	pthread_mutex_unlock(&skiplist->cache_key_list_mutex);
 
-	if (lcache_debug) {
-		ubbd_err("after insert\n");
-		cache_key_list_dump();
+		key_tmp = key_next;
 	}
+
+	for (i = 0; i < key->level; i++) {
+		cache_key_get(key);
+		key->node_list[i].next = next_list[i];
+		prev_list[i]->node_list[i].next = key;
+	}
+
+	key->fullylinked = 1;
+
+	ret = 0;
+unlock:
+	if (locked_level >= 0 ) {
+		for (i = locked_level; i >= 0; i--) {
+			prev_key = prev_list[i];
+			pthread_mutex_unlock(&prev_key->node_list[i].node_lock);
+		}
+		locked_level = -1;
+	}
+
+	if (ret == -EAGAIN) {
+		goto again;
+	}
+
+out:
+	return ret;
+
+}
+static int cache_key_insert(struct cache_key *key)
+{
+	int ret = 0;
+	struct cache_key *skiplist = &cache_key_lists[key->l_off >> CACHE_KEY_LIST_SHIFT];
+
+	seg_used_add(key);
+
+	if ((key->l_off & CACHE_KEY_LIST_MASK) + key->len > CACHE_KEY_LIST_SIZE)
+		ubbd_err("insert l_off: %lu, p_off: %lu, len: %u.\n", key->l_off, key->p_off, key->len);
+
+	ret = skiplist_add(skiplist, key);
 
 	return ret;
 }
@@ -774,12 +625,12 @@ again:
 			key_epoch++;
 			ubbd_info("goto next seg: %lu, epoch: %u\n", seg, key_epoch);
 			ubbd_bit_set(cache_sb.seg_bitmap, seg);
-			dump_bitmap(cache_sb.seg_bitmap);
+			//dump_bitmap(cache_sb.seg_bitmap);
 			continue;
 		}
 
 		ubbd_bit_set(cache_sb.seg_bitmap, seg);
-		dump_bitmap(cache_sb.seg_bitmap);
+		//dump_bitmap(cache_sb.seg_bitmap);
 
 		for (i = 0; i < kset_disk->keys; i++) {
 			key_disk = &kset_disk->data[i];
@@ -813,7 +664,7 @@ again:
 				cache_key_seg(key)->gen = key->seg_gen;
 			ret = cache_key_insert(key);
 			if (ret) {
-				free(key);
+				cache_key_put(key);
 				goto err;
 			}
 		}
@@ -825,12 +676,12 @@ again:
 	ubbd_bit_set(cache_sb.seg_bitmap, seg);
 
 	if (!cache_key_written) {
-		cache_key_ondisk_write();
+		cache_key_ondisk_write_all();
 		cache_key_written = true;
 		goto again;
 	}
 
-	dump_bitmap(cache_sb.seg_bitmap);
+	//dump_bitmap(cache_sb.seg_bitmap);
 
 	/* init data head which is empty */
 	for (i = 0; i < CACHE_DATA_HEAD_MAX; i++) {
@@ -854,6 +705,7 @@ static int cache_sb_write(void)
 	int ret;
 	struct cache_super_ondisk *sb = (struct cache_super_ondisk *)sb_buf;
 
+	pthread_mutex_lock(&sb_write_lock);
 	sb->magic = CACHE_SB_MAGIC;
 	sb->n_segs = cache_sb.n_segs;
 	sb->key_tail_seg = cache_sb.key_tail_pos.seg;
@@ -863,6 +715,8 @@ static int cache_sb_write(void)
 	sb->last_key_epoch = cache_sb.last_key_epoch;
 
 	ret = ubbd_backend_write(cache_backend, CACHE_SB_OFF, CACHE_SB_SIZE, sb_buf);
+
+	pthread_mutex_unlock(&sb_write_lock);
 
 	return ret;
 }
@@ -939,7 +793,7 @@ static void *cache_gc_thread_fn(void* args)
 			pthread_mutex_lock(&cache_sb.bitmap_lock);
 			ubbd_bit_clear(cache_sb.seg_bitmap, cache_sb.key_tail_pos.seg);
 			pthread_mutex_unlock(&cache_sb.bitmap_lock);
-			dump_bitmap(cache_sb.seg_bitmap);
+			//dump_bitmap(cache_sb.seg_bitmap);
 
 			cache_sb.key_tail_pos.seg = kset_disk->next_seg;
 			cache_sb.key_tail_pos.off_in_seg = 0;
@@ -957,7 +811,7 @@ static void *cache_gc_thread_fn(void* args)
 			}
 
 			seg_used_remove(key);
-			free(key);
+			cache_key_put(key);
 		}
 
 		cache_sb.key_tail_pos.off_in_seg += kset_disk->kset_len;
@@ -1040,18 +894,18 @@ static void *cache_writeback_thread_fn(void* args)
 			ret = ubbd_backend_read(cache_backend, key->p_off, key->len, writeback_buf);
 			if (ret) {
 				ubbd_err("failed to read data from cache in writeback.\n");
-				free(key);
+				cache_key_put(key);
 				break;
 			}
 
 			ret = ubbd_backend_write(backing_backend, key->l_off, key->len, writeback_buf);
 			if (ret) {
 				ubbd_err("failed to write data to backing in writeback.\n");
-				free(key);
+				cache_key_put(key);
 				break;
 			}
 
-			free(key);
+			cache_key_put(key);
 		}
 
 		cache_sb.dirty_tail_pos.off_in_seg += kset_disk->kset_len;
@@ -1122,24 +976,38 @@ static int cache_key_lists_init(struct ubbd_backend *ubbd_b)
 {
 	uint64_t size = ubbd_backend_size(ubbd_b);
 	int i;
+	int l;
+	struct cache_key *key;
 
 	cache_key_list_num = size >> CACHE_KEY_LIST_SHIFT;
 	if (size % CACHE_KEY_LIST_MASK)
 		cache_key_list_num++;
 
-	cache_key_lists = calloc(cache_key_list_num, sizeof(struct ubbd_skiplist));
+	cache_key_lists = calloc(cache_key_list_num, sizeof(struct cache_key));
 	if (!cache_key_lists) {
 		ubbd_err("failed to allocate memory for cache_key_lists.\n");
 		return -ENOMEM;
 	}
 
 	for (i = 0; i < cache_key_list_num; i++) {
-		ubbd_skiplist_init(&cache_key_lists[i].cache_key_list);
-		pthread_mutex_init(&cache_key_lists[i].cache_key_list_mutex, NULL);
+		key = &cache_key_lists[i];
+		for (l = 0; l < USKIPLIST_MAXLEVEL; l++) {
+			pthread_mutex_init(&key->node_list[l].node_lock, NULL);
+		}
 	}
 
 	return 0;
 }
+
+struct cache_backend_io_ctx_data {
+	struct ubbd_backend *ubbd_b;
+	struct ubbd_backend_io *io;
+	struct ubbd_backend_io *orig_io;
+	uint64_t backing_off;
+	bool cache_io;
+	struct cache_key *key;
+};
+
 
 static int cache_backend_open(struct ubbd_backend *ubbd_b)
 {
@@ -1148,6 +1016,7 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 	struct cache_super_ondisk *sb;
 	char *verify_name;
 
+	ubbd_err("sizeof(cache_key): %ld\n", sizeof(struct cache_key));
 	cache_key_lists_init(ubbd_b);
 
 	cache_b->backing_backend->num_queues = 1;
@@ -1156,15 +1025,20 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 		return ret;
 	}
 
-	cache_b->cache_backend->num_queues = ubbd_b->num_queues;
-	ret = ubbd_backend_open(cache_b->cache_backend);
-	if (ret) {
-		goto close_backing;
+	int i = 0;
+	for (i = 0; i < 1; i++) {
+		cache_b->cache_backends[i]->num_queues = ubbd_b->num_queues;
+
+		ret = ubbd_backend_open(cache_b->cache_backends[i]);
+		if (ret) {
+			goto close_backing;
+		}
+		cache_backends[i] = cache_b->cache_backends[i];
 	}
 
-	cache_backend = cache_b->cache_backend;
+	cache_backend = cache_b->cache_backends[0];
+	cache_b->cache_backend = cache_backend;
 	backing_backend = cache_b->backing_backend;
-
 
 	if (verify) {
 		if (asprintf(&verify_name, CACHE_VERIFY_PATH"%d", ubbd_b->dev_id) == -1)
@@ -1192,7 +1066,7 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 		sb->dirty_tail_seg = 1;
 		sb->dirty_tail_off_in_seg = 0;
 		sb->last_key_epoch = 0;
-		sb->n_segs = ubbd_backend_size(cache_b->cache_backend) / CACHE_SEG_SIZE;
+		sb->n_segs = ubbd_backend_size(cache_b->cache_backends[0]) / CACHE_SEG_SIZE * 1;
 
 		ret = ubbd_backend_write(cache_backend, CACHE_SB_OFF, CACHE_SB_SIZE, sb_buf);
 		if (ret) {
@@ -1208,15 +1082,54 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 	cache_sb.dirty_tail_pos.off_in_seg = sb->dirty_tail_off_in_seg;
 	cache_sb.n_segs = sb->n_segs;
 	cache_sb.last_key_epoch = sb->last_key_epoch;
+	cache_sb.segs_per_device = cache_sb.n_segs / 1;
+	cache_sb.num_queues = ubbd_b->num_queues;
 
-
-	ret = ubbd_open_uio(&ubbd_b->queues[0].uio_info);
-	if (ret) {
-		ubbd_err("failed to open uio for queue 0: %d\n", ret);
+	cache_sb.key_ondisk_w_list = calloc(cache_sb.num_queues, sizeof(struct cache_kset_ondisk_write_data *));
+	if (!cache_sb.key_ondisk_w_list) {
+		ubbd_err("failed to alloc \n");
 		goto close_cache;
 	}
 
-	cache_sb.key_ondisk_w = ubbd_uio_get_info(&ubbd_b->queues[0].uio_info);
+	for (i = 0; i < cache_sb.num_queues; i++) {
+		ret = ubbd_open_kring(&ubbd_b->queues[i].kring_info);
+		if (ret) {
+			ubbd_err("failed to open kring for queue 0: %d\n", ret);
+			goto close_cache;
+		}
+	}
+
+	cache_sb.ctx_pools = calloc(ubbd_b->num_queues, sizeof(struct ubbd_mempool *));
+	if (!cache_sb.ctx_pools) {
+		goto close_cache;
+	}
+
+	for (i = 0; i < ubbd_b->num_queues; i++) {
+		cache_sb.ctx_pools[i] = ubbd_mempool_alloc(sizeof(struct context) + sizeof(struct cache_backend_io_ctx_data), 10240);
+		if (!cache_sb.ctx_pools[i]) {
+			ubbd_err("failed to alloc mempool for ctxpool.\n");
+			goto close_cache;
+		}
+	}
+
+	cache_sb.key_pools = calloc(ubbd_b->num_queues, sizeof(struct cache_key_pool));
+	if (!cache_sb.key_pools) {
+		goto close_cache;
+	}
+
+	for (i = 0; i < ubbd_b->num_queues; i++) {
+		cache_sb.key_pools[i].key_pool = ubbd_unlimited_mempool_alloc(sizeof(struct cache_key), 10240);
+		if (!cache_sb.key_pools[i].key_pool) {
+			ubbd_err("failed to alloc mempool for keypool.\n");
+			goto close_cache;
+		}
+		ubbd_atomic_set(&cache_sb.key_pools[i].seq, 0);
+	}
+
+	for (i = 0; i < cache_sb.num_queues; i++) {
+		cache_sb.key_ondisk_w_list[i] = ubbd_kring_get_info(&ubbd_b->queues[i].kring_info);
+		pthread_mutex_init(&cache_sb.key_ondisk_w_list[i]->write_lock, NULL);
+	}
 
 	cache_sb.segments = calloc(cache_sb.n_segs, sizeof(struct segment));
 	if (!cache_sb.segments) {
@@ -1225,7 +1138,6 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 		goto close_cache;
 	}
 
-	int i;
 	for (i = 0; i < cache_sb.n_segs; i++) {
 		pthread_mutex_init(&cache_sb.segments[i].lock, NULL);
 		atomic_set(&cache_sb.segments[i].inflight, 0);
@@ -1241,7 +1153,7 @@ static int cache_backend_open(struct ubbd_backend *ubbd_b)
 	pthread_mutex_init(&cache_sb.bitmap_lock, NULL);
 	/* first segment is reserved */
 	ubbd_bit_set(cache_sb.seg_bitmap, 0);
-	dump_bitmap(cache_sb.seg_bitmap);
+	//dump_bitmap(cache_sb.seg_bitmap);
 
 
 	if (1) {
@@ -1292,8 +1204,9 @@ static void wait_for_cache_clean(struct ubbd_cache_backend *cache_b)
 static void cache_backend_close(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_cache_backend *cache_b = CACHE_BACKEND(ubbd_b);
+	int i;
 
-	cache_key_ondisk_write();
+	cache_key_ondisk_write_all();
 
 	if (cache_b->detach_on_close) {
 		wait_for_cache_clean(cache_b);
@@ -1305,35 +1218,34 @@ static void cache_backend_close(struct ubbd_backend *ubbd_b)
 	cache_key_lists_release();
 	ubbd_bitmap_free(cache_sb.seg_bitmap);
 	free(cache_sb.segments);
-	ubbd_close_uio(&ubbd_b->queues[0].uio_info);
-	ubbd_backend_close(cache_b->cache_backend);
+	for (i = 0; i < cache_sb.num_queues; i++) {
+		ubbd_close_kring(&ubbd_b->queues[i].kring_info);
+	}
+
+	for (i = 0; i < 1; i++) {
+		ubbd_backend_close(cache_b->cache_backends[i]);
+	}
+
 	ubbd_backend_close(cache_b->backing_backend);
 }
 
 static void cache_backend_release(struct ubbd_backend *ubbd_b)
 {
 	struct ubbd_cache_backend *cache_b = CACHE_BACKEND(ubbd_b);
+	int i;
 
 	if (!cache_b)
 		return;
 
-	if (cache_b->cache_backend)
-		ubbd_backend_release(cache_b->cache_backend);
+	for (i = 0; i < 1; i++) {
+		ubbd_backend_release(cache_b->cache_backends[i]);
+	}
 
 	if (cache_b->backing_backend)
 		ubbd_backend_release(cache_b->backing_backend);
 
 	free(cache_b);
 }
-
-struct cache_backend_io_ctx_data {
-	struct ubbd_backend *ubbd_b;
-	struct ubbd_backend_io *io;
-	struct ubbd_backend_io *orig_io;
-	uint64_t backing_off;
-	bool cache_io;
-	struct cache_key *key;
-};
 
 /*
 static int compare_iov_and_buf(struct iovec *iov, int iov_cnt, void *buf, int len)
@@ -1377,12 +1289,20 @@ static int cache_backend_write_io_finish(struct context *ctx, int ret)
 	ret = cache_key_insert(key);
 	if (ret) {
 		ubbd_err("failed to insert cache key: %d.\n", ret);
-		free(key);
+		cache_key_put(key);
 		goto finish;
 	}
 
-	cache_key_ondisk_append(key);
+	if (verify) {
+		ret = pwritev(verify_fd, orig_io->iov, orig_io->iov_cnt, orig_io->offset);
+		if (ret != orig_io->len) {
+			ubbd_err("error to write verify: %d\n", ret);
+		}
+	}
 
+	ret = 0;
+
+	cache_key_ondisk_append(key);
 finish:
 	if (lcache_debug)
 		ubbd_err("finish cache write: %lu\n", io->offset >> CACHE_SEG_SHIFT);
@@ -1390,6 +1310,7 @@ finish:
 	cache_seg_put(io->offset >> CACHE_SEG_SHIFT);
 	ubbd_backend_free_backend_io(data->ubbd_b, io);;
 	ubbd_backend_io_finish(orig_io, ret);
+	ubbd_mempool_put(ctx);
 
 	return 0;
 }
@@ -1416,6 +1337,7 @@ static int cache_backend_read_io_finish(struct context *ctx, int ret)
 
 	ubbd_backend_free_backend_io(data->ubbd_b, io);;
 	ubbd_backend_io_finish(orig_io, ret);
+	ubbd_mempool_put(ctx);
 
 	return 0;
 }
@@ -1426,6 +1348,7 @@ static struct ubbd_backend_io* prepare_backend_io(struct ubbd_backend *ubbd_b,
 {
 	struct ubbd_backend_io *clone_io;
 	struct cache_backend_io_ctx_data *data;
+	int bit;
 
 	clone_io = ubbd_backend_io_clone(ubbd_b, io, off, size);
 	if (!clone_io) {
@@ -1433,14 +1356,17 @@ static struct ubbd_backend_io* prepare_backend_io(struct ubbd_backend *ubbd_b,
 		return NULL;
 	}
 
-	clone_io->ctx = context_alloc(sizeof(struct cache_backend_io_ctx_data));
-	if (!clone_io->ctx) {
+	bit = ubbd_mempool_get(cache_sb.ctx_pools[io->queue_id], (void **)(&clone_io->ctx));
+	if (bit == -1) {
 		ubbd_err("failed to alloc ctx for clone io\n");
-		free(clone_io);
+		ubbd_backend_free_backend_io(ubbd_b, clone_io);;
 		return NULL;
 	}
 
+	context_init(clone_io->ctx);
 	clone_io->ctx->finish = finish_fn;
+	clone_io->ctx->free_on_finish = 0;
+	clone_io->ctx->from_pool = 1;
 
 	data = (struct cache_backend_io_ctx_data *)clone_io->ctx->data;
 	context_get(io->ctx);
@@ -1449,13 +1375,6 @@ static struct ubbd_backend_io* prepare_backend_io(struct ubbd_backend *ubbd_b,
 	data->ubbd_b = ubbd_b;
 
 	return clone_io;
-}
-
-#define	CACHE_LIMIT	4190208
-
-static uint64_t seg_pos_to_addr(struct seg_pos *pos)
-{
-	return ((pos->seg << CACHE_SEG_SHIFT) + pos->off_in_seg);
 }
 
 static int cache_data_head_init(struct data_head *data_head)
@@ -1480,7 +1399,7 @@ again:
 	data_head->data_head_pos.off_in_seg = 0;
 	if (lcache_debug) {
 		ubbd_err("new data head: %lu\n", data_head->data_head_pos.seg);
-		dump_bitmap(cache_sb.seg_bitmap);
+		//dump_bitmap(cache_sb.seg_bitmap);
 	}
 
 	return 0;
@@ -1525,10 +1444,17 @@ out:
 	return ret;
 }
 
+static int get_cache_backend(uint64_t off)
+{
+	return (off >> CACHE_SEG_SHIFT) / cache_sb.segs_per_device;
+}
+
 static int cache_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
 	struct ubbd_cache_backend *cache_b = CACHE_BACKEND(ubbd_b);
 	struct ubbd_backend_io *cache_io;
+	struct ubbd_backend *backend;
+	int backend_index = 0;
 	struct cache_key *key;
 	uint32_t io_done = 0;
 	int ret = 0;
@@ -1547,7 +1473,7 @@ static int cache_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend
 			break;
 		}
 
-		key = cache_key_alloc();
+		key = cache_key_alloc(io->queue_id);
 		if (!key) {
 			ret = -ENOMEM;
 			goto finish;
@@ -1560,23 +1486,26 @@ static int cache_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend
 
 		ret = cache_data_alloc(key, io);
 		if (ret) {
-			free(key);
+			cache_key_put(key);
 			goto finish;
 		}
 
 		if (!key->len) {
 			ubbd_err("len of key is 0\n");
-			free(key);
+			cache_key_put(key);
 			continue;
 		}
 
-		cache_io = prepare_backend_io(cache_backend, io, io_done, key->len, cache_backend_write_io_finish);
+		backend_index = get_cache_backend(key->p_off);
+		backend = cache_b->cache_backends[backend_index];
+
+		cache_io = prepare_backend_io(backend, io, io_done, key->len, cache_backend_write_io_finish);
 		if (!cache_io) {
-			free(key);
+			cache_key_put(key);
 			ret = -ENOMEM;
 			goto finish;
 		}
-		cache_io->offset = key->p_off;
+		cache_io->offset = key->p_off - (backend_index * (cache_sb.segs_per_device << CACHE_SEG_SHIFT));
 
 		struct cache_backend_io_ctx_data *data;
 
@@ -1586,15 +1515,16 @@ static int cache_backend_writev(struct ubbd_backend *ubbd_b, struct ubbd_backend
 		cache_seg_get(key->p_off >> CACHE_SEG_SHIFT);
 
 		if (lcache_debug)
-			ubbd_err("yds submit write cache io: %lu:%u seg: %lu\n",
+			ubbd_err("submit write cache io: %lu:%u seg: %lu\n",
 					cache_io->offset, cache_io->len,
 					cache_io->offset >> CACHE_SEG_SHIFT);
 
-		ret = cache_b->cache_backend->backend_ops->writev(cache_b->cache_backend, cache_io);
+		ret = backend->backend_ops->writev(backend, cache_io);
+
 		if (ret) {
 			ubbd_err("cache io failed.\n");
 			cache_seg_put(key->p_off >> CACHE_SEG_SHIFT);
-			free(key);
+			cache_key_put(key);
 			goto finish;
 		}
 
@@ -1606,7 +1536,7 @@ write_backing:
 		struct ubbd_backend_io *backing_io;
 		backing_io = prepare_backend_io(backing_backend, io, 0, io->len, cache_backend_read_io_finish);
 		if (lcache_debug)
-			ubbd_err("yds submit write backing io: %lu:%u crc: %lu, iov_len: %lu, iocnt: %d\n",
+			ubbd_err("submit write backing io: %lu:%u crc: %lu, iov_len: %lu, iocnt: %d\n",
 					backing_io->offset, backing_io->len,
 					crc64(backing_io->iov[0].iov_base, backing_io->iov[0].iov_len),
 					backing_io->iov[0].iov_len, backing_io->iov_cnt);
@@ -1614,13 +1544,6 @@ write_backing:
 		ret = backing_backend->backend_ops->writev(backing_backend, backing_io);
 		if (ret) {
 			ubbd_err("failed to submit backing io\n");
-		}
-	}
-
-	if (verify) {
-		ret = pwritev(verify_fd, io->iov, io->iov_cnt, io->offset);
-		if (ret != io->len) {
-			ubbd_err("error to write verify: %d\n", ret);
 		}
 	}
 
@@ -1685,6 +1608,8 @@ static int submit_cache_io(struct ubbd_backend_io *io,
 	struct ubbd_backend_io *cache_io;
 	struct cache_backend_io_ctx_data *data;
 	int ret;
+	int backend_index = 0;
+	struct ubbd_backend *backend;
 
 	if (len == 0)
 		return 0;
@@ -1710,28 +1635,30 @@ static int submit_cache_io(struct ubbd_backend_io *io,
 		if (cache_crc != verify_crc) {
 			ubbd_err("verify crc error: cache_off: %lu, backing_off: %lu, len: %u, cache_crc: %lu, verify_crc: %lu\n",
 					cache_off, backing_off, len, cache_crc, verify_crc);
-			__cache_key_list_dump(&cache_key_lists[backing_off >> CACHE_KEY_LIST_SHIFT].cache_key_list, backing_off >> CACHE_KEY_LIST_SHIFT);
+			__cache_key_list_dump(&cache_key_lists[backing_off >> CACHE_KEY_LIST_SHIFT], backing_off >> CACHE_KEY_LIST_SHIFT);
 		}
 	}
 
-	cache_io = prepare_backend_io(cache_backend, io, off, len, cache_backend_read_io_finish);
+	backend_index = get_cache_backend(cache_off);
+	backend = cache_backends[backend_index];
+	cache_io = prepare_backend_io(backend, io, off, len, cache_backend_read_io_finish);
 	if (!cache_io) {
 		ret = -ENOMEM;
 		goto out;
 	}
-	cache_io->offset = cache_off;
+	cache_io->offset = cache_off - (backend_index * (cache_sb.segs_per_device << CACHE_SEG_SHIFT));
 
 	data = (struct cache_backend_io_ctx_data *)cache_io->ctx->data;
 	data->backing_off = backing_off;
 	if (lcache_debug) {
-		ubbd_err("yds submit cache io: %lu:%u seg: %lu, logic off: %lu:%u\n",
+		ubbd_err("submit cache io: %lu:%u seg: %lu, logic off: %lu:%u\n",
 				cache_io->offset, cache_io->len, cache_io->offset >> CACHE_SEG_SHIFT,
 				backing_off, len);
 	}
 
 	cache_seg_get(cache_io->offset >> CACHE_SEG_SHIFT);
 	data->cache_io = true;
-	ret = cache_backend->backend_ops->readv(cache_backend, cache_io);
+	ret = backend->backend_ops->readv(backend, cache_io);
 out:
 	return ret;
 }
@@ -1740,32 +1667,16 @@ out:
 static int cache_backend_readv(struct ubbd_backend *ubbd_b, struct ubbd_backend_io *io)
 {
 	int ret = 0;
-	struct ubbd_skiplist_head *sl_node_tmp, *sl_node_next;
+	struct cache_key *prev_list[USKIPLIST_MAXLEVEL] = { 0 }, *next_list[USKIPLIST_MAXLEVEL] = { 0 };
 	struct cache_key key_data = { .l_off = io->offset, .len = io->len };
 	struct cache_key *key = &key_data;
 	uint32_t io_done = 0, total_io_done = 0;
+	struct cache_key *skiplist;
+	struct cache_key *key_tmp, *key_next, *prev_key;
 	uint32_t io_len;
-	struct list_head *head;
-	struct cache_key *key_tmp, *next;
-	struct cache_key *prev_key = NULL;
-	struct list_head *update_nodes[USKIPLIST_MAXLEVEL];
-	struct list_head *prev_key_node;
-	struct ubbd_skiplist *skiplist;
-	int l;
 
-	if (lcache_debug) {
-		cache_key_list_dump();
-		ubbd_err("cache readv: %lu:%u\n", io->offset, io->len);
-	}
-
-	if (writearound)
-		goto read_backing;
-
-
-	pthread_mutex_lock(&cache_io_mutex);
 
 next_skiplist:
-	prev_key = NULL;
 	io_done = 0;
 	key->l_off = io->offset + total_io_done;
 	key->len = io->len - total_io_done;
@@ -1774,62 +1685,46 @@ next_skiplist:
 		key->len = CACHE_KEY_LIST_SIZE - (key->l_off & CACHE_KEY_LIST_MASK);
 
 	skiplist = &cache_key_lists[key->l_off >> CACHE_KEY_LIST_SHIFT];
-	if (lcache_debug) {
-		ubbd_err("readv from skiplist %p %ld, %lu:%u\n", &skiplist->cache_key_list, key->l_off >> CACHE_KEY_LIST_SHIFT, key->l_off, key->len);
-		cache_key_list_dump();
+
+	ret = skiplist_find(skiplist, key, prev_list, next_list);
+	if (ret) {
+		printf("failed to find key\n");
+		goto out;
 	}
 
-	pthread_mutex_lock(&skiplist->cache_key_list_mutex);
+	prev_key = prev_list[0];
+	key_tmp = prev_key;
 
-	for (l = USKIPLIST_MAXLEVEL - 1; l >= 0; l--) {
-		if (prev_key) {
-			prev_key_node = &prev_key->key_node.nodes[l];
-			head = prev_key_node->prev;
-		} else {
-			head = prev_key_node = &skiplist->cache_key_list.nodes[l];
-		}
-
-		list_for_each_entry_range_safe(key_tmp, next, head, &skiplist->cache_key_list.nodes[l], key_node.nodes[l]) {
-			if (key_tmp->seg_gen < cache_key_seg(key_tmp)->gen) {
-				cache_key_delete(key_tmp);
-				continue;
-			}
-
-			if (cache_key_lstart(key_tmp) <= cache_key_lstart(key)) {
-				prev_key = key_tmp;
-				prev_key_node = &key_tmp->key_node.nodes[l];
-				continue;
-			}
+	while (true) {
+		if (key_tmp == NULL)
 			break;
+
+		if (io_done >= io->len)
+			break;;
+
+		if (key_tmp != prev_key) {
+			pthread_mutex_lock(&key_tmp->node_list[0].node_lock);
 		}
-		update_nodes[l] = prev_key_node;
-	}
 
-	if (prev_key) {
-		head = update_nodes[0]->prev;
-	} else {
-		head = &skiplist->cache_key_list.nodes[0];
-	}
-
-	list_for_each_entry_range_safe(sl_node_tmp, sl_node_next, head, &skiplist->cache_key_list.nodes[0], nodes[0]) {
-		key_tmp = ubbd_container_of(sl_node_tmp, struct cache_key, key_node);
 		if (lcache_debug)
 			ubbd_err("gen: %lu, key_gen: %lu, seg: %lu, l_off: %lu\n",
 					cache_key_seg(key_tmp)->gen, key_tmp->seg_gen,
 					key_tmp->p_off >> CACHE_SEG_SHIFT, key_tmp->l_off);
 
+		if (key_tmp->deleted) {
+			goto next;
+		}
+
 		if (key_tmp->seg_gen < cache_key_seg(key_tmp)->gen) {
 			cache_key_delete(key_tmp);
-			continue;
+			goto next;
 		}
-		if (io_done >= io->len)
-			goto out;
 		/*
 		 * |----------|
 		 *		|=====|
 		 * */
 		if (cache_key_lend(key_tmp) <= cache_key_lstart(key)) {
-			continue;
+			goto next;
 		}
 
 		/*
@@ -1840,7 +1735,12 @@ next_skiplist:
 			submit_backing_io(io, total_io_done + io_done, key->len);
 			io_done += key->len;
 			cache_key_cutfront(key, key->len);
-			goto out;
+
+			if (key_tmp != prev_key) {
+				pthread_mutex_unlock(&key_tmp->node_list[0].node_lock);
+				cache_key_put(key_tmp);
+			}
+			break;
 		}
 
 		/* overlap */
@@ -1863,7 +1763,11 @@ next_skiplist:
 					ret = 0;
 				io_done += io_len;
 				cache_key_cutfront(key, io_len);
-				goto out;
+				if (key_tmp != prev_key) {
+					pthread_mutex_unlock(&key_tmp->node_list[0].node_lock);
+					cache_key_put(key_tmp);
+				}
+				break;
 			}
 
 			/*
@@ -1883,7 +1787,7 @@ next_skiplist:
 				ret = 0;
 			io_done += io_len;
 			cache_key_cutfront(key, io_len);
-			continue;
+			goto next;
 		}
 
 
@@ -1899,7 +1803,11 @@ next_skiplist:
 				ret = 0;
 
 			cache_key_cutfront(key, key->len);
-			goto out;
+			if (key_tmp != prev_key) {
+				pthread_mutex_unlock(&key_tmp->node_list[0].node_lock);
+				cache_key_put(key_tmp);
+			}
+			break;
 		}
 
 
@@ -1914,18 +1822,20 @@ next_skiplist:
 			ret = 0;
 		io_done += io_len;
 		cache_key_cutfront(key, io_len);
-		continue;
+next:
+		key_next = key_tmp->node_list[0].next;
+		cache_key_get(key_next);
+
+		if (key_tmp != prev_key) {
+			pthread_mutex_unlock(&key_tmp->node_list[0].node_lock);
+			cache_key_put(key_tmp);
+		}
+
+		key_tmp = key_next;
 	}
-read_backing:
-	if (!writearound) {
-		submit_backing_io(io, total_io_done + io_done, key->len);
-		io_done += key->len;
-	} else {
-		ret = backing_backend->backend_ops->readv(backing_backend, io);
-		return ret;
-	}
-out:
-	pthread_mutex_unlock(&skiplist->cache_key_list_mutex);
+
+	submit_backing_io(io, total_io_done + io_done, key->len);
+	io_done += key->len;
 
 	total_io_done += io_done;
 	io_done = 0;
@@ -1933,8 +1843,9 @@ out:
 	if (!ret && total_io_done < io->len)
 		goto next_skiplist;
 
-	pthread_mutex_unlock(&cache_io_mutex);
+out:
 	ubbd_backend_io_finish(io, ret);
+
 	return 0;
 }
 
@@ -1942,7 +1853,7 @@ static int cache_backend_flush(struct ubbd_backend *ubbd_b, struct ubbd_backend_
 {
 	struct ubbd_cache_backend *cache_b = CACHE_BACKEND(ubbd_b);
 
-	cache_key_ondisk_write();
+	cache_key_ondisk_write_all();
 	cache_b->cache_backend->backend_ops->flush(cache_b->cache_backend, io);
 	cache_b->backing_backend->backend_ops->flush(cache_b->backing_backend, io);
 	return 0;

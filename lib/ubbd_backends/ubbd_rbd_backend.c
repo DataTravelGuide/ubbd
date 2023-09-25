@@ -3,7 +3,7 @@
 #include <pthread.h>
 
 #include "ubbd_backend.h"
-#include "ubbd_uio.h"
+#include "ubbd_kring.h"
 #include "ubbd_compat.h"
 
 // rbd ops

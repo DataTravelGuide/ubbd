@@ -181,7 +181,9 @@ static void *mgmt_thread_fn(void* args)
 			}
 			ubbd_info("backend_mgmt: write ret: %d to %d\n", ret, read_fd);
 			mgmt_rsp.ret = ret;
-			write(read_fd, &mgmt_rsp, sizeof(mgmt_rsp));
+			if (write(read_fd, &mgmt_rsp, sizeof(mgmt_rsp)) < 0) {
+				ubbd_err("failed to write rsp\n");
+			}
 			close(read_fd);
 			continue;
 		}

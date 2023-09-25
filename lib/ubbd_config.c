@@ -211,7 +211,7 @@ static int __conf_write(char *conf_path, void *data, size_t len)
 
 	check_conf_dir();
 
-	fd = open(conf_path, O_WRONLY | O_CREAT);
+	fd = open(conf_path, O_WRONLY | O_CREAT, 0666);
 	if (fd == -1) {
 		ubbd_err("failed to open %s for write\n", conf_path);
 		return -1;

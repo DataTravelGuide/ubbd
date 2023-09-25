@@ -65,6 +65,7 @@ int ubbd_util_get_bd_size(const char *devname, uint64_t *file_size)
 {
 	char *filename;
 	FILE *file;
+	int ret;
 
 	if (asprintf(&filename, "/sys/block/%s/size", devname) == -1) {
 		ubbd_err("failed to setup filename for block device: %s.\n", devname);
@@ -79,11 +80,17 @@ int ubbd_util_get_bd_size(const char *devname, uint64_t *file_size)
 	}
 
 	free(filename);
-	fread(file_size, sizeof(uint64_t), 1, file);
-	*file_size *= 512;
+	ret = fread(file_size, sizeof(uint64_t), 1, file);
+	if (ret < 0) {
+		ubbd_err("failed to fread for size.\n");
+	} else {
+		*file_size *= 512;
+		ret = 0;
+	}
+
 	fclose(file);
 
-	return 0;
+	return ret;
 }
 
 int ubbd_load_module(char *mod_name)
@@ -123,7 +130,7 @@ int ubbd_mkdirs(const char *pathname)
 	char path[PATH_MAX], *ch;
 	int ind = 0, ret;
 
-	strncpy(path, pathname, PATH_MAX);
+	strncpy(path, pathname, PATH_MAX - 1);
 
 	if (path[0] == '/')
 		ind++;
@@ -168,7 +175,7 @@ int ubbd_rmdirs(const char *pathname, const char *remain)
 	char path[PATH_MAX], *ch;
 	int ret;
 
-	strncpy(path, pathname, PATH_MAX);
+	strncpy(path, pathname, PATH_MAX - 1);
 
 	do {
 		ret = ubbd_rmdir(path);
