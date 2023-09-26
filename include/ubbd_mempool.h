@@ -77,7 +77,12 @@ insert_to_available:
 fetch_from_reclaim:
 	entry_first = pool->reclaim;
 	entry_last = pool->reclaim_last;
-	if (entry_first == NULL || entry_last == NULL) {
+	if (entry_first == LIST_POISON) {
+		cpu_relax();
+		goto fetch_from_reclaim;
+	}
+
+	if (entry_first == NULL) {
 		if (pool->unlimited)
 			goto fetch_from_pending;
 		goto again;
@@ -113,18 +118,26 @@ static inline void ubbd_mempool_put(void *block)
 
 again:
 	entry_reclaim = pool->reclaim;
+	if (entry_reclaim == LIST_POISON) {
+		/* There is a putting happening */
+		cpu_relax();
+		goto again;
+	}
+
 	if (entry_reclaim == NULL) {
-		pool->reclaim_last = NULL;
+		/* set reclaim to LIST_POISON to prevent race with other put */
+		if (entry_reclaim != ubbd_cas(&pool->reclaim, entry_reclaim, LIST_POISON)) {
+				cpu_relax();
+				goto again;
+		}
+		pool->reclaim_last = entry;
+		entry_reclaim = LIST_POISON;
 	}
 
 	entry->next = entry_reclaim;
 	if (entry_reclaim != ubbd_cas(&pool->reclaim, entry_reclaim, entry)) {
 		cpu_relax();
 		goto again;
-	}
-
-	if (entry_reclaim == NULL) {
-		pool->reclaim_last = entry;
 	}
 }
 
