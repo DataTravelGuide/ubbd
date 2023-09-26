@@ -7,7 +7,7 @@ on:
       - name: integration-tests
 jobs:
   integration-tests:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 4320
     environment: integration-tests
     steps:
@@ -20,7 +20,7 @@ jobs:
       run: ssh-keyscan datatravelguide.yds.life >> ~/.ssh/known_hosts
 
     - name: SSH into server
-      timeout-minutes: 720
+      timeout-minutes: 4000
       env:
         PASSWORD: ${{ secrets.SSH_PASSWORD }}
         PORT: ${{ secrets.SSH_PORT }}
