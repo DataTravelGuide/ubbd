@@ -41,10 +41,11 @@ struct ubbd_file_backend {
 };
 
 
-static struct ubbd_backend *file_backend_create(struct __ubbd_dev_info *info)
+static struct ubbd_backend *file_backend_create(struct ubbd_dev_info *dev_info)
 {
 	struct ubbd_backend *ubbd_b;
 	struct ubbd_file_backend *file_backend;
+	struct __ubbd_dev_info *info = &dev_info->generic_dev.info;
 
 	file_backend = calloc(1, sizeof(*file_backend));
 	if (!file_backend)

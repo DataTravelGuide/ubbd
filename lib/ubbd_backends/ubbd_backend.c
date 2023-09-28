@@ -42,7 +42,6 @@ static int ubbd_backend_init(struct ubbd_backend *ubbd_b, struct ubbd_backend_co
 		goto out;
 	}
 
-
 	for (i = 0; i < ubbd_b->num_queues; i++) {
 		ubbd_q = &ubbd_b->queues[i];
 		ubbd_q->ubbd_b = ubbd_b;
@@ -60,36 +59,46 @@ out:
 	return ret;
 }
 
-struct ubbd_backend *backend_create(struct __ubbd_dev_info *info)
+struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info)
 {
+	struct __ubbd_dev_info *info = &dev_info->generic_dev.info;
 	struct ubbd_backend *ubbd_b;
 	struct ubbd_backend_ops *backend_ops = NULL;
 
-	if (info->header.magic != UBBD_DEV_INFO_MAGIC) {
-		ubbd_err("bad magic in ubbd_dev_info: %llx.\n", info->header.magic);
-		return NULL;
-	}
-
-	if (info->type == UBBD_DEV_TYPE_FILE) {
-		backend_ops = &file_backend_ops;
-#ifdef CONFIG_RBD_BACKEND
-	} else if (info->type == UBBD_DEV_TYPE_RBD) {
-		backend_ops = &rbd_backend_ops;
+#ifdef CONFIG_CACHE_BACKEND
+	if (dev_info->type == UBBD_DEV_TYPE_CACHE) {
+		backend_ops = &cache_backend_ops;
+	} else {
 #endif
-	} else if (info->type == UBBD_DEV_TYPE_NULL) {
-		backend_ops = &null_backend_ops;
+		if (info->header.magic != UBBD_DEV_INFO_MAGIC) {
+			ubbd_err("bad magic in ubbd_dev_info: %llx.\n", info->header.magic);
+			return NULL;
+		}
+
+		if (info->type == UBBD_DEV_TYPE_FILE) {
+			backend_ops = &file_backend_ops;
+#ifdef CONFIG_RBD_BACKEND
+		} else if (info->type == UBBD_DEV_TYPE_RBD) {
+			backend_ops = &rbd_backend_ops;
+#endif
+		} else if (info->type == UBBD_DEV_TYPE_NULL) {
+			backend_ops = &null_backend_ops;
 #ifdef CONFIG_SSH_BACKEND
-	} else if (info->type == UBBD_DEV_TYPE_SSH) {
-		backend_ops = &ssh_backend_ops;
+		} else if (info->type == UBBD_DEV_TYPE_SSH) {
+			backend_ops = &ssh_backend_ops;
 #endif
 #ifdef CONFIG_S3_BACKEND
-	} else if (info->type == UBBD_DEV_TYPE_S3) {
-		backend_ops = &s3_backend_ops;
+		} else if (info->type == UBBD_DEV_TYPE_S3) {
+			backend_ops = &s3_backend_ops;
 #endif
-	} else if (info->type == UBBD_DEV_TYPE_MEM) {
-		backend_ops = &mem_backend_ops;
+		} else if (info->type == UBBD_DEV_TYPE_MEM) {
+			backend_ops = &mem_backend_ops;
+		}
+
+#ifdef CONFIG_CACHE_BACKEND
 	}
-	
+#endif
+
 	if (backend_ops == NULL) {
 		ubbd_err("Unknown dev type: %d\n", info->type);
 
@@ -100,55 +109,15 @@ struct ubbd_backend *backend_create(struct __ubbd_dev_info *info)
 			return NULL;
 		}
 
-		ubbd_b = backend_ops->create(info);
+		ubbd_b = backend_ops->create(dev_info);
 		if (ubbd_b == NULL) {
 			return NULL;
 		}
-		ubbd_b->dev_size = info->size;
 	}
 
 	return ubbd_b;
 }
 
-struct ubbd_backend *cache_backend_create(struct ubbd_backend_conf *conf)
-{
-#ifdef CONFIG_CACHE_BACKEND
-	struct ubbd_cache_backend *cache_b;
-	struct ubbd_backend *ubbd_b;
-	struct ubbd_dev_info *dev_info = &conf->dev_info;
-
-	cache_b = calloc(1, sizeof(struct ubbd_cache_backend));
-	if (!cache_b) {
-		ubbd_err("failed to alloc cache_b.\n");
-		return NULL;
-	}
-
-	cache_b->cache_backends[0] = backend_create(&dev_info->cache_dev.cache_info);
-	if (!cache_b->cache_backends[0]) {
-		goto free_cache_b;
-	}
-
-	cache_b->backing_backend = backend_create(&dev_info->cache_dev.backing_info);
-	if (!cache_b->backing_backend) {
-		goto free_cache_backend;
-	}
-
-	cache_b->cache_mode = conf->cache_mode;
-
-	ubbd_b = &cache_b->ubbd_b;
-	ubbd_b->dev_type = UBBD_DEV_TYPE_CACHE;
-	ubbd_b->backend_ops = &cache_backend_ops;
-
-	return &cache_b->ubbd_b;
-
-free_cache_backend:
-	free(cache_b->cache_backend);
-free_cache_b:
-	free(cache_b);
-
-#endif
-	return NULL;
-}
 
 struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *conf)
 {
@@ -156,11 +125,7 @@ struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *conf)
 	struct ubbd_dev_info *dev_info = &conf->dev_info;
 	int ret;
 
-	if (conf->dev_type == UBBD_DEV_TYPE_CACHE) {
-		ubbd_b = cache_backend_create(conf);
-	} else {
-		ubbd_b = backend_create(&dev_info->generic_dev.info);
-	}
+	ubbd_b = backend_create(dev_info);
 
 	if (!ubbd_b)
 		return NULL;

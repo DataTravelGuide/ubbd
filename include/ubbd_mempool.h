@@ -17,6 +17,7 @@ struct mempool_entry {
 struct mempool_bucket {
 	struct ubbd_mempool *pool;
 	struct mempool_bucket *next;
+	ubbd_atomic	used;
 	uint8_t entries[];
 };
 
@@ -62,6 +63,7 @@ again:
 
 	*block = entry_available->block;
 	memset(*block, 0, pool->blocksize);
+	ubbd_atomic_inc(&entry_available->bucket->used);
 
 	return 0;
 
@@ -141,6 +143,8 @@ again:
 		cpu_relax();
 		goto again;
 	}
+
+	ubbd_atomic_dec(&entry->bucket->used);
 }
 
 static void *fillin_fn(void *arg)
@@ -177,6 +181,7 @@ static void *fillin_fn(void *arg)
 		first_bucket = pool->inline_bucket.next;
 		bucket->next = first_bucket;
 		bucket->pool = pool;
+		ubbd_atomic_set(&bucket->used, 0);
 		pool->inline_bucket.next = bucket;
 
 		first_entry = (struct mempool_entry *)&bucket->entries[0];
@@ -240,6 +245,7 @@ static inline struct ubbd_mempool *mempool_alloc(int blocksize, int blockcount, 
 	pool->reclaim = pool->available = NULL;
 
 	bucket = &pool->inline_bucket;
+	ubbd_atomic_set(&bucket->used, 0);
 	bucket->next = NULL;
 	bucket->pool = pool;
 
@@ -288,6 +294,7 @@ static inline void ubbd_mempool_free(struct ubbd_mempool *pool)
 
 	bucket = pool->inline_bucket.next;
 	while (bucket) {
+		ubbd_err("used: %d\n", ubbd_atomic_read(&bucket->used));
 		next = bucket->next;
 		free(bucket);
 		bucket = next;

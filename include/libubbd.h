@@ -114,6 +114,9 @@ struct ubbd_dev_info {
 	};
 };
 
+#define UBBD_CACHE_MODE_WT	0
+#define UBBD_CACHE_MODE_WB	1
+
 struct ubbd_req_stats {
 	uint64_t reqs;
 	uint64_t handle_time;

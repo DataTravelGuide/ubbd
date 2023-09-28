@@ -18,8 +18,12 @@
 #define USKIPLIST_MAXLEVEL		6
 
 struct skiplist_node {
-	void *next;
-	pthread_mutex_t node_lock;
+	void *next[USKIPLIST_MAXLEVEL];
+};
+
+struct skiplist_head {
+	struct skiplist_node node;
+	pthread_mutex_t lock;
 };
 
 struct cache_key {
@@ -29,8 +33,7 @@ struct cache_key {
 
 	ubbd_atomic ref;
 
-	struct skiplist_node node_list[USKIPLIST_MAXLEVEL];
-	pthread_mutex_t lock;
+	struct skiplist_node node;
 
 	uint64_t	l_off;
 	uint64_t	p_off;
@@ -38,6 +41,8 @@ struct cache_key {
 	uint64_t	flags;
 	uint64_t	seg_gen;
 };
+
+#define CACHE_KEY(X)		container_of(X, struct cache_key, node)
 
 static inline uint64_t cache_key_lstart(struct cache_key *key)
 {
@@ -120,7 +125,6 @@ struct data_head {
 	pthread_mutex_t	data_head_lock;
 };
 
-
 #define CACHE_DATA_HEAD_MAX	32
 
 struct cache_key_pool {
@@ -152,7 +156,32 @@ struct cache_super {
 	struct cache_key_pool *key_pools;
 };
 
-struct cache_super cache_sb;
+struct ubbd_cache_backend {
+	struct ubbd_backend ubbd_b;
+	struct ubbd_backend *cache_backend;
+	struct ubbd_backend *backing_backend;
+	struct ubbd_backend *cache_backends[4];
+	int cache_mode;
+	bool detach_on_close;
+	uint64_t size;
+
+	struct skiplist_head *cache_key_lists;
+	uint64_t cache_key_list_num;
+
+	pthread_mutex_t cache_disk_append_mutex;
+	pthread_mutex_t sb_write_lock;
+
+	struct cache_super cache_sb;
+	char *sb_buf;
+
+	pthread_t cache_writeback_thread;
+	bool writeback_stop;
+
+	pthread_t cache_gc_thread;
+	bool gc_stop;
+
+	bool lcache_debug;
+};
 
 struct cache_super_ondisk {
 	__u64	csum;
@@ -180,24 +209,23 @@ struct cache_super_ondisk {
 #define CACHE_KEY_LIST_SHIFT	22
 #define CACHE_KEY_LIST_MASK	0x3FFFFF
 
-static inline struct segment *cache_key_seg(struct cache_key *key)
+static inline struct segment *cache_key_seg(struct ubbd_cache_backend *cache_b, struct cache_key *key)
 {
-	return &cache_sb.segments[key->p_off >> CACHE_SEG_SHIFT];
+	return &cache_b->cache_sb.segments[key->p_off >> CACHE_SEG_SHIFT];
 }
 
-static uint64_t seg_pos_to_addr(struct seg_pos *pos)
+static inline uint64_t seg_pos_to_addr(struct seg_pos *pos)
 {
 	return ((pos->seg << CACHE_SEG_SHIFT) + pos->off_in_seg);
 }
 
 static int new_usl_random_level(uint64_t i);
-static inline struct cache_key *cache_key_alloc(int queue_id)
+static inline struct cache_key *cache_key_alloc(struct ubbd_cache_backend *cache_b, int queue_id)
 {
-	struct cache_key_pool *c_key_pool = &cache_sb.key_pools[queue_id];
+	struct cache_key_pool *c_key_pool = &cache_b->cache_sb.key_pools[queue_id];
 	struct ubbd_mempool *key_pool = c_key_pool->key_pool;
 	struct cache_key *key;
 	int ret;
-	int i;
 
 	ret = ubbd_mempool_get(key_pool, (void **)&key);
 	if (ret) {
@@ -205,13 +233,8 @@ static inline struct cache_key *cache_key_alloc(int queue_id)
 		return NULL;
 	}
 
-	for (i = 0; i < USKIPLIST_MAXLEVEL; i++) {
-		pthread_mutex_init(&key->node_list[i].node_lock, NULL);
-	}
-
-	pthread_mutex_init(&key->lock, NULL);
-
 	key->level = new_usl_random_level(ubbd_atomic_inc_return(&c_key_pool->seq));
+	//ubbd_err("alloc key %p\n", key);
 	ubbd_atomic_set(&key->ref, 1);
 
 	return key;
@@ -222,15 +245,31 @@ static inline void cache_key_get(struct cache_key *key)
 	if (!key)
 		return;
 
+	if (0) {
+		ubbd_err("key: %p, ref: %d\n", key, ubbd_atomic_read(&key->ref));
+		//print_stacktrace();
+		if (ubbd_atomic_read(&key->ref) <= 0) {
+			ubbd_err("key: %p ref <= 0\n", key);
+		}
+	}
 	ubbd_atomic_inc(&key->ref);
 }
 
 static inline void cache_key_put(struct cache_key *key)
 {
+	if (false && ubbd_atomic_read(&key->ref) <= 0) {
+		ubbd_err("key: %p, ref: %d\n", key, ubbd_atomic_read(&key->ref));
+		//print_stacktrace();
+		if ( ubbd_atomic_read(&key->ref) <= 0) {
+			ubbd_err("<= 0 \n");
+		}
+	}
+
 	if (!ubbd_atomic_dec_and_test(&key->ref)) {
 		return;
 	}
 
+	//ubbd_err("free key: %p\n", key);
 	ubbd_mempool_put(key);
 }
 
@@ -250,11 +289,11 @@ static inline void cache_key_merge(struct cache_key *key_1,
 }
 
 struct cache_key_ondisk;
-static inline struct cache_key *cache_key_decode(struct cache_key_ondisk *key_disk)
+static inline struct cache_key *cache_key_decode(struct ubbd_cache_backend *cache_b, struct cache_key_ondisk *key_disk)
 {
 	struct cache_key *key;
 
-	key = cache_key_alloc(0);
+	key = cache_key_alloc(cache_b, 0);
 	if (!key) {
 		return NULL;
 	}
@@ -306,6 +345,10 @@ static inline void cache_key_delete(struct cache_key *key)
 	key->deleted = 1;
 }
 
+static inline int get_cache_backend(struct ubbd_cache_backend *cache_b, uint64_t off)
+{
+	return (off >> CACHE_SEG_SHIFT) / cache_b->cache_sb.segs_per_device;
+}
 
 /*
  * There are about 1/4 bits in random_data are 1 and others are 0, that
@@ -361,5 +404,35 @@ static inline int new_usl_random_level(uint64_t i)
 
 	return l;
 }
+
+int cache_sb_write(struct ubbd_cache_backend *cache_b);
+
+int cache_backend_wb_start(struct ubbd_cache_backend *cache_b);
+int cache_backend_wb_stop(struct ubbd_cache_backend *cache_b);
+
+int cache_backend_gc_start(struct ubbd_cache_backend *cache_b);
+int cache_backend_gc_stop(struct ubbd_cache_backend *cache_b);
+
+void seg_used_remove(struct ubbd_cache_backend *cache_b, struct cache_key *key);
+void seg_used_add(struct ubbd_cache_backend *cache_b, struct cache_key *key);
+void cache_seg_put(struct ubbd_cache_backend *cache_b, uint64_t index);
+void cache_seg_get(struct ubbd_cache_backend *cache_b, uint64_t index);
+void cache_seg_invalidate(struct ubbd_cache_backend *cache_b, uint64_t index);
+
+int cache_backend_io_readv(struct ubbd_cache_backend *cache_b, struct ubbd_backend_io *io);
+int cache_backend_io_writev(struct ubbd_cache_backend *cache_b, struct ubbd_backend_io *io);
+void cache_data_heads_init(struct ubbd_cache_backend *cache_b);
+int cache_backend_ioctx_size(void);
+int cache_backend_io_init(struct ubbd_cache_backend *cache_b);
+void cache_backend_io_exit(struct ubbd_cache_backend *cache_b);
+
+int skiplist_find(struct skiplist_head *skiplist, struct cache_key *key,
+		struct skiplist_node **prev_list, struct skiplist_node **next_list);
+int cache_key_insert(struct ubbd_cache_backend *cache_b, struct cache_key *key);
+void cache_key_list_dump(struct ubbd_cache_backend *cache_b);
+int cache_key_ondisk_write_all(struct ubbd_cache_backend *cache_b);
+int cache_key_ondisk_append(struct ubbd_cache_backend *cache_b, struct cache_key *key);
+void cache_backend_key_exit(struct ubbd_cache_backend *cache_b);
+int cache_backend_key_init(struct ubbd_cache_backend *cache_b);
 
 #endif /* CACHE_BACKEND_INTERNAL_H */

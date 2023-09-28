@@ -21,7 +21,7 @@ else
 endif
 
 ifneq ("$(CONFIG_CACHE_BACKEND)", "y")
-	SOURCES := $(filter-out ../lib/ubbd_devs/ubbd_cache_dev.c ../lib/ubbd_backends/ubbd_cache_backend/ubbd_cache_backend.c, $(SOURCES))
+	SOURCES := $(filter-out ../lib/ubbd_devs/ubbd_cache_dev.c ../lib/ubbd_backends/ubbd_cache_backend/%.c, $(SOURCES))
 endif
 
 .DEFAULT_GOAL := all

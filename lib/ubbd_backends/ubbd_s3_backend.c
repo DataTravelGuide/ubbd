@@ -425,10 +425,11 @@ static int write_object(char *oid, uint64_t off, uint64_t len, struct obj_io_ctx
 
 struct ubbd_backend_ops s3_backend_ops;
 
-static struct ubbd_backend* s3_backend_create(struct __ubbd_dev_info *info)
+static struct ubbd_backend* s3_backend_create(struct ubbd_dev_info *dev_info)
 {
 	struct ubbd_s3_backend *s3_backend;
 	struct ubbd_backend *ubbd_b;
+	struct __ubbd_dev_info *info = &dev_info->generic_dev.info;
 
 	s3_backend = calloc(1, sizeof(*s3_backend));
 	if (!s3_backend)

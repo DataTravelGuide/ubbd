@@ -11,11 +11,12 @@
 
 struct ubbd_backend_ops rbd_backend_ops;
 
-static struct ubbd_backend* rbd_backend_create(struct __ubbd_dev_info *info)
+static struct ubbd_backend* rbd_backend_create(struct ubbd_dev_info *dev_info)
 {
 	struct ubbd_rbd_backend *rbd_backend;
 	struct ubbd_rbd_conn *rbd_conn;
 	struct ubbd_backend *ubbd_b;
+	struct __ubbd_dev_info *info = &dev_info->generic_dev.info;
 
 	rbd_backend = calloc(1, sizeof(*rbd_backend));
 	if (!rbd_backend)
