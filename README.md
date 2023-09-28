@@ -42,14 +42,53 @@ Who should not use UBBD?
 
 # 5. performance
 
-We can get **15us** latency and **1.8 million** iops with null type ubbd device.
+5.1）We can get **2 million** iops with null type ubbd device.
 
-|  backend type|  latency |  iops |
-|--------------|----------|-------|
-|    null      |    15us  |  1.8M |
-|   ramdisk    |    19us  |  1.2M |
+	$ fio --name=test --rw=randwrite --bs=4k   --ioengine=libaio --iodepth=32 --numjobs=32 --filename=/dev/ubbd0 --direct=1  --eta-newline=1  --group_reporting --runtime 6
+	test: (g=0): rw=randwrite, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=32
+	...
+	fio-3.19
+	Starting 32 processes
+	Jobs: 32 (f=32): [w(32)][42.9%][w=8229MiB/s][w=2107k IOPS][eta 00m:04s]
+	Jobs: 32 (f=32): [w(32)][57.1%][w=8131MiB/s][w=2082k IOPS][eta 00m:03s]
+	Jobs: 32 (f=32): [w(32)][71.4%][w=7236MiB/s][w=1852k IOPS][eta 00m:02s]
+	Jobs: 32 (f=32): [w(32)][85.7%][w=7563MiB/s][w=1936k IOPS][eta 00m:01s]
+	Jobs: 32 (f=32): [w(32)][100.0%][w=7961MiB/s][w=2038k IOPS][eta 00m:00s]
+	test: (groupid=0, jobs=32): err= 0: pid=45505: Fri Sep 22 16:29:59 2023
+	write: IOPS=2034k, BW=7946MiB/s (8332MB/s)(46.6GiB/6001msec); 0 zone resets
+		slat (nsec): min=1663, max=56336k, avg=12402.61, stdev=86213.25
+		clat (nsec): min=1401, max=68157k, avg=488878.62, stdev=997580.04
+		lat (usec): min=6, max=68163, avg=501.43, stdev=1004.70
+		clat percentiles (usec):
+		|  1.00th=[  198],  5.00th=[  262], 10.00th=[  265], 20.00th=[  273],
+		| 30.00th=[  281], 40.00th=[  293], 50.00th=[  306], 60.00th=[  326],
+		| 70.00th=[  363], 80.00th=[  627], 90.00th=[  791], 95.00th=[ 1172],
+		| 99.00th=[ 1991], 99.50th=[ 2507], 99.90th=[12256], 99.95th=[30278],
+		| 99.99th=[33817]
+	bw (  MiB/s): min= 4346, max=11752, per=99.80%, avg=7930.21, stdev=70.42, samples=352
+	iops        : min=1112753, max=3008712, avg=2030131.18, stdev=18027.08, samples=352
+	lat (usec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.01%
+	lat (usec)   : 100=0.02%, 250=3.95%, 500=68.75%, 750=16.07%, 1000=3.64%
+	lat (msec)   : 2=6.57%, 4=0.72%, 10=0.14%, 20=0.03%, 50=0.08%
+	lat (msec)   : 100=0.01%
+	cpu          : usr=11.06%, sys=29.13%, ctx=12085328, majf=0, minf=14979
+	IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=100.0%, >=64=0.0%
+		submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+		complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.1%, 64=0.0%, >=64=0.0%
+		issued rwts: total=0,12207594,0,0 short=0,0,0,0 dropped=0,0,0,0
+		latency   : target=0, window=0, percentile=100.00%, depth=32
+	
+	Run status group 0 (all jobs):
+	WRITE: bw=7946MiB/s (8332MB/s), 7946MiB/s-7946MiB/s (8332MB/s-8332MB/s), io=46.6GiB (50.0GB), run=6001-6001msec
+	
+	Disk stats (read/write):
+	ubbd0: ios=0/12066702, merge=0/0, ticks=0/913888, in_queue=400703, util=98.44%
 
-<img src="doc/fio_ubbd_null_and_ram.gif" alt="fio" title="fio">
+5.2）we can get more than 1000K iops with lcache backend
+
+lcache VS bcache
+
+<img src="doc/lcache_vs_bcache.png" alt="lcache vs bcache" title="lcache vs bcache">
 
 # 6. ubbd with rbd
 

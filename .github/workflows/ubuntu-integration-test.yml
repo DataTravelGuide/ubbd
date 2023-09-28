@@ -1,4 +1,4 @@
-name: Run integration tests on ubuntu-latest
+name: Run integration tests on ubuntu
 
 on:
   pull_request_target:
@@ -9,6 +9,7 @@ jobs:
   integration-tests:
     runs-on: self-hosted
     timeout-minutes: 4320
+
     environment: integration-tests
     steps:
     - uses: actions/checkout@v2
