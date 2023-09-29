@@ -115,6 +115,7 @@ struct ubbd_ssh_backend {
 };
 #endif
 
+#ifdef CONFIG_CACHE_BACKEND
 struct ubbd_cache_backend {
 	struct ubbd_backend ubbd_b;
 	struct ubbd_backend *cache_backend;
@@ -123,7 +124,9 @@ struct ubbd_cache_backend {
 	int cache_mode;
 	bool detach_on_close;
 };
+#endif
 
+#ifdef CONFIG_S3_BACKEND
 struct ubbd_s3_backend {
 	struct ubbd_backend ubbd_b;
 	uint32_t block_size;
@@ -134,6 +137,7 @@ struct ubbd_s3_backend {
 	char volume_name[UBBD_NAME_MAX];
 	char bucket_name[UBBD_NAME_MAX];
 };
+#endif
 
 struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *backend_conf);
 void ubbd_backend_release(struct ubbd_backend *ubbd_b);
