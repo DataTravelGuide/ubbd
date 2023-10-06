@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ $UBBD_SKIP_INSTALL_DEP == "yes" ]; then
+if [ "${UBBD_SKIP_INSTALL_DEP}" == "yes" ]; then
 	exit 0
 fi
 
@@ -12,7 +12,7 @@ debian|ubuntu|devuan|elementary|softiron)
         ;;
 rocky|centos|fedora|rhel|ol|virtuozzo)
 	echo "centos"
-	yum install librbd-devel glibc-devel libnl3-devel libssh-devel libcurl-devel libxml2-devel  make gcc openssl-devel kernel-devel elfutils-libelf-devel rpm-build libcmocka-devel libasan -y
+	yum install librbd-devel glibc-devel libnl3-devel libssh-devel libcurl-devel libxml2-devel  make gcc openssl-devel kernel-devel elfutils-libelf-devel rpm-build libcmocka-devel libasan libaio-devel -y
         ;;
 *)
         echo "$ID is unknown, dependencies will have to be installed manually."

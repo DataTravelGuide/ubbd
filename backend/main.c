@@ -48,17 +48,13 @@ static struct option const long_options[] =
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "b:i:h:d:q";
+static char *short_options = "b:i:hd:q:";
 
 static void usage(int status)
 { 
-	if (status != 0)
-		fprintf(stderr, "Try `ubbd-backend --help' for more information.\n");
-	else {
-		printf("\
-			Usage: \n\
-				ubbd-backend --dev-id ID --backend-id B_ID --start-queues 1\n\n");
-	}
+	printf("\
+		Usage: \n\
+			ubbd-backend --dev-id ID --backend-id B_ID --start-queues 1\n\n");
 	exit(status);
 }
 

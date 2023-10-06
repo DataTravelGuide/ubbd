@@ -46,17 +46,13 @@ static struct option const long_options[] =
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "d:h:v";
+static char *short_options = "d:hv";
 
 static void usage(int status)
 { 
-	if (status != 0)
-		fprintf(stderr, "Try `ubbdd --help' for more information.\n");
-	else {
-		printf("\
-			Usage: \n\
-				ubbdd [--daemon]\n\n");
-	}
+	printf("\
+		Usage: \n\
+			ubbdd [--daemon]\n\n");
 	exit(status);
 }
 

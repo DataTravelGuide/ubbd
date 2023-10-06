@@ -78,7 +78,7 @@ static struct option const long_options[] =
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:o:u:r:m:d:h:v";
+static char *short_options = "c:o:u:r:m:d:hv";
 
 static void print_map_opt_msg(char *name, char *msg)
 {
@@ -94,81 +94,79 @@ static void print_opt_msg(char *name, char *msg)
 
 static void usage(int status)
 { 
-	if (status != 0)
-		fprintf(stderr, "Try `ubbdadm --help' for more information.\n");
-	else {
-		printf("Usage:\n");
-		printf("\tubbdadm <map|unmap|list|info|config|req-stats|req-stats-reset|dev-restart> [options]\n\n");
+	printf("Usage:\n");
+	printf("\tubbdadm <map|unmap|list|info|config|req-stats|req-stats-reset|dev-restart> [options]\n\n");
 
-		/* generic options */
-		printf("\n\t[generic options]:\n");
-		print_opt_msg("ubbdid", "id of ubbd device command operating on");
+	/* generic options */
+	printf("\n\t[generic options]:\n");
+	print_opt_msg("ubbdid", "id of ubbd device command operating on");
 
-		/* unmap options */
-		printf("\n\t[unmap options]:\n");
-		print_opt_msg("force", "force unmap a device, that means this command will fail inflight IO and unmap device");
-		print_opt_msg("detach", "this option works for cache type device, if detach is specified, cache device will be detached from backing in unmap");
+	/* unmap options */
+	printf("\n\t[unmap options]:\n");
+	print_opt_msg("force", "force unmap a device, that means this command will fail inflight IO and unmap device");
+	print_opt_msg("detach", "this option works for cache type device, if detach is specified, cache device will be detached from backing in unmap");
 
-		/* list options */
-		printf("\n\t[list options]:\n");
+	/* list options */
+	printf("\n\t[list options]:\n");
 
-		/* info options */
-		printf("\n\t[info options]:\n");
+	/* info options */
+	printf("\n\t[info options]:\n");
 
-		/* config options */
-		printf("\n\t[config options]:\n");
-		print_opt_msg("data-pages-reserve-percnt", "update the data pages reserved for each queue: [0 - 100]");
+	/* config options */
+	printf("\n\t[config options]:\n");
+	print_opt_msg("data-pages-reserve-percnt", "update the data pages reserved for each queue: [0 - 100]");
 
-		/* dev-restart options */
-		printf("\n\t[dev-restart options ]\n");
-		print_opt_msg("restart-mode", "mode to restart device: dev, queue, default");
+	/* dev-restart options */
+	printf("\n\t[dev-restart options ]\n");
+	print_opt_msg("restart-mode", "mode to restart device: dev, queue, default");
 
-		/* map options */
-		printf("\n\t[map options]:\n");
+	/* map options */
+	printf("\n\t[map options]:\n");
 
-		print_map_opt_msg("type", "device type for mapping: file, rbd, null, mem, ssh (Experimental), cache (Experimental), s3 (Experimental)");
-		print_map_opt_msg("devsize", "size of device to map, --devsize is required except rbd and file type");
-		print_map_opt_msg("io-timeout", "timeout before IO fail, default as 0 means no timeout.");
-		print_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].");
-		print_opt_msg("num-queues", "number of queues for block layer multiqueue");
-		print_opt_msg("read-only", "map a read only device");
+	print_map_opt_msg("type", "device type for mapping: file, rbd, null, mem, ssh (Experimental), cache (Experimental), s3 (Experimental)");
+	print_map_opt_msg("devsize", "size of device to map, --devsize is required except rbd and file type");
+	print_map_opt_msg("io-timeout", "timeout before IO fail, default as 0 means no timeout.");
+	print_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].");
+	print_opt_msg("num-queues", "number of queues for block layer multiqueue");
+	print_opt_msg("read-only", "map a read only device");
 
-		printf("\n");
+	printf("\n");
 
-		print_map_opt_msg("file-filepath", "file path for file type mapping");
+	print_map_opt_msg("file-filepath", "file path for file type mapping");
 
-		printf("\n");
+	printf("\n");
 
-		print_map_opt_msg("rbd-pool", "pool for rbd type mapping");
-		print_map_opt_msg("rbd-ns", "namespace for rbd type mapping");
-		print_map_opt_msg("rbd-image", "image for rbd type mapping");
-		print_map_opt_msg("rbd-snap", "snapshot of image for rbd type mapping");
-		print_map_opt_msg("rbd-ceph-conf", "ceph config file path for rbd type mapping");
-		print_map_opt_msg("rbd-user-name", "user name to connect ceph for rbd type mapping");
-		print_map_opt_msg("rbd-cluster-name", "ceph cluster name for rbd type mapping");
-		print_map_opt_msg("rbd-exclusive", "map rbd with exclusive mode");
-		print_map_opt_msg("rbd-quiesce", "use quiesce callbacks for rbd mapping");
-		print_map_opt_msg("rbd-quiesce-hook", "specify quiesce hook path (default: /usr/lib/ubbd/ubbd-rbd_quiesce)");
+	print_map_opt_msg("rbd-pool", "pool for rbd type mapping");
+	print_map_opt_msg("rbd-ns", "namespace for rbd type mapping");
+	print_map_opt_msg("rbd-image", "image for rbd type mapping");
+	print_map_opt_msg("rbd-snap", "snapshot of image for rbd type mapping");
+	print_map_opt_msg("rbd-ceph-conf", "ceph config file path for rbd type mapping");
+	print_map_opt_msg("rbd-user-name", "user name to connect ceph for rbd type mapping");
+	print_map_opt_msg("rbd-cluster-name", "ceph cluster name for rbd type mapping");
+	print_map_opt_msg("rbd-exclusive", "map rbd with exclusive mode");
+	print_map_opt_msg("rbd-quiesce", "use quiesce callbacks for rbd mapping");
+	print_map_opt_msg("rbd-quiesce-hook", "specify quiesce hook path (default: /usr/lib/ubbd/ubbd-rbd_quiesce)");
 
-		printf("\n");
+	printf("\n");
 
-		print_map_opt_msg("ssh-hostname", "hostname for ssh type mapping");
-		print_map_opt_msg("ssh-filepath", "filepath in remote host for ssh type mapping");
+	print_map_opt_msg("ssh-hostname", "hostname for ssh type mapping");
+	print_map_opt_msg("ssh-filepath", "filepath in remote host for ssh type mapping");
 
-		printf("\n");
+	printf("\n");
 
-		print_map_opt_msg("s3-block-size", "block size in s3 cluster, s3 type ubbd data is stored in block");
-		print_map_opt_msg("s3-hostname", "hostname to connect s3 cluster");
-		print_map_opt_msg("s3-port", "port to connect s3 cluster");
-		print_map_opt_msg("s3-accessid", "accessid to connect s3 cluster");
-		print_map_opt_msg("s3-accesskey", "accesskey to connect s3 cluster");
-		print_map_opt_msg("s3-volume-name", "create a volume in s3 cluster");
-		print_map_opt_msg("s3-bucket-name", "data is stored in s3 cluster bucket");
+	print_map_opt_msg("s3-block-size", "block size in s3 cluster, s3 type ubbd data is stored in block");
+	print_map_opt_msg("s3-hostname", "hostname to connect s3 cluster");
+	print_map_opt_msg("s3-port", "port to connect s3 cluster");
+	print_map_opt_msg("s3-accessid", "accessid to connect s3 cluster");
+	print_map_opt_msg("s3-accesskey", "accesskey to connect s3 cluster");
+	print_map_opt_msg("s3-volume-name", "create a volume in s3 cluster");
+	print_map_opt_msg("s3-bucket-name", "data is stored in s3 cluster bucket");
 
-		printf("\n");
+	printf("\n");
 
-		print_opt_msg("cache-mode", "cache mode for cache type mapping: writeback, writethrough");
-	}
+	print_opt_msg("cache-mode", "cache mode for cache type mapping: writeback, writethrough");
+
+	exit(status);
 }
 
 static int parse_map_options(struct __ubbd_map_opts *opts, const char *name, char *optarg)
@@ -408,7 +406,6 @@ int main(int argc, char **argv)
 			break;
 		case 'h':
 			usage(0);
-			return 0;
 		case 'v':
 			printf("ubbdadm: %s\n", UBBD_U_VERSION);
 			return 0;
