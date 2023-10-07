@@ -27,7 +27,7 @@ endif
 .DEFAULT_GOAL := all
 
 libubbd:
-	$(CC) $(EXTRA_CFLAGS) libubbd.c ../lib/ubbd_log_cmdline.c ../lib/ubbd_base_mgmt.c ../lib/utils.c $(UBBD_FLAGS)  -fPIC -shared -Wl,-soname,libubbd.so.$(LIBVER) -o libubbd.so.$(LIBVER)
+	$(CC) $(EXTRA_CFLAGS) libubbd.c ../lib/ubbd_log_cmdline.c ../lib/ubbd_base_mgmt.c ../lib/utils.c ../lib/cJSON.c $(UBBD_FLAGS)  -fPIC -shared -Wl,-soname,libubbd.so.$(LIBVER) -o libubbd.so.$(LIBVER)
 	@ln -sf libubbd.so.$(LIBVER)* libubbd.so
 
 all: libubbd

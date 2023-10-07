@@ -6,10 +6,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
+#include <linux/limits.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <unistd.h>
 
+#include "cJSON.h"
 #include "libubbd.h"
 #include "ubbd_version.h"
 
@@ -75,10 +78,11 @@ static struct option const long_options[] =
 	UBBD_MAP_OPT(cache, mode)
 
 	{"help", no_argument, NULL, 'h'},
+	{"input", required_argument, NULL, 0},
 	{NULL, 0, NULL, 0},
 };
 
-static char *short_options = "c:o:u:r:m:d:h:v";
+static char *short_options = "c:o:u:r:m:d:hv";
 
 static void print_map_opt_msg(char *name, char *msg)
 {
@@ -94,81 +98,83 @@ static void print_opt_msg(char *name, char *msg)
 
 static void usage(int status)
 { 
-	if (status != 0)
-		fprintf(stderr, "Try `ubbdadm --help' for more information.\n");
-	else {
-		printf("Usage:\n");
-		printf("\tubbdadm <map|unmap|list|info|config|req-stats|req-stats-reset|dev-restart> [options]\n\n");
+	printf("Usage:\n");
+	printf("\tubbdadm <map|unmap|list|info|config|req-stats|req-stats-reset|dev-restart> [options]\n\n");
 
-		/* generic options */
-		printf("\n\t[generic options]:\n");
-		print_opt_msg("ubbdid", "id of ubbd device command operating on");
+	/* generic options */
+	printf("\n\t[generic options]:\n");
+	print_opt_msg("ubbdid", "id of ubbd device command operating on");
 
-		/* unmap options */
-		printf("\n\t[unmap options]:\n");
-		print_opt_msg("force", "force unmap a device, that means this command will fail inflight IO and unmap device");
-		print_opt_msg("detach", "this option works for cache type device, if detach is specified, cache device will be detached from backing in unmap");
+	/* unmap options */
+	printf("\n\t[unmap options]:\n");
+	print_opt_msg("force", "force unmap a device, that means this command will fail inflight IO and unmap device");
+	print_opt_msg("detach", "this option works for cache type device, if detach is specified, cache device will be detached from backing in unmap");
 
-		/* list options */
-		printf("\n\t[list options]:\n");
+	/* list options */
+	printf("\n\t[list options]:\n");
 
-		/* info options */
-		printf("\n\t[info options]:\n");
+	/* info options */
+	printf("\n\t[info options]:\n");
 
-		/* config options */
-		printf("\n\t[config options]:\n");
-		print_opt_msg("data-pages-reserve-percnt", "update the data pages reserved for each queue: [0 - 100]");
+	/* config options */
+	printf("\n\t[config options]:\n");
+	print_opt_msg("data-pages-reserve-percnt", "update the data pages reserved for each queue: [0 - 100]");
 
-		/* dev-restart options */
-		printf("\n\t[dev-restart options ]\n");
-		print_opt_msg("restart-mode", "mode to restart device: dev, queue, default");
+	/* dev-restart options */
+	printf("\n\t[dev-restart options ]\n");
+	print_opt_msg("restart-mode", "mode to restart device: dev, queue, default");
 
-		/* map options */
-		printf("\n\t[map options]:\n");
+	/* map options */
+	printf("\n\t[map options]:\n");
 
-		print_map_opt_msg("type", "device type for mapping: file, rbd, null, mem, ssh (Experimental), cache (Experimental), s3 (Experimental)");
-		print_map_opt_msg("devsize", "size of device to map, --devsize is required except rbd and file type");
-		print_map_opt_msg("io-timeout", "timeout before IO fail, default as 0 means no timeout.");
-		print_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].");
-		print_opt_msg("num-queues", "number of queues for block layer multiqueue");
-		print_opt_msg("read-only", "map a read only device");
+	print_opt_msg("input", "input map options from a file which type is JSON");
 
-		printf("\n");
+	printf("\n");
 
-		print_map_opt_msg("file-filepath", "file path for file type mapping");
+	print_map_opt_msg("type", "device type for mapping: file, rbd, null, mem, ssh (Experimental), cache (Experimental), s3 (Experimental)");
+	print_map_opt_msg("devsize", "size of device to map, --devsize is required except rbd and file type");
+	print_map_opt_msg("io-timeout", "timeout before IO fail, default as 0 means no timeout.");
+	print_opt_msg("dev-share-memory-size", "share memory for each queue between userspace and kernel space, range is [4194304 (4M) - 1073741824 (1G)].");
+	print_opt_msg("num-queues", "number of queues for block layer multiqueue");
+	print_opt_msg("read-only", "map a read only device");
 
-		printf("\n");
+	printf("\n");
 
-		print_map_opt_msg("rbd-pool", "pool for rbd type mapping");
-		print_map_opt_msg("rbd-ns", "namespace for rbd type mapping");
-		print_map_opt_msg("rbd-image", "image for rbd type mapping");
-		print_map_opt_msg("rbd-snap", "snapshot of image for rbd type mapping");
-		print_map_opt_msg("rbd-ceph-conf", "ceph config file path for rbd type mapping");
-		print_map_opt_msg("rbd-user-name", "user name to connect ceph for rbd type mapping");
-		print_map_opt_msg("rbd-cluster-name", "ceph cluster name for rbd type mapping");
-		print_map_opt_msg("rbd-exclusive", "map rbd with exclusive mode");
-		print_map_opt_msg("rbd-quiesce", "use quiesce callbacks for rbd mapping");
-		print_map_opt_msg("rbd-quiesce-hook", "specify quiesce hook path (default: /usr/lib/ubbd/ubbd-rbd_quiesce)");
+	print_map_opt_msg("file-filepath", "file path for file type mapping");
 
-		printf("\n");
+	printf("\n");
 
-		print_map_opt_msg("ssh-hostname", "hostname for ssh type mapping");
-		print_map_opt_msg("ssh-filepath", "filepath in remote host for ssh type mapping");
+	print_map_opt_msg("rbd-pool", "pool for rbd type mapping");
+	print_map_opt_msg("rbd-ns", "namespace for rbd type mapping");
+	print_map_opt_msg("rbd-image", "image for rbd type mapping");
+	print_map_opt_msg("rbd-snap", "snapshot of image for rbd type mapping");
+	print_map_opt_msg("rbd-ceph-conf", "ceph config file path for rbd type mapping");
+	print_map_opt_msg("rbd-user-name", "user name to connect ceph for rbd type mapping");
+	print_map_opt_msg("rbd-cluster-name", "ceph cluster name for rbd type mapping");
+	print_map_opt_msg("rbd-exclusive", "map rbd with exclusive mode");
+	print_map_opt_msg("rbd-quiesce", "use quiesce callbacks for rbd mapping");
+	print_map_opt_msg("rbd-quiesce-hook", "specify quiesce hook path (default: /usr/lib/ubbd/ubbd-rbd_quiesce)");
 
-		printf("\n");
+	printf("\n");
 
-		print_map_opt_msg("s3-block-size", "block size in s3 cluster, s3 type ubbd data is stored in block");
-		print_map_opt_msg("s3-hostname", "hostname to connect s3 cluster");
-		print_map_opt_msg("s3-port", "port to connect s3 cluster");
-		print_map_opt_msg("s3-accessid", "accessid to connect s3 cluster");
-		print_map_opt_msg("s3-accesskey", "accesskey to connect s3 cluster");
-		print_map_opt_msg("s3-volume-name", "create a volume in s3 cluster");
-		print_map_opt_msg("s3-bucket-name", "data is stored in s3 cluster bucket");
+	print_map_opt_msg("ssh-hostname", "hostname for ssh type mapping");
+	print_map_opt_msg("ssh-filepath", "filepath in remote host for ssh type mapping");
 
-		printf("\n");
+	printf("\n");
 
-		print_opt_msg("cache-mode", "cache mode for cache type mapping: writeback, writethrough");
-	}
+	print_map_opt_msg("s3-block-size", "block size in s3 cluster, s3 type ubbd data is stored in block");
+	print_map_opt_msg("s3-hostname", "hostname to connect s3 cluster");
+	print_map_opt_msg("s3-port", "port to connect s3 cluster");
+	print_map_opt_msg("s3-accessid", "accessid to connect s3 cluster");
+	print_map_opt_msg("s3-accesskey", "accesskey to connect s3 cluster");
+	print_map_opt_msg("s3-volume-name", "create a volume in s3 cluster");
+	print_map_opt_msg("s3-bucket-name", "data is stored in s3 cluster bucket");
+
+	printf("\n");
+
+	print_opt_msg("cache-mode", "cache mode for cache type mapping: writeback, writethrough");
+
+	exit(status);
 }
 
 static int parse_map_options(struct __ubbd_map_opts *opts, const char *name, char *optarg)
@@ -328,6 +334,85 @@ static int output_dev_info(struct ubbdd_mgmt_rsp *rsp)
 	return ret;
 }
 
+static int parse_options(const char *opt_name, struct ubbd_map_options *opts, char *optarg)
+{
+	int ret = 0;
+
+	if (!strcmp(opt_name, "dev-share-memory-size")) {
+		opts->dev_share_memory_size = atoi(optarg);
+		if (opts->dev_share_memory_size % PAGE_SIZE) {
+			printf("dev-share-memory-size: %d is not multiple of 4096.\n",
+				       opts->dev_share_memory_size);
+			return -1;
+		}
+
+		if (opts->dev_share_memory_size < 4194304) {
+			printf("dev-share-memory-size: %d is not in range of [4194304 (4M) - 1073741824 (1G)]\n",
+					opts->dev_share_memory_size);
+			return -1;
+		}
+	} else if (!strcmp(opt_name, "num-queues")) {
+		opts->num_queues = atoi(optarg);
+	} else if (!strcmp(opt_name, "read-only")) {
+		opts->read_only = true;
+	} else if (!strcmp(opt_name, "type")) {
+		opts->type = optarg;
+	} else if (!strcmp(opt_name, "cache-mode")) {
+		opts->cache_dev.cache_mode = optarg;
+	} else if (!strncmp(opt_name, "cache-dev-", 10)) {
+		ret = parse_map_options(&opts->cache_dev.cache_opts,
+				opt_name + 10,
+				optarg);
+	} else if (!strncmp(opt_name, "backing-dev-", 12)) {
+		ret = parse_map_options(&opts->cache_dev.backing_opts,
+				opt_name + 12,
+				optarg);
+	} else {
+		ret = parse_map_options(&opts->generic_dev.opts, opt_name, optarg);
+	}
+
+	return ret;
+}
+
+static int parse_input_options(struct ubbd_map_options *opts, char *optarg, cJSON **root)
+{
+	int ret = 0;
+
+	int fd = open(optarg, O_RDONLY);
+	if (fd < 0) {
+		printf("open(%s) fail\n", optarg);
+		return -1;
+	}
+
+	char buf[ARG_MAX] = {0};
+
+	int n = read(fd, buf, ARG_MAX);
+	if (n == -1) {
+		printf("read(%s) error\n", optarg);
+		return -1;
+	}
+
+	if (fd)
+		close(fd);
+
+	*root = cJSON_Parse(buf);
+	if (*root == NULL) {
+		printf("parse(%s) error\n", optarg);
+		return -1;
+	}
+
+	cJSON *index = (*root)->child;
+
+	while (index != NULL) {
+		ret = parse_options(index->string, opts, index->valuestring);
+		if (ret)
+			return -1;
+		index = index->next;
+	}
+
+	return ret;
+}
+
 int main(int argc, char **argv)
 {
 	int ch, longindex;
@@ -340,52 +425,22 @@ int main(int argc, char **argv)
 	char *restart_mode = "default";
 	struct ubbdd_mgmt_rsp rsp = { 0 };
 	struct ubbd_map_options opts = { 0 };
+	cJSON *root = NULL;
 
 	optind = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 0:
-			if (!strcmp(long_options[longindex].name, "dev-share-memory-size")) {
-				opts.dev_share_memory_size = atoi(optarg);
-				if (opts.dev_share_memory_size % PAGE_SIZE) {
-					printf("dev-share-memory-size: %d is not multiple of 4096.\n",
-						       opts.dev_share_memory_size);
-					return -1;
-				}
-
-				if (opts.dev_share_memory_size < 4194304) {
-					printf("dev-share-memory-size: %d is not in range of [4194304 (4M) - 1073741824 (1G)]\n",
-							opts.dev_share_memory_size);
-					return -1;
-				}
-				break;
-			} else if (!strcmp(long_options[longindex].name, "num-queues")) {
-				opts.num_queues = atoi(optarg);
-				break;
-			} else if (!strcmp(long_options[longindex].name, "read-only")) {
-				opts.read_only = true;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "type")) {
-				opts.type = optarg;
-				break;
-			} else if (!strcmp(long_options[longindex].name, "cache-mode")) {
-				opts.cache_dev.cache_mode = optarg;
-				break;
-			} else if (!strncmp(long_options[longindex].name, "cache-dev-", 10)) {
-				ret = parse_map_options(&opts.cache_dev.cache_opts,
-						long_options[longindex].name + 10,
-						optarg);
-			} else if (!strncmp(long_options[longindex].name, "backing-dev-", 12)) {
-				ret = parse_map_options(&opts.cache_dev.backing_opts,
-						long_options[longindex].name + 12,
-						optarg);
+			if (!strcmp(long_options[longindex].name, "input")) {
+				ret = parse_input_options(&opts, optarg, &root);
 			} else {
-				ret = parse_map_options(&opts.generic_dev.opts, long_options[longindex].name, optarg);
+				ret = parse_options(long_options[longindex].name, &opts, optarg);
 			}
 
 			if (ret) {
-				return -1;
+				ret = -1;
+				goto delete;
 			}
 			break;
 		case 'c':
@@ -407,25 +462,30 @@ int main(int argc, char **argv)
 			detach = true;
 			break;
 		case 'h':
+			if (root)
+				cJSON_Delete(root);
 			usage(0);
-			return 0;
 		case 'v':
 			printf("ubbdadm: %s\n", UBBD_U_VERSION);
-			return 0;
+			ret = 0;
+			goto delete;
 		default:
 			printf("unrecognized ubbd option.\n");
-			return -1;
+			ret = -1;
+			goto delete;
 		}
 	}
 
 	if (argc - optind > 1) {
 		printf("Too many subcommand.\n");
-		return -1;
+		ret = -1;
+		goto delete;
 	}
 
 	if (optind >= argc) {
 		printf("Missing subcommand.\n");
-		return -1;
+		ret = -1;
+		goto delete;
 	}
 
 	command = argv[optind];
@@ -495,5 +555,9 @@ int main(int argc, char **argv)
 	}
 
 out:
+delete:
+	if (root)
+		cJSON_Delete(root);
+
 	return ret;
 }
