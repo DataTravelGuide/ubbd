@@ -126,6 +126,12 @@ static int rbd_backend_open(struct ubbd_backend *ubbd_b)
 		return ret;
 	}
 
+	ret = ubbd_rbd_get_size(rbd_conn, &ubbd_b->dev_size);
+	if (ret < 0) {
+		ubbd_err("failed to get size of ubbd in backend open.\n");
+		goto close_rbd;
+	}
+
 	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE) {
 		ret = rbd_lock_acquire(rbd_conn->image, RBD_LOCK_MODE_EXCLUSIVE);
 		if (ret) {
