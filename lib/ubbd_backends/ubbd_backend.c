@@ -311,19 +311,17 @@ int _backend_lock(int dev_id, int backend_id, int *fd, bool test) {
 		goto free_path;
 	}
 
-	if (!test) {
+	if (test) {
+		ret = lockf(*fd, F_TEST, 0);
+	} else {
 		ret = lockf(*fd, F_LOCK, 0);
-
-		if (ret) {
-			ubbd_err("failed to flock %s\n", lock_path);
-		};
-		goto close;
 	}
 
-	ret = lockf(*fd, F_TEST, 0);
+	if (ret < 0) {
+		ubbd_err("failed to flock %s\n", lock_path);
+		close(*fd);
+	};
 
-close:
-	close(*fd);
 free_path:
 	free(lock_path);
 out:
@@ -341,7 +339,7 @@ void ubbd_backend_unlock(int fd)
 
 	ret = lockf(fd, F_ULOCK, 0);
 	if (ret < 0) {
-		ubbd_err("failed to unlock: %d\n", ret);
+		ubbd_err("failed to unlock: %d\n", errno);
 	}
 	close(fd);
 }
