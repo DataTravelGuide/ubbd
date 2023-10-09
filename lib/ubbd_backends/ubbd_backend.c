@@ -318,7 +318,7 @@ int _backend_lock(int dev_id, int backend_id, int *fd, bool test) {
 	}
 
 	if (ret < 0) {
-		ubbd_err("failed to flock %s\n", lock_path);
+		ubbd_err("failed to flock(%s) %s\n", (test? "test" : "lock"), lock_path);
 		close(*fd);
 	};
 
