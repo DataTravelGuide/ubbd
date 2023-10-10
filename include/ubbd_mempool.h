@@ -127,14 +127,16 @@ again:
 	if (entry_reclaim == NULL) {
 		/* set reclaim to LIST_POISON to prevent race with other put */
 		if (entry_reclaim != ubbd_cas(&pool->reclaim, entry_reclaim, LIST_POISON)) {
-				cpu_relax();
-				goto again;
+			cpu_relax();
+			goto again;
 		}
 		pool->reclaim_last = entry;
+		entry->next = NULL;
 		entry_reclaim = LIST_POISON;
+	} else {
+		entry->next = entry_reclaim;
 	}
 
-	entry->next = entry_reclaim;
 	if (entry_reclaim != ubbd_cas(&pool->reclaim, entry_reclaim, entry)) {
 		cpu_relax();
 		goto again;
