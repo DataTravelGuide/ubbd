@@ -8,10 +8,11 @@
 
 struct ubbd_backend_ops ssh_backend_ops;
 
-static struct ubbd_backend* ssh_backend_create(struct __ubbd_dev_info *info)
+static struct ubbd_backend* ssh_backend_create(struct ubbd_dev_info *dev_info)
 {
 	struct ubbd_ssh_backend *ssh_backend;
 	struct ubbd_backend *ubbd_b;
+	struct __ubbd_dev_info *info = &dev_info->generic_dev.info;
 
 	ssh_backend = calloc(1, sizeof(*ssh_backend));
 	if (!ssh_backend)

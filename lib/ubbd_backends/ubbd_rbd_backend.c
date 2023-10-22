@@ -11,11 +11,12 @@
 
 struct ubbd_backend_ops rbd_backend_ops;
 
-static struct ubbd_backend* rbd_backend_create(struct __ubbd_dev_info *info)
+static struct ubbd_backend* rbd_backend_create(struct ubbd_dev_info *dev_info)
 {
 	struct ubbd_rbd_backend *rbd_backend;
 	struct ubbd_rbd_conn *rbd_conn;
 	struct ubbd_backend *ubbd_b;
+	struct __ubbd_dev_info *info = &dev_info->generic_dev.info;
 
 	rbd_backend = calloc(1, sizeof(*rbd_backend));
 	if (!rbd_backend)
@@ -124,6 +125,12 @@ static int rbd_backend_open(struct ubbd_backend *ubbd_b)
 	if (ret) {
 		ubbd_err("failed to open rbd connection: %d\n", ret);
 		return ret;
+	}
+
+	ret = ubbd_rbd_get_size(rbd_conn, &ubbd_b->dev_size);
+	if (ret < 0) {
+		ubbd_err("failed to get size of ubbd in backend open.\n");
+		goto close_rbd;
 	}
 
 	if (rbd_conn->flags & UBBD_DEV_INFO_RBD_FLAGS_EXCLUSIVE) {

@@ -27,6 +27,9 @@ int ubbd_close_kring(struct ubbd_kring_info *kring_info)
 	int ret;
 	int retval = 0;
 
+	if (!kring_info || !kring_info->map)
+		return 0;
+
 	ret = munmap(kring_info->map, kring_info->kring_map_size);
 	if (ret != 0) {
 		ubbd_err("could not unmap device: %d\n", errno);

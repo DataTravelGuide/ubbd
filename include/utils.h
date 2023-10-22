@@ -355,4 +355,8 @@ static inline void bugon(int condition, const char* message) {
 
 #define BUG_ON(condition, message) bugon((condition), (message))
 
+#include <execinfo.h>
+
+void print_stacktrace(void);
+
 #endif /* UTILS_H */

@@ -45,10 +45,11 @@ out:
 
 struct ubbd_backend_ops mem_backend_ops;
 
-static struct ubbd_backend* mem_backend_create(struct __ubbd_dev_info *info)
+static struct ubbd_backend* mem_backend_create(struct ubbd_dev_info *dev_info)
 {
 	struct ubbd_mem_backend *mem_backend;
 	struct ubbd_backend *ubbd_b;
+	struct __ubbd_dev_info *info = &dev_info->generic_dev.info;
 
 	mem_backend = calloc(1, sizeof(*mem_backend));
 	if (!mem_backend)

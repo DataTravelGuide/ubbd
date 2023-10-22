@@ -319,3 +319,15 @@ uint64_t crc64(const void *_data, size_t len)
 
 	return crc ^ 0xFFFFFFFFFFFFFFFFULL;
 }
+
+void print_stacktrace(void) {
+    void* callstack[128];
+    int frames = backtrace(callstack, 128);
+    char** strs = backtrace_symbols(callstack, frames);
+    if (strs) {
+        for (int i = 0; i < frames; ++i) {
+            ubbd_err("%s\n", strs[i]);
+        }
+        free(strs);
+    }
+}

@@ -8,10 +8,11 @@
 
 struct ubbd_backend_ops null_backend_ops;
 
-static struct ubbd_backend* null_backend_create(struct __ubbd_dev_info *info)
+static struct ubbd_backend* null_backend_create(struct ubbd_dev_info *dev_info)
 {
 	struct ubbd_null_backend *null_backend;
 	struct ubbd_backend *ubbd_b;
+	struct __ubbd_dev_info *info = &dev_info->generic_dev.info;
 
 	null_backend = calloc(1, sizeof(*null_backend));
 	if (!null_backend)
@@ -21,6 +22,7 @@ static struct ubbd_backend* null_backend_create(struct __ubbd_dev_info *info)
 	ubbd_b->dev_type = UBBD_DEV_TYPE_NULL;
 	ubbd_b->backend_ops = &null_backend_ops;
 	ubbd_b = &null_backend->ubbd_b;
+	ubbd_b->dev_size = info->size;
 
 	return ubbd_b;
 }

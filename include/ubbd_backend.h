@@ -54,7 +54,7 @@ struct ubbd_backend_opts {
 
 struct ubbd_backend;
 struct ubbd_backend_ops {
-	struct ubbd_backend* (*create) (struct __ubbd_dev_info *info);
+	struct ubbd_backend* (*create) (struct ubbd_dev_info *info);
 	int (*open) (struct ubbd_backend *ubbd_b);
 	void (*close) (struct ubbd_backend *ubbd_b);
 	void (*release) (struct ubbd_backend *ubbd_b);
@@ -115,15 +115,11 @@ struct ubbd_ssh_backend {
 };
 #endif
 
-struct ubbd_cache_backend {
-	struct ubbd_backend ubbd_b;
-	struct ubbd_backend *cache_backend;
-	struct ubbd_backend *backing_backend;
-	struct ubbd_backend *cache_backends[4];
-	int cache_mode;
-	bool detach_on_close;
-};
+#ifdef CONFIG_CACHE_BACKEND
+struct ubbd_cache_backend;
+#endif
 
+#ifdef CONFIG_S3_BACKEND
 struct ubbd_s3_backend {
 	struct ubbd_backend ubbd_b;
 	uint32_t block_size;
@@ -134,8 +130,10 @@ struct ubbd_s3_backend {
 	char volume_name[UBBD_NAME_MAX];
 	char bucket_name[UBBD_NAME_MAX];
 };
+#endif
 
 struct ubbd_backend *ubbd_backend_create(struct ubbd_backend_conf *backend_conf);
+struct ubbd_backend *backend_create(struct ubbd_dev_info *dev_info);
 void ubbd_backend_release(struct ubbd_backend *ubbd_b);
 int ubbd_backend_start(struct ubbd_backend *ubbd_b, bool start_queues);
 void ubbd_backend_stop(struct ubbd_backend *ubbd_b);

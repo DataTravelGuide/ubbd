@@ -18,9 +18,6 @@
 #define DEFAULT_RBD_POOL	"rbd"
 #define DEFAULT_RBD_QUIESCE_HOOK	"/usr/lib/ubbd/ubbd-rbd_quiesce"
 
-#define UBBD_CACHE_MODE_WT	0
-#define UBBD_CACHE_MODE_WB	1
-
 char *cmd_to_str(enum ubbdd_mgmt_cmd cmd)
 {
 	if (cmd == UBBDD_MGMT_CMD_MAP)
