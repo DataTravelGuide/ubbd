@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ $UBBD_SKIP_INSTALL_DEP == "yes" ]; then
+if [ "$UBBD_SKIP_INSTALL_DEP" == "yes" ]; then
 	exit 0
 fi
 
