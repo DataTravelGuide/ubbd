@@ -31,6 +31,7 @@ struct ubbd_mempool {
 	struct mempool_entry *reclaim;
 	struct mempool_entry *reclaim_last;
 
+	bool debug;
 
 	pthread_t fillin_thread;
 	bool thread_stop;
@@ -63,7 +64,9 @@ again:
 
 	*block = entry_available->block;
 	memset(*block, 0, pool->blocksize);
-	ubbd_atomic_inc(&entry_available->bucket->used);
+
+	if (pool->debug)
+		ubbd_atomic_inc(&entry_available->bucket->used);
 
 	return 0;
 
@@ -294,7 +297,8 @@ static inline void ubbd_mempool_free(struct ubbd_mempool *pool)
 
 	bucket = pool->inline_bucket.next;
 	while (bucket) {
-		ubbd_err("used: %d\n", ubbd_atomic_read(&bucket->used));
+		if (pool->debug)
+			ubbd_err("used: %d\n", ubbd_atomic_read(&bucket->used));
 		next = bucket->next;
 		free(bucket);
 		bucket = next;

@@ -5,7 +5,7 @@ static bool need_gc(struct ubbd_cache_backend *cache_b)
 	if (cache_b->cache_sb.key_tail_pos.seg == cache_b->cache_sb.dirty_tail_pos.seg)
 		return false;
 
-	if (ubbd_bitmap_weight(cache_b->cache_sb.seg_bitmap) < 10)
+	if (ubbd_bitmap_weight(cache_b->cache_sb.seg_bitmap) < (cache_b->cache_sb.n_segs * 0.7))
 		return false;
 
 	return true;
