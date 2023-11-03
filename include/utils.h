@@ -21,7 +21,9 @@
 #define MIN(a,b)            (((a) < (b)) ? (a) : (b))
 #endif
 
-#define cpu_relax() do { asm volatile("pause\n":::"memory"); } while (0)
+/* TODO find out a way to do cpu_relax on x86_64 and arm */
+/*#define cpu_relax() do { asm volatile("pause\n":::"memory"); } while (0)*/
+#define cpu_relax()
 #define ubbd_cas         __sync_val_compare_and_swap
 
 # define do_div(n,base) ({                                      \
