@@ -21,7 +21,7 @@ UBBD_VERSION ?= ubbd-$(VERSION)
 $(shell rm -rf include/ubbd_compat.h)
 UBBDCONF_HEADER := include/ubbd_compat.h
 LIBVER := 1
-DIST_FILES = ubbdadm ubbdd backend lib include Makefile etc man install_dep.sh VERSION mk configure build_deb.sh build_rpm.sh debian rpm unittests CONFIG libs3 ocf
+DIST_FILES = ubbdadm ubbdd backend lib include Makefile etc man install_dep.sh VERSION mk configure build_deb.sh build_rpm.sh debian rpm unittests CONFIG libs3
 
 UBBD_FLAGS := -I /usr/include/libnl3/ -I $(UBBD_SRC)/include/ubbd-headers/ -I $(UBBD_SRC)/include/ -O2
 
@@ -29,12 +29,6 @@ ifeq ("$(CONFIG_S3_BACKEND)", "y")
 	DIST_FILES += libs3
 	UBBD_FLAGS += -I$(UBBD_SRC)/libs3/inc
 	UBBD_FLAGS += -L$(UBBD_SRC)/libs3/build/lib/
-endif
-
-ifeq ("$(CONFIG_CACHE_BACKEND)", "y")
-	DIST_FILES += ocf
-	UBBD_FLAGS += -I$(UBBD_SRC)/src/ocf/env/
-	UBBD_FLAGS += -I$(UBBD_SRC)/src/ocf/
 endif
 
 .DEFAULT_GOAL := all
