@@ -10,6 +10,7 @@ Build-Depends: librbd-dev,
 	libxml2-dev,
 	libssl-dev,
 	libssh-dev,
+	libaio-dev,
 	debhelper,
 
 Package: ubbd
@@ -22,6 +23,7 @@ Depends: librbd1,
 	libcurl4,
 	libxml2,
 	libssl-dev,
+	libaio-dev,
 Homepage: https://github.com/DataTravelGuide/ubbd
 Description: UBBD: Userspace Backend Block Device
 
