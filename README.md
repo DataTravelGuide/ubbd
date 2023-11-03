@@ -36,9 +36,15 @@ Who should not use UBBD?
 	   $ cd ubbd
 	   $ ./build_and_install.sh
 
-**install from package**
+**install from script**
 	
 	bash -c "$(wget https://raw.githubusercontent.com/DataTravelGuide/ubbd/master/install-ubbd.sh -O -)"
+
+**install from package**
+
+	$ sudo add-apt-repository ppa:datatravelguide/ppa
+	$ sudo apt update
+	$ sudo apt install ubbd ubbd-kernel -y
 
 # 5. performance
 
