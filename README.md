@@ -44,7 +44,7 @@ Who should not use UBBD?
 
 	$ sudo add-apt-repository ppa:datatravelguide/ppa
 	$ sudo apt update
-	$ sudo apt install ubbd ubbd-kernel -y
+	$ sudo apt install ubbd ubbd-kernel-dkms -y
 
 # 5. performance
 
