@@ -6,7 +6,7 @@ set -xe
 [ -z "$INSTALL_UBBD_KERNEL" ] && INSTALL_UBBD_KERNEL=1
 [ -z "$INSTALL_UBBD" ] && INSTALL_UBBD=1
 
-UBBD_KERNEL_DOWNLOAD_URL="https://github.com/DataTravelGuide/ubbd-kernel/releases/download/v${UBBD_KERNEL_VERSION}/ubbd-kernel-${UBBD_KERNEL_VERSION}.tar.gz"
+UBBD_KERNEL_DOWNLOAD_URL="https://github.com/DataTravelGuide/ubbd-kernel/releases/download/v${UBBD_KERNEL_VERSION}/ubbd-kernel-dkms-${UBBD_KERNEL_VERSION}.tar.gz"
 UBBD_DOWNLOAD_URL="https://github.com/DataTravelGuide/ubbd/releases/download/v${UBBD_VERSION}/ubbd-${UBBD_VERSION}.tar.gz"
 
 
