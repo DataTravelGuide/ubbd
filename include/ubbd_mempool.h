@@ -147,7 +147,8 @@ again:
 		goto again;
 	}
 
-	ubbd_atomic_dec(&entry->bucket->used);
+	if (pool->debug)
+		ubbd_atomic_dec(&entry->bucket->used);
 }
 
 static void *fillin_fn(void *arg)
