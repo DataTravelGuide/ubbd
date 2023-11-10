@@ -35,11 +35,11 @@ endif
 
 $(UBBDCONF_HEADER):
 	@> $@
-	@echo $(CHECK_BUILD) compat-tests/have_sftp_fsync.c
+	@echo compat-tests/have_sftp_fsync.c
 	@if $(CC) compat-tests/have_sftp_fsync.c -lssh > /dev/null 2>&1; then echo "#define HAVE_SFTP_FSYNC 1"; else echo "/*#undefined HAVE_SFTP_FSYNC*/"; fi >> $@
-	@echo $(CHECK_BUILD) compat-tests/have_rbd_quiesce.c
+	@echo compat-tests/have_rbd_quiesce.c
 	@if $(CC) compat-tests/have_rbd_quiesce.c -lrbd > /dev/null 2>&1; then echo "#define HAVE_RBD_QUIESCE 1"; else echo "/*#undefined HAVE_RBD_QUIESCE*/"; fi >> $@
-	@echo $(CHECK_BUILD) compat-tests/have_assembly_pause.c
+	@echo compat-tests/have_assembly_pause.c
 	@if $(CC) compat-tests/have_assembly_pause.c > /dev/null 2>&1; then echo "#define HAVE_ASSEMBLY_PAUSE 1"; else echo "/*#undefined HAVE_ASSEMBLY_PAUSE*/"; fi >> $@
 	@if [ "${CONFIG_CACHE_BACKEND}" = "y" ]; then echo "#define CONFIG_CACHE_BACKEND 1"; else echo "/*#undefined CONFIG_CACHE_BACKEND*/"; fi >> $@
 	@if [ "${CONFIG_S3_BACKEND}" = "y" ]; then echo "#define CONFIG_S3_BACKEND 1"; else echo "/*#undefined CONFIG_S3_BACKEND*/"; fi >> $@
