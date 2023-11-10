@@ -18,6 +18,9 @@ endif
 
 VERSION ?= $(shell cat VERSION)
 UBBD_VERSION ?= ubbd-$(VERSION)
+# Remove include/ubbd_compat.h firstly in any command of make,
+# this will result there is no include/ubbd_compat.h after make install.
+# that's not a problem.
 $(shell rm -rf include/ubbd_compat.h)
 UBBDCONF_HEADER := include/ubbd_compat.h
 LIBVER := 1
@@ -46,6 +49,7 @@ $(UBBDCONF_HEADER):
 	@if [ "${CONFIG_RBD_BACKEND}" = "y" ]; then echo "#define CONFIG_RBD_BACKEND 1"; else echo "/*#undefined CONFIG_RBD_BACKEND*/"; fi >> $@
 	@if [ "${CONFIG_SSH_BACKEND}" = "y" ]; then echo "#define CONFIG_SSH_BACKEND 1"; else echo "/*#undefined CONFIG_SSH_BACKEND*/"; fi >> $@
 	@>> $@
+	@cat $@
 	sed "s/@UBBD_VERSION@/$(VERSION)/g" include/ubbd_version.h.in > include/ubbd_version.h
 
 ubbdadm: $(UBBDCONF_HEADER)
